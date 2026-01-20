@@ -1,22 +1,22 @@
 ---
-agent: Create a UITableViewCell or UICollectionViewCell with integrated video player
-always: Use CTDesignSystem components, implement fallback URLs, proper memory management
-description: "Template for implementing video player cells with play/pause controls, loading states, error handling, and fallback URL support following Cho Tot iOS architecture standards"
+agent: Create a SwiftUI View with integrated video player
+always: Use LMS design system components, implement fallback URLs, proper memory management
+description: "Template for implementing video player views with play/pause controls, loading states, error handling, and fallback URL support following report_lms iOS architecture standards"
 ---
 
-# Video Player Cell Implementation Prompt
+# Video Player View Implementation Prompt
 
 ## Task
-Create a UITableViewCell or UICollectionViewCell with integrated video player functionality including play/pause controls, loading states, error handling, and fallback URL support.
+Create a SwiftUI View with integrated video player functionality including play/pause controls, loading states, error handling, and fallback URL support.
 
 ## Requirements
 - Must follow MVVM + Clean Architecture patterns
-- Use CTDesignSystem components only (no UIKit components)
-- Use SnapKit for all constraints
+- Use SwiftUI for all UI components
+- Use LMS design system components only
 - Include proper memory management and cleanup
 - Support fallback URLs for reliability
 - Implement loading and error states
-- Follow Cho Tot iOS coding standards
+- Follow report_lms iOS coding standards
 
 ## Implementation Instructions
 
@@ -24,109 +24,73 @@ Create a UITableViewCell or UICollectionViewCell with integrated video player fu
 Include all necessary imports at the top of your file:
 
 ```swift
-import UIKit
-import CTCommon
-import CTDesignSystem
-import CTComponent
-import CTAsset
+import SwiftUI
 import AVFoundation
 import AVKit
 ```
 
 ### Step 2: Define Core Properties
-Add these properties to your cell class:
+Add these properties to your view:
 ```swift
-// Theme
-private let theme = CMStaticThemeLoader.defaultTheme
-
 // Video Player Properties
-private var player: AVPlayer?
-private var playerLayer: AVPlayerLayer?
-private var playButton: DSButton?
-private var loadingIndicator: UIActivityIndicatorView?
+@State private var player: AVPlayer?
+@State private var isPlaying = false
+@State private var isLoading = false
+@State private var hasError = false
 
-// Container view để chứa video
-@IBOutlet private weak var containerVideoView: UIView!
+// Video URLs
+let videoURLs: [String]
+let title: String?
 ```
 
-### Step 3: Implement Lifecycle Methods
-Implement these required lifecycle methods in your cell class:
+### Step 3: Implement View Structure
+Implement the main view body:
 
-#### Required: awakeFromNib or initializer
+#### Required: View body
 ```swift
-override func awakeFromNib() {
-    super.awakeFromNib()
-    setupUI()
-    setupVideoPlayer()
-}
-```
-
-#### Required: prepareForReuse (for TableView/CollectionView cells)
-```swift
-override func prepareForReuse() {
-    super.prepareForReuse()
-    cleanupVideoPlayer()
-}
-```
-
-#### Required: deinit
-```swift
-deinit {
-    cleanupVideoPlayer()
+var body: some View {
+    ZStack {
+        VideoPlayer(player: player)
+            .onAppear {
+                loadVideo()
+            }
+            .onDisappear {
+                cleanupVideoPlayer()
+            }
+        
+        if isLoading {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle())
+        }
+        
+        if !isPlaying {
+            Button(action: playButtonTapped) {
+                Image(systemName: "play.circle.fill")
+                    .resizable()
+                    .frame(width: 60, height: 60)
+                    .foregroundColor(.white)
+                    .opacity(0.9)
+            }
+        }
+        
+        if hasError {
+            ErrorView()
+        }
+    }
+    .aspectRatio(16/9, contentMode: .fit)
+    .cornerRadius(8)
 }
 ```
 
 ### Step 4: Setup Video Player Components
-Implement these setup methods in your cell class:
+Implement these setup methods:
 
 #### Main setup method
 ```swift
-private func setupVideoPlayer() {
-    setupLoadingIndicator()
-    setupPlayButton()
-    // Call loadVideo() after receiving video URLs
-}
-```
-
-#### Loading indicator setup
-```swift
-private func setupLoadingIndicator() {
-    loadingIndicator = UIActivityIndicatorView(style: .medium)
-    guard let loadingIndicator = loadingIndicator else { return }
-    
-    loadingIndicator.color = theme.text.textPrimary.color
-    loadingIndicator.hidesWhenStopped = true
-    containerVideoView.addSubview(loadingIndicator)
-    
-    loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-        loadingIndicator.centerXAnchor.constraint(equalTo: containerVideoView.centerXAnchor),
-        loadingIndicator.centerYAnchor.constraint(equalTo: containerVideoView.centerYAnchor)
-    ])
-}
-```
-
-#### Play button setup
-```swift
-private func setupPlayButton() {
-    playButton = DSButton()
-    guard let playButton = playButton else { return }
-    
-    playButton.setStyle(DS.Button.primary(size: .large, isIconButtonOnly: true))
-    let playIcon = CTAssetSystemIcon.playOutline24px.image
-    playButton.setImage(playIcon, for: .normal)
-    playButton.addTarget(self, action: #selector(playButtonTapped), for: .touchUpInside)
-    playButton.alpha = 0.9
-    playButton.isHidden = true
-    
-    containerVideoView.addSubview(playButton)
-    playButton.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-        playButton.centerXAnchor.constraint(equalTo: containerVideoView.centerXAnchor),
-        playButton.centerYAnchor.constraint(equalTo: containerVideoView.centerYAnchor),
-        playButton.widthAnchor.constraint(equalToConstant: 60),
-        playButton.heightAnchor.constraint(equalToConstant: 60)
-    ])
+private func loadVideo() {
+    isLoading = true
+    hasError = false
+    loadVideoFromURLs(videoURLs, currentIndex: 0)
 }
 ```
 
@@ -135,50 +99,55 @@ Add these methods to handle video loading with multiple URL fallbacks:
 
 #### Main video loading method
 ```swift
-private func loadVideo(urls: [String]) {
-    loadVideoFromURLs(urls, currentIndex: 0)
-}
-
 private func loadVideoFromURLs(_ urls: [String], currentIndex: Int) {
     guard currentIndex < urls.count else {
-        Logger.print("All video URLs failed to load", level: .error)
-        loadingIndicator?.stopAnimating()
+        print("All video URLs failed to load")
+        isLoading = false
+        hasError = true
         return
     }
     
     guard let url = URL(string: urls[currentIndex]) else {
-        Logger.print("Invalid video URL: \(urls[currentIndex])", level: .error)
+        print("Invalid video URL: \(urls[currentIndex])")
         loadVideoFromURLs(urls, currentIndex: currentIndex + 1)
         return
     }
     
-    Logger.print("Attempting to load video from: \(url)", level: .info)
-    loadingIndicator?.startAnimating()
+    print("Attempting to load video from: \(url)")
     
     let playerItem = AVPlayerItem(url: url)
     player = AVPlayer(playerItem: playerItem)
     
-    // Setup player layer
-    playerLayer = AVPlayerLayer(player: player)
-    guard let playerLayer = playerLayer else { return }
-    
-    playerLayer.frame = containerVideoView.bounds
-    playerLayer.videoGravity = .resizeAspectFill
-    containerVideoView.layer.insertSublayer(playerLayer, at: 0)
-    
     // Observe player status
-    playerItem.addObserver(self, forKeyPath: "status", options: [.new], context: nil)
-    
-    // Add notification for playback end
     NotificationCenter.default.addObserver(
-        self,
-        selector: #selector(playerDidFinishPlaying),
-        name: .AVPlayerItemDidPlayToEndTime,
-        object: playerItem
-    )
+        forName: .AVPlayerItemDidPlayToEndTime,
+        object: playerItem,
+        queue: .main
+    ) { [weak self] _ in
+        self?.playerDidFinishPlaying()
+    }
     
-    // Store current index for fallback
-    containerVideoView.tag = currentIndex
+    // Check if ready to play
+    Task {
+        await checkPlayerStatus(playerItem, urls: urls, currentIndex: currentIndex)
+    }
+}
+
+private func checkPlayerStatus(_ item: AVPlayerItem, urls: [String], currentIndex: Int) async {
+    // Wait a moment for status to update
+    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+    
+    if item.status == .readyToPlay {
+        await MainActor.run {
+            isLoading = false
+            hasError = false
+        }
+    } else if item.status == .failed {
+        print("Video failed to load: \(item.error?.localizedDescription ?? "Unknown error")")
+        await MainActor.run {
+            loadVideoFromURLs(urls, currentIndex: currentIndex + 1)
+        }
+    }
 }
 ```
 
@@ -187,16 +156,22 @@ Implement these action methods for user interaction:
 
 #### Play/pause button tap handler
 ```swift
-@objc private func playButtonTapped() {
+private func playButtonTapped() {
     guard let player = player else { return }
     
-    if player.timeControlStatus == .playing {
+    if isPlaying {
         player.pause()
-        playButton?.isHidden = false
+        isPlaying = false
     } else {
         player.play()
-        playButton?.isHidden = true
+        isPlaying = true
     }
+}
+
+#### Video completion handler
+private func playerDidFinishPlaying() {
+    isPlaying = false
+    player?.seek(to: .zero)
 }
 ```
 

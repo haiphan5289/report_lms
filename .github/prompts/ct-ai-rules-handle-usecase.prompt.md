@@ -1,12 +1,13 @@
+````prompt
 ---
 mode: agent
-description: Generate ViewModel UseCase execution methods following MVVM + Clean Architecture pattern for iOS application
+description: Generate ViewModel UseCase execution methods following Clean Architecture + SwiftUI pattern for iOS application
 ---
 
 # ViewModel UseCase Execution Guide
 
 ## Overview
-This guide provides instructions for adding UseCase execution methods to ViewModels in the iOS application following the MVVM + Clean Architecture pattern.
+This guide provides instructions for adding UseCase execution methods to ViewModels in the iOS application following the Clean Architecture + SwiftUI pattern.
 
 ## Task Definition
 Define the task to achieve ViewModel UseCase execution integration, including specific requirements, constraints, and success criteria.
@@ -18,7 +19,7 @@ When generating a ViewModel UseCase execution method, you need to provide the fo
 - `{USECASE_NAME}`: The name of the UseCase (e.g., FetchUserProfile, UpdateSettings)
 - `{INPUT_PARAM}`: The input parameter type for the UseCase (e.g., String, UserRequest)
 - `{VIEWMODEL_CLASS}`: The ViewModel class name where the execution method will be added
-- `{REPO_PROPERTY_NAME}`: The repository property name in the ViewModel (e.g., checkoutRepo, dongtotRespository, posRepo, vehRepo)
+- `{USECASE_PROPERTY}`: The use case property name in the ViewModel
 
 ## Add ViewModel UseCase Execution Method
 
@@ -26,84 +27,107 @@ Add the following UseCase execution method to {VIEWMODEL_CLASS} file:
 
 ```swift
 // ⚠️ ADD THIS METHOD TO EXISTING {VIEWMODEL_CLASS} CLASS ⚠️
-extension {VIEWMODEL_CLASS} {
-    func execute{USECASE_NAME}(input: {INPUT_PARAM}) {
-        // 🔍 FIND: Repository property name in {VIEWMODEL_CLASS}
-        // Common names: checkoutRepo, dongtotRespository, posRepo, vehRepo
-        let useCase = CR{USECASE_NAME}UseCase(repository: self.{REPO_PROPERTY_NAME})
-        
-        // 🔒 MANDATORY: Handle success - DO NOT add additional logic
-        useCase.action?.elements
-            .observe(on: MainScheduler.instance)
-            .subscribe(onNext: { [weak self] result in
-                // TODO: Handle success result based on specific UseCase requirements
-                // Example: self?.presenter?.data.accept(result)
-            })
-            .disposed(by: disposeBag)
-        
+@MainActor
+final class {VIEWMODEL_CLASS}: ObservableObject {
+    @Published var data: ResponseModel?
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    
+    private let {USECASE_PROPERTY}: {USECASE_NAME}UseCase
+    
+    init({USECASE_PROPERTY}: {USECASE_NAME}UseCase) {
+        self.{USECASE_PROPERTY} = {USECASE_PROPERTY}
+    }
+    
+    func execute{USECASE_NAME}(input: {INPUT_PARAM}) async {
         // 🔒 MANDATORY: Handle loading state
-        useCase.action?.executing
-            .observe(on: MainScheduler.instance)
-            .subscribe(onNext: { [weak self] isLoading in
-                self?.presenter?.loading.accept(isLoading)
-            })
-            .disposed(by: disposeBag)
+        isLoading = true
+        defer { isLoading = false }
         
-        // 🔒 MANDATORY: Handle errors - Only guard let self, no additional processing
-        useCase.action?.underlyingError
-            .subscribe(onNext: { [weak self] error in
-                guard let self = self else { return }
-                // Error handling - minimal implementation
-            })
-            .disposed(by: disposeBag)
-        
-        // 🔒 MANDATORY: Execute
-        useCase.action?.execute(input)
+        do {
+            // 🔒 MANDATORY: Execute use case and handle success
+            let result = try await {USECASE_PROPERTY}.execute(input: input)
+            
+            // TODO: Handle success result based on specific UseCase requirements
+            // Example: self.data = result
+            data = result
+            
+        } catch {
+            // 🔒 MANDATORY: Handle errors
+            errorMessage = error.localizedDescription
+        }
     }
 }
 ```
 
 ## Architecture Compliance
 
-This ViewModel UseCase execution implementation follows the MVVM + Clean Architecture pattern by:
-- Creating UseCase instances with dependency injection for repositories
-- Handling reactive streams with proper memory management using disposeBag
+This ViewModel UseCase execution implementation follows the Clean Architecture + SwiftUI pattern by:
+- Using @MainActor to ensure UI updates on main thread
+- Creating UseCase instances with dependency injection
+- Using async/await for asynchronous operations
 - Following the separation of concerns between ViewModel and UseCase layers
-- Providing proper error handling and loading state management
-- Using weak self references to prevent retain cycles
+- Providing proper error handling and loading state management with @Published properties
+- Using defer to ensure loading state is always reset
 
 ## Important Implementation Rules
 
 ### ❌ DO NOT DO THESE:
-1. **NEVER add `.observe(on: MainScheduler.instance)` for error handling** - not needed for underlyingError
-2. **NEVER use `.bind(onNext:)`** - always use `.subscribe(onNext:)` 
-3. **NEVER add complex error unwrapping** - keep error handling minimal
-4. **NEVER implement complex logic** - keep handlers simple
+1. **NEVER forget @MainActor on ViewModel classes** - required for @Published properties
+2. **NEVER use completion handlers** - always use async/await
+3. **NEVER add complex error handling logic** - keep error handling simple
+4. **NEVER forget defer for loading state** - ensures proper cleanup
 
 ### ✅ CORRECT PATTERNS:
 ```swift
-// ✅ Correct error handling - minimal with only guard let self
-useCase.action?.underlyingError
-    .subscribe(onNext: { [weak self] error in
-        guard let self = self else { return }
-        // Error handling - minimal implementation
-    })
-    .disposed(by: disposeBag)
+// ✅ Correct ViewModel structure
+@MainActor
+final class ProfileViewModel: ObservableObject {
+    @Published var profile: User?
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    
+    private let fetchUserUseCase: FetchUserUseCase
+    
+    init(fetchUserUseCase: FetchUserUseCase) {
+        self.fetchUserUseCase = fetchUserUseCase
+    }
+    
+    func loadProfile(userId: String) async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            profile = try await fetchUserUseCase.execute(input: userId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
 
-// ✅ Correct success handling - with MainScheduler for UI updates
-useCase.action?.elements
-    .observe(on: MainScheduler.instance)
-    .subscribe(onNext: { [weak self] result in
-        // result is already the expected type, handle as needed
-        self?.presenter?.data.accept(result)
-    })
-    .disposed(by: disposeBag)
+// ✅ Correct View usage
+struct ProfileView: View {
+    @StateObject private var viewModel: ProfileViewModel
+    
+    var body: some View {
+        VStack {
+            if viewModel.isLoading {
+                ProgressView()
+            } else if let profile = viewModel.profile {
+                ProfileContent(profile: profile)
+            }
+        }
+        .task {
+            await viewModel.loadProfile(userId: "123")
+        }
+    }
+}
 ```
 
-## Repository Property Discovery
+## UseCase Property Naming
 
-Common repository property names in ViewModels:
-- **CRCheckoutPageViewModel**: `checkoutRepo`
-- **CRTopupDongtotViewModel**: `dongtotRespository`
-- **POSViewModel**: `posRepo`
-- **VEHViewModel**: `vehRepo`
+Common use case property names in ViewModels:
+- **LoginViewModel**: `loginUseCase`
+- **ProfileViewModel**: `fetchProfileUseCase`, `updateProfileUseCase`
+- **SettingsViewModel**: `updateSettingsUseCase`
+````

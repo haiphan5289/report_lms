@@ -1,11 +1,12 @@
+````prompt
 ---
-description: "Generate iOS unit test structure using Quick and Nimble"
+description: "Generate iOS unit test structure using XCTest"
 mode: "agent"
 ---
 
 # iOS Unit Test Generator
 
-Generate unit test structure following Quick and Nimble patterns with mock generation.
+Generate unit test structure following XCTest patterns with mock generation for SwiftUI + Clean Architecture.
 
 ## Instructions
 
@@ -13,86 +14,64 @@ Reference our iOS development guidelines: [iOS Guidelines](../instructions/ios-g
 
 Generate unit test structure with:
 
--   Quick and Nimble testing framework
+-   XCTest testing framework
 -   Mock classes for all dependencies
--   Spec test structure with proper setup
--   BDD-style test organization
+-   Test structure with proper setup and teardown
+-   BDD-style test organization (Given-When-Then)
 -   Proper imports and test configuration
 
-## Test Spec Template
+## Test Class Template
 
 ```swift
-import Foundation
-import UIKit
-import CTDesignSystem
-import CTCommon
-import CTLocalize
-import CTComponent
-import CTAsset
-import RxSwift
-import Quick
-import Nimble
-import CTTracking
+import XCTest
+@testable import report_lms
 
-@testable import [FeatureModule]
-
-final class [TestClassName]Spec: QuickSpec {
-    override func spec() {
-        var sut: [ClassUnderTest]!
-        var mockPresenter: Mock[ClassUnderTest]Presentable!
-        var mockRepository: Mock[Repository]!
-        // TODO: Add other mock dependencies
-        // var mockRouter: Mock[Router]!
-        // var mockUseCase: Mock[UseCase]!
-
-        beforeEach {
-            // TODO: Initialize mock dependencies
-            mockRepository = Mock[Repository]()
-            mockPresenter = Mock[ClassUnderTest]Presentable()
-
-            // TODO: Initialize system under test with dependencies
-            sut = [ClassUnderTest](
-                // TODO: Add constructor parameters
-                // repository: mockRepository,
-                // useCase: mockUseCase
-            )
-
-            // TODO: Setup mock presenter properties
-            mockPresenter.stubbedIsLoadingRelay = BehaviorRelay<Bool>(value: false)
-            mockPresenter.stubbedListener = sut
-            sut.presenter = mockPresenter
-            sut.didBecomeActive()
-        }
-
-        describe("[ClassUnderTest]") {
-            context("when initialized") {
-                it("should set presenter's listener to the SUT") {
-                    expect(mockPresenter.stubbedListener).to(beIdenticalTo(sut))
-                }
-
-                it("should configure initial state") {
-                    // TODO: Add initialization tests
-                    expect(sut).toNot(beNil())
-                }
-            }
-
-            context("when didBecomeActive is called") {
-                it("should configure presenter and listener") {
-                    // TODO: Add didBecomeActive tests
-                    expect(mockPresenter.stubbedListener).to(beIdenticalTo(sut))
-                }
-            }
-
-            // TODO: Add more test contexts for business logic
-            context("when [specific action] occurs") {
-                it("should [expected behavior]") {
-                    // TODO: Add specific test cases
-                    // Given
-                    // When
-                    // Then
-                }
-            }
-        }
+@MainActor
+final class [TestClassName]Tests: XCTestCase {
+    var sut: [ClassUnderTest]!
+    var mockRepository: Mock[Repository]!
+    // TODO: Add other mock dependencies
+    // var mockUseCase: Mock[UseCase]!
+    
+    override func setUp() {
+        super.setUp()
+        
+        // TODO: Initialize mock dependencies
+        mockRepository = Mock[Repository]()
+        
+        // TODO: Initialize system under test with dependencies
+        sut = [ClassUnderTest](
+            // TODO: Add constructor parameters
+            // repository: mockRepository,
+            // useCase: mockUseCase
+        )
+    }
+    
+    override func tearDown() {
+        sut = nil
+        mockRepository = nil
+        // TODO: Clean up other mocks
+        super.tearDown()
+    }
+    
+    func test_initialization_setsInitialState() {
+        // Given/When - from setUp
+        
+        // Then
+        XCTAssertNotNil(sut)
+        // TODO: Add initialization assertions
+    }
+    
+    // TODO: Add more test methods following Given-When-Then pattern
+    func test_specificAction_expectedBehavior() async {
+        // Given
+        // Setup test conditions
+        
+        // When
+        // Execute action
+        
+        // Then
+        // Verify results
     }
 }
 ```
@@ -101,227 +80,244 @@ final class [TestClassName]Spec: QuickSpec {
 
 ```swift
 import Foundation
-import RxSwift
 
-@testable import [FeatureModule]
+@testable import report_lms
 
 final class Mock[RepositoryName]: [RepositoryName]Type {
-
-    // TODO: Add mock properties for each repository method
-
-    var invokedMethodName = false
-    var invokedMethodNameCount = 0
-    var invokedMethodNameParameters: ([ParameterType], [ParameterType])?
-    var invokedMethodNameParametersList = [([ParameterType], [ParameterType])]()
-    var stubbedMethodNameResult: Observable<[ReturnType]>!
-
-    func methodName(
-        parameter1: [ParameterType],
-        parameter2: [ParameterType]
-    ) -> Observable<[ReturnType]> {
-        invokedMethodName = true
-        invokedMethodNameCount += 1
-        invokedMethodNameParameters = (parameter1, parameter2)
-        invokedMethodNameParametersList.append((parameter1, parameter2))
-        return stubbedMethodNameResult
+    // MARK: - Method Tracking
+    var methodNameCalled = false
+    var methodNameCallCount = 0
+    var methodNameParameters: [ParameterType]?
+    var methodNameResult: Result<[ReturnType], Error>!
+    
+    func methodName(parameter: [ParameterType]) async throws -> [ReturnType] {
+        methodNameCalled = true
+        methodNameCallCount += 1
+        methodNameParameters = parameter
+        
+        switch methodNameResult {
+        case .success(let value):
+            return value
+        case .failure(let error):
+            throw error
+        case .none:
+            fatalError("methodNameResult not set")
+        }
     }
-
+    
     // TODO: Add more repository methods following the same pattern
 }
 ```
 
-## Mock Presentable Template
+## Mock Use Case Template
 
 ```swift
 import Foundation
-import RxSwift
-import RxRelay
 
-@testable import [FeatureModule]
+@testable import report_lms
 
-final class Mock[PresentableName]: [PresentableName] {
-
-    // MARK: - Listener Property
-    var invokedListenerSetter = false
-    var invokedListenerSetterCount = 0
-    var invokedListener: [PresentableListener]?
-    var invokedListenerList = [[PresentableListener]?]()
-    var invokedListenerGetter = false
-    var invokedListenerGetterCount = 0
-    var stubbedListener: [PresentableListener]!
-
-    var listener: [PresentableListener]? {
-        set {
-            invokedListenerSetter = true
-            invokedListenerSetterCount += 1
-            invokedListener = newValue
-            invokedListenerList.append(newValue)
+final class Mock[UseCaseName]: [UseCaseName]Type {
+    // MARK: - Execute Method Tracking
+    var executeCalled = false
+    var executeCallCount = 0
+    var executeInput: [InputType]?
+    var executeResult: Result<[OutputType], Error>!
+    
+    func execute(input: [InputType]) async throws -> [OutputType] {
+        executeCalled = true
+        executeCallCount += 1
+        executeInput = input
+        
+        switch executeResult {
+        case .success(let value):
+            return value
+        case .failure(let error):
+            throw error
+        case .none:
+            fatalError("executeResult not set")
         }
-        get {
-            invokedListenerGetter = true
-            invokedListenerGetterCount += 1
-            return stubbedListener
-        }
-    }
-
-    // MARK: - BehaviorRelay Properties
-
-    // TODO: Add BehaviorRelay properties for data binding
-    var invokedDataSourceSetter = false
-    var invokedDataSourceSetterCount = 0
-    var invokedDataSource: BehaviorRelay<[DataModel]>?
-    var invokedDataSourceList = [BehaviorRelay<[DataModel]>]()
-    var invokedDataSourceGetter = false
-    var invokedDataSourceGetterCount = 0
-    var stubbedDataSource: BehaviorRelay<[DataModel]>!
-
-    var dataSource: BehaviorRelay<[DataModel]> {
-        set {
-            invokedDataSourceSetter = true
-            invokedDataSourceSetterCount += 1
-            invokedDataSource = newValue
-            invokedDataSourceList.append(newValue)
-        }
-        get {
-            invokedDataSourceGetter = true
-            invokedDataSourceGetterCount += 1
-            return stubbedDataSource
-        }
-    }
-
-    var invokedIsLoadingRelaySetter = false
-    var invokedIsLoadingRelaySetterCount = 0
-    var invokedIsLoadingRelay: BehaviorRelay<Bool>?
-    var invokedIsLoadingRelayList = [BehaviorRelay<Bool>]()
-    var invokedIsLoadingRelayGetter = false
-    var invokedIsLoadingRelayGetterCount = 0
-    var stubbedIsLoadingRelay: BehaviorRelay<Bool>!
-
-    var isLoadingRelay: BehaviorRelay<Bool> {
-        set {
-            invokedIsLoadingRelaySetter = true
-            invokedIsLoadingRelaySetterCount += 1
-            invokedIsLoadingRelay = newValue
-            invokedIsLoadingRelayList.append(newValue)
-        }
-        get {
-            invokedIsLoadingRelayGetter = true
-            invokedIsLoadingRelayGetterCount += 1
-            return stubbedIsLoadingRelay
-        }
-    }
-
-    var invokedErrorMessageSetter = false
-    var invokedErrorMessageSetterCount = 0
-    var invokedErrorMessage: BehaviorRelay<String?>?
-    var invokedErrorMessageList = [BehaviorRelay<String?>]()
-    var invokedErrorMessageGetter = false
-    var invokedErrorMessageGetterCount = 0
-    var stubbedErrorMessage: BehaviorRelay<String?>!
-
-    var errorMessage: BehaviorRelay<String?> {
-        set {
-            invokedErrorMessageSetter = true
-            invokedErrorMessageSetterCount += 1
-            invokedErrorMessage = newValue
-            invokedErrorMessageList.append(newValue)
-        }
-        get {
-            invokedErrorMessageGetter = true
-            invokedErrorMessageGetterCount += 1
-            return stubbedErrorMessage
-        }
-    }
-
-    // MARK: - PublishRelay Properties
-
-    // TODO: Add PublishRelay properties for triggers
-    var invokedTriggerActionSetter = false
-    var invokedTriggerActionSetterCount = 0
-    var invokedTriggerAction: PublishRelay<[TriggerType]>?
-    var invokedTriggerActionList = [PublishRelay<[TriggerType]>]()
-    var invokedTriggerActionGetter = false
-    var invokedTriggerActionGetterCount = 0
-    var stubbedTriggerAction: PublishRelay<[TriggerType]>!
-
-    var triggerAction: PublishRelay<[TriggerType]> {
-        set {
-            invokedTriggerActionSetter = true
-            invokedTriggerActionSetterCount += 1
-            invokedTriggerAction = newValue
-            invokedTriggerActionList.append(newValue)
-        }
-        get {
-            invokedTriggerActionGetter = true
-            invokedTriggerActionGetterCount += 1
-            return stubbedTriggerAction
-        }
-    }
-
-    // MARK: - Methods
-
-    // TODO: Add method mocks for presentable actions
-    var invokedMethodName = false
-    var invokedMethodNameCount = 0
-    var invokedMethodNameParameters: ([ParameterType], Void)?
-    var invokedMethodNameParametersList = [([ParameterType], Void)]()
-
-    func methodName(parameter: [ParameterType]) {
-        invokedMethodName = true
-        invokedMethodNameCount += 1
-        invokedMethodNameParameters = (parameter, ())
-        invokedMethodNameParametersList.append((parameter, ()))
     }
 }
 ```
 
-## Mock UseCase Template
+## ViewModel Test Template
 
 ```swift
-import Foundation
-import RxSwift
-import Action
+import XCTest
+@testable import report_lms
 
-@testable import [FeatureModule]
-
-final class Mock[UseCaseName]: [UseCaseName]Type {
-
-    // MARK: - Action UseCase Mock
-    var invokedActionSetter = false
-    var invokedActionSetterCount = 0
-    var invokedAction: Action<[InputType], [OutputType]>?
-    var invokedActionList = [Action<[InputType], [OutputType]>?]()
-    var invokedActionGetter = false
-    var invokedActionGetterCount = 0
-    var stubbedAction: Action<[InputType], [OutputType]>?
-
-    var action: Action<[InputType], [OutputType]>? {
-        set {
-            invokedActionSetter = true
-            invokedActionSetterCount += 1
-            invokedAction = newValue
-            invokedActionList.append(newValue)
+@MainActor
+final class [ViewModel]Tests: XCTestCase {
+    var sut: [ViewModel]!
+    var mockUseCase: Mock[UseCase]!
+    
+    override func setUp() {
+        super.setUp()
+        mockUseCase = Mock[UseCase]()
+        sut = [ViewModel](useCase: mockUseCase)
+    }
+    
+    override func tearDown() {
+        sut = nil
+        mockUseCase = nil
+        super.tearDown()
+    }
+    
+    func test_loadData_success_updatesPublishedProperties() async {
+        // Given
+        let expectedData = [DataModel].mock()
+        mockUseCase.executeResult = .success(expectedData)
+        
+        // When
+        await sut.loadData()
+        
+        // Then
+        XCTAssertEqual(sut.data, expectedData)
+        XCTAssertFalse(sut.isLoading)
+        XCTAssertNil(sut.errorMessage)
+        XCTAssertTrue(mockUseCase.executeCalled)
+    }
+    
+    func test_loadData_failure_setsErrorMessage() async {
+        // Given
+        let expectedError = NSError(domain: "test", code: -1, userInfo: [NSLocalizedDescriptionKey: "Test error"])
+        mockUseCase.executeResult = .failure(expectedError)
+        
+        // When
+        await sut.loadData()
+        
+        // Then
+        XCTAssertNil(sut.data)
+        XCTAssertFalse(sut.isLoading)
+        XCTAssertEqual(sut.errorMessage, "Test error")
+        XCTAssertTrue(mockUseCase.executeCalled)
+    }
+    
+    func test_loadData_setsLoadingState() async {
+        // Given
+        mockUseCase.executeResult = .success([DataModel].mock())
+        
+        // When
+        let expectation = expectation(description: "Loading state")
+        Task {
+            await sut.loadData()
+            expectation.fulfill()
         }
-        get {
-            invokedActionGetter = true
-            invokedActionGetterCount += 1
-            return stubbedAction
+        
+        // Then - Check loading state during execution
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        XCTAssertTrue(sut.isLoading)
+        
+        await fulfillment(of: [expectation], timeout: 1.0)
+        XCTAssertFalse(sut.isLoading)
+    }
+}
+```
+
+## Use Case Test Template
+
+```swift
+import XCTest
+@testable import report_lms
+
+final class [UseCase]Tests: XCTestCase {
+    var sut: [UseCase]!
+    var mockRepository: Mock[Repository]!
+    
+    override func setUp() {
+        super.setUp()
+        mockRepository = Mock[Repository]()
+        sut = [UseCase](repository: mockRepository)
+    }
+    
+    override func tearDown() {
+        sut = nil
+        mockRepository = nil
+        super.tearDown()
+    }
+    
+    func test_execute_success_returnsExpectedData() async throws {
+        // Given
+        let expectedData = [DataModel].mock()
+        mockRepository.fetchDataResult = .success(expectedData)
+        let input = "test-input"
+        
+        // When
+        let result = try await sut.execute(input: input)
+        
+        // Then
+        XCTAssertEqual(result, expectedData)
+        XCTAssertTrue(mockRepository.fetchDataCalled)
+        XCTAssertEqual(mockRepository.fetchDataParameters, input)
+    }
+    
+    func test_execute_failure_throwsError() async {
+        // Given
+        let expectedError = NSError(domain: "test", code: -1)
+        mockRepository.fetchDataResult = .failure(expectedError)
+        
+        // Then
+        do {
+            _ = try await sut.execute(input: "test")
+            XCTFail("Should throw error")
+        } catch {
+            XCTAssertNotNil(error)
+            XCTAssertTrue(mockRepository.fetchDataCalled)
         }
     }
+}
+```
 
-    // MARK: - Standard UseCase Mock
-    var invokedRun = false
-    var invokedRunCount = 0
-    var invokedRunParameters: ([InputType], Void)?
-    var invokedRunParametersList = [([InputType], Void)]()
-    var stubbedRunResult: Observable<[OutputType]>!
+## Repository Test Template
 
-    func run(input: [InputType]) -> Observable<[OutputType]> {
-        invokedRun = true
-        invokedRunCount += 1
-        invokedRunParameters = (input, ())
-        invokedRunParametersList.append((input, ()))
-        return stubbedRunResult
+```swift
+import XCTest
+@testable import report_lms
+
+final class [Repository]Tests: XCTestCase {
+    var sut: [Repository]!
+    var mockService: Mock[Service]!
+    
+    override func setUp() {
+        super.setUp()
+        mockService = Mock[Service]()
+        sut = [Repository](service: mockService)
+    }
+    
+    override func tearDown() {
+        sut = nil
+        mockService = nil
+        super.tearDown()
+    }
+    
+    func test_fetchData_success_returnsEntity() async throws {
+        // Given
+        let mockModel = [DataModel].mock()
+        mockService.getDataResult = .success(mockModel)
+        
+        // When
+        let result = try await sut.fetchData()
+        
+        // Then
+        XCTAssertNotNil(result)
+        XCTAssertTrue(mockService.getDataCalled)
+        // Verify model to entity mapping
+        XCTAssertEqual(result.id, mockModel.id)
+    }
+    
+    func test_fetchData_failure_throwsError() async {
+        // Given
+        let expectedError = NSError(domain: "test", code: -1)
+        mockService.getDataResult = .failure(expectedError)
+        
+        // Then
+        do {
+            _ = try await sut.fetchData()
+            XCTFail("Should throw error")
+        } catch {
+            XCTAssertNotNil(error)
+            XCTAssertTrue(mockService.getDataCalled)
+        }
     }
 }
 ```
@@ -329,69 +325,106 @@ final class Mock[UseCaseName]: [UseCaseName]Type {
 ## Template Variables
 
 -   `${input:className}`: Class name being tested (e.g., "UserProfileViewModel")
--   `${input:feature}`: Feature module (e.g., "CTUserManagement")
+-   `${input:feature}`: Feature module (e.g., "UserManagement")
 -   `${input:testType}`: Test type: "viewModel", "useCase", "repository"
 
 ## Usage Examples
 
--   `/ios-unittest className:UserProfileViewModel feature:CTUserManagement testType:viewModel`
--   `/ios-unittest className:GetUserUseCase feature:CTUserManagement testType:useCase`
--   `/ios-unittest className:UserRepository feature:CTUserManagement testType:repository`
+-   `/ios-unittest className:UserProfileViewModel feature:UserManagement testType:viewModel`
+-   `/ios-unittest className:GetUserUseCase feature:UserManagement testType:useCase`
+-   `/ios-unittest className:UserRepository feature:UserManagement testType:repository`
 
 ## Test Organization Best Practices
 
-### 1. BDD Structure
+### 1. Given-When-Then Pattern
 
 ```swift
-describe("UserProfileViewModel") {
-    context("when user data is loaded") {
-        it("should update the data source") {
-            // Test implementation
-        }
-
-        it("should stop loading state") {
-            // Test implementation
-        }
-    }
-
-    context("when error occurs") {
-        it("should display error message") {
-            // Test implementation
-        }
-    }
+func test_login_success_updatesUserSession() async {
+    // Given
+    let expectedUser = User.mock()
+    mockUseCase.executeResult = .success(expectedUser)
+    
+    // When
+    await sut.login(email: "test@example.com", password: "password")
+    
+    // Then
+    XCTAssertEqual(sut.user, expectedUser)
+    XCTAssertFalse(sut.isLoading)
+    XCTAssertNil(sut.errorMessage)
 }
 ```
 
-### 2. Given-When-Then Pattern
+### 2. Test Naming Convention
 
 ```swift
-it("should handle successful login") {
-    // Given
-    let expectedUser = UserModel.mock()
-    mockUseCase.stubbedRunResult = Observable.just(expectedUser)
-
-    // When
-    sut.login(email: "test@example.com", password: "password")
-
-    // Then
-    expect(mockPresenter.stubbedDataSource.value).to(equal(expectedUser))
-    expect(mockPresenter.stubbedIsLoadingRelay.value).to(beFalse())
-}
+// Pattern: test_methodName_condition_expectedBehavior
+func test_loadUser_success_updatesUserProperty() async { }
+func test_loadUser_failure_setsErrorMessage() async { }
+func test_loadUser_emptyResponse_handlesGracefully() async { }
 ```
 
 ### 3. Mock Verification
 
 ```swift
-it("should call repository with correct parameters") {
+func test_saveSettings_callsRepositoryWithCorrectParameters() async throws {
     // Given
-    let userID = "123"
-
+    let settings = Settings.mock()
+    mockRepository.saveSettingsResult = .success(())
+    
     // When
-    sut.loadUser(id: userID)
-
+    try await sut.saveSettings(settings)
+    
     // Then
-    expect(mockRepository.invokedGetUser).to(beTrue())
-    expect(mockRepository.invokedGetUserParameters?.userID).to(equal(userID))
+    XCTAssertTrue(mockRepository.saveSettingsCalled)
+    XCTAssertEqual(mockRepository.saveSettingsParameters, settings)
+}
+```
+
+### 4. Async Testing
+
+```swift
+// Test async operations with async/await
+func test_asyncOperation() async throws {
+    let result = try await sut.performAsyncOperation()
+    XCTAssertNotNil(result)
+}
+
+// Test loading states with expectations
+func test_loadingState() async {
+    let expectation = expectation(description: "Loading completes")
+    
+    Task {
+        await sut.loadData()
+        expectation.fulfill()
+    }
+    
+    // Check intermediate state
+    try? await Task.sleep(nanoseconds: 100_000_000)
+    XCTAssertTrue(sut.isLoading)
+    
+    await fulfillment(of: [expectation], timeout: 1.0)
+    XCTAssertFalse(sut.isLoading)
+}
+```
+
+## Mock Factories
+
+```swift
+// Create mock factory extensions for test data
+extension User {
+    static func mock(
+        id: String = "123",
+        name: String = "Test User",
+        email: String = "test@example.com"
+    ) -> User {
+        User(id: id, name: name, email: email)
+    }
+}
+
+extension Array where Element == User {
+    static func mock(count: Int = 3) -> [User] {
+        (0..<count).map { User.mock(id: "\($0)") }
+    }
 }
 ```
 
@@ -399,12 +432,15 @@ it("should call repository with correct parameters") {
 
 Generate unit test with:
 
-1. Quick and Nimble test structure
-2. Mock classes for all dependencies
-3. Proper beforeEach setup
-4. BDD-style test organization
+1. XCTest test structure with @MainActor where needed
+2. Mock classes for all dependencies using async/await
+3. Proper setUp and tearDown methods
+4. Given-When-Then test organization
 5. TODO comments for test implementation
 6. Proper import statements
 7. Mock verification patterns
+8. Async/await support
 
-Keep tests focused on behavior verification without business logic implementation.
+Keep tests focused on behavior verification following Clean Architecture + SwiftUI patterns.
+
+````

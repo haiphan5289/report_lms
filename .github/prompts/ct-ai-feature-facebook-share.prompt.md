@@ -1,12 +1,12 @@
 Prompt instructions file:
 ---
 agent: Create comprehensive Facebook sharing functionality with analytics
-always: Use CTDesignSystem components, implement proper error handling, analytics tracking
-description: "Template for implementing Facebook sharing with ShareDialog, multiple content types, error handling, analytics tracking, and UI feedback following Cho Tot iOS architecture standards"
+always: Use LMS design system components, implement proper error handling, analytics tracking
+description: "Template for implementing Facebook sharing with ShareDialog, multiple content types, error handling, analytics tracking, and UI feedback following report_lms iOS architecture standards"
 ---
 
 ## Instructions
-Follow instructions in [ct-ai-feature-video-player.prompt.md](file:///Users/hai.phan/Desktop/haiphan/ct-ios-app--v3/AppFeatures/CTCorePayment/CTCorePayment/Features/ct-ai-feature-video-player.prompt.md).
+Follow Clean Architecture + SwiftUI patterns as defined in project documentation.
 
 # Facebook Share Implementation Prompt
 
@@ -15,27 +15,28 @@ Create comprehensive Facebook sharing functionality supporting multiple content 
 
 ## Requirements
 - Must follow MVVM + Clean Architecture patterns
-- Use CTDesignSystem components only (no UIKit components)
+- Use SwiftUI for all UI components
+- Use LMS design system components only
 - Support multiple content types (link, photo, video)
 - Include proper error handling and fallback to system share
-- Implement delegate pattern for callbacks
+- Implement async/await for asynchronous operations
 - Add analytics tracking for all share events
-- Follow Cho Tot iOS coding standards
+- Follow report_lms iOS coding standards
 
 ## Important Note: Facebook Ref Parameter
-**What is `ref: "chotot_ios_app"`?**
+**What is `ref: "report_lms_ios_app"`?**
 The `ref` parameter in Facebook sharing serves as a tracking identifier with these purposes:
-- **Attribution Tracking**: Identifies shares coming from Cho Tot iOS app vs other platforms (web, Android)
+- **Attribution Tracking**: Identifies shares coming from report_lms iOS app vs other platforms (web, Android)
 - **Analytics Segmentation**: Helps Facebook Analytics distinguish traffic sources
 - **Campaign Tracking**: Enables tracking of share performance by platform
 - **User Journey Mapping**: Allows tracking how users interact with shared content across platforms
 - **Business Intelligence**: Provides insights into which platform generates more engagement
 
 **Usage Examples**:
-- `"chotot_ios_app"` - for iOS app shares
-- `"chotot_android_app"` - for Android app shares  
-- `"chotot_web"` - for website shares
-- `"chotot_ios_payment"` - for specific feature/module shares
+- `"report_lms_ios_app"` - for iOS app shares
+- `"report_lms_android_app"` - for Android app shares  
+- `"report_lms_web"` - for website shares
+- `"report_lms_ios_learning"` - for specific feature/module shares
 
 ## Implementation Instructions
 
@@ -43,16 +44,10 @@ The `ref` parameter in Facebook sharing serves as a tracking identifier with the
 Include all necessary imports at the top of your file:
 
 ```swift
-import UIKit
+import SwiftUI
 import Foundation
-import CTCommon
-import CTDesignSystem
-import CTComponent
-import CTAsset
-import CTTracking
 import FBSDKShareKit
-import RxSwift
-import RxRelay
+import Combine
 ```
 
 ### Step 2: Define Core Enums and Models
@@ -98,7 +93,7 @@ struct FacebookShareConfig {
             hashtag: hashtag,
             peopleIDs: nil,
             placeID: nil,
-            ref: "chotot_ios_app"
+            ref: "report_lms_ios_app"
         )
     }
     
@@ -113,7 +108,7 @@ struct FacebookShareConfig {
             hashtag: hashtag,
             peopleIDs: nil,
             placeID: nil,
-            ref: "chotot_ios_app"
+            ref: "report_lms_ios_app"
         )
     }
     
@@ -128,7 +123,7 @@ struct FacebookShareConfig {
             hashtag: hashtag,
             peopleIDs: nil,
             placeID: nil,
-            ref: "chotot_ios_app"
+            ref: "report_lms_ios_app"
         )
     }
 }
@@ -170,9 +165,9 @@ Define the main protocol for Facebook sharing functionality:
 ```swift
 // MARK: - Facebook Share Manager Protocol
 protocol FacebookShareManagerType: AnyObject {
-    var shareResult: PublishRelay<FacebookShareResult> { get }
+    var shareResultPublisher: PassthroughSubject<FacebookShareResult, Never> { get }
     
-    func shareToFacebook(config: FacebookShareConfig, from viewController: UIViewController)
+    func shareToFacebook(config: FacebookShareConfig) async
     func canShowFacebookShare() -> Bool
     func validateShareConfig(_ config: FacebookShareConfig) -> Result<Void, FacebookShareError>
 }
@@ -190,14 +185,15 @@ Create the main manager class with full functionality:
 
 ```swift
 // MARK: - Facebook Share Manager Implementation
-final class FacebookShareManager: NSObject {
+@MainActor
+final class FacebookShareManager: NSObject, ObservableObject {
     
     // MARK: - Properties
-    private let theme = CMStaticThemeLoader.defaultTheme
-    private let disposeBag = DisposeBag()
+    @Published var isSharing = false
+    @Published var shareError: FacebookShareError?
     
-    // RxSwift Relays
-    let shareResult = PublishRelay<FacebookShareResult>()
+    // Combine Publishers
+    let shareResultPublisher = PassthroughSubject<FacebookShareResult, Never>()
     
     // Delegate
     weak var delegate: FacebookShareDelegate?

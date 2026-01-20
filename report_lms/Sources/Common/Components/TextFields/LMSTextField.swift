@@ -311,17 +311,14 @@ struct LMSTextField: View {
             "Password",
             text: .constant("mypassword"),
             icon: "lock",
-            isSecure: true,
-            helperText: "At least 8 characters"
+            helperText: "At least 8 characters", isSecure: true
         )
         
         LMSTextField(
             "Confirm Password",
             text: .constant("mypassword"),
             icon: "lock.fill",
-            isSecure: true,
-            validationState: .success,
-            helperText: "Passwords match"
+            validationState: .success, helperText: "Passwords match", isSecure: true
         )
     }
     .padding()

@@ -40,95 +40,123 @@ make serena-check-arch
 make serena-generate-tests CLASS=CreateUserViewModel
 ```
 
-## Requirements (Enhanced with Serena)
+## Requirements
 
 ### Core Implementation
 
-- **6-Layer Architecture**: NetworkHelper → Targets → Services → Repositories → UseCases → ViewModels
+- **3-Layer Architecture**: Presentation → Domain ← Data
 - **Input/Output Models**: Type-safe domain entities in Domain layer
-- **Repository Abstraction**: Protocol-based DI with Swinject
-- **RxSwift Integration**: Observable streams with proper error handling
-- **CTDesignSystem**: Use DS* components throughout UI layer
-- **SnapKit Layout**: Mandatory constraint management
+- **Repository Abstraction**: Protocol-based DI
+- **Async/Await**: Modern Swift concurrency with proper error handling
+- **SwiftUI**: Native SwiftUI components throughout UI layer
+- **Declarative Layout**: SwiftUI declarative syntax
 
 ### Testing & Quality
 
-- **Unit Tests**: Quick/Nimble with Given-When-Then pattern
-- **Mock Generation**: Automatic mock creation for dependencies
-- **Architecture Compliance**: Automatic pattern validation
+- **Unit Tests**: XCTest with Given-When-Then pattern
+- **Mock Generation**: Protocol-based mock creation for dependencies
+- **Architecture Compliance**: Clean Architecture pattern validation
 - **Code Coverage**: Minimum 80% target with automated checks
 
-### Serena-Enhanced Features
+### Architecture Features
 
-- **Semantic Analysis**: Understands existing patterns automatically
-- **Pattern Recognition**: Identifies similar implementations across modules
-- **Refactoring Support**: Safe architectural transformations
-- **Code Generation**: Follows established templates and conventions
-- **Quality Assurance**: Automated compliance checking
+- **Protocol-First Design**: All repositories use protocol abstractions
+- **Dependency Injection**: Constructor injection for all dependencies
+- **SwiftUI Patterns**: @StateObject, @Published, @MainActor
+- **Immutability**: Prefer immutable models in Domain layer
+- **Testability**: Design for easy unit testing
 
-## Serena Integration Benefits
+## Architecture Benefits
 
 ### Productivity Improvements
 
-- **80% Reduction**: In boilerplate code generation
-- **Pattern Consistency**: Automatic adherence to project conventions
-- **Error Prevention**: Early detection of architectural violations
-- **Time Savings**: Complete use case implementation in minutes
+- **Reduced Boilerplate**: Minimal boilerplate with SwiftUI
+- **Pattern Consistency**: Adherence to Clean Architecture principles
+- **Type Safety**: Compile-time error detection
+- **Rapid Development**: SwiftUI's declarative syntax and live previews
 
 ### Quality Enhancements
 
-- **Architecture Compliance**: Automatic MVVM pattern enforcement
-- **Code Standards**: Consistent with .ruler/ guidelines
-- **Testing Coverage**: Automated test structure generation
-- **Documentation**: Auto-generated implementation guides
+- **Architecture Compliance**: Clean Architecture pattern enforcement
+- **Code Standards**: Consistent with project guidelines
+- **Testing Coverage**: Comprehensive unit test structure
+- **SwiftUI Previews**: Visual component development and testing
 
-## Deliverables (Serena-Enhanced)
+## Deliverables
 
 ### 1. Complete Implementation
 
-- **Network Layer**: API endpoint definitions and request handling
-- **Service Layer**: Concrete implementations with error handling
-- **Repository Layer**: Abstraction with protocol-based design
-- **Use Case Layer**: Business logic with CTActionUseCaseType
-- **ViewModel Layer**: UI presentation logic with RxSwift integration
-- **Test Layer**: Comprehensive unit tests with mocks
+- **Service Layer**: API implementations with async/await error handling (Data/Services/)
+- **Repository Layer**: Protocol-based abstraction and implementation
+- **Use Case Layer**: Business logic with async/await (Domain/UseCases/)
+- **ViewModel Layer**: UI presentation logic with @MainActor and @Published properties
+- **View Layer**: SwiftUI declarative views
+- **Test Layer**: Comprehensive XCTest unit tests with mocks
 
 ### 2. Quality Assurance
 
-- **Architecture Validation**: Automatic pattern compliance checks
-- **Code Analysis**: Complexity and quality metrics
+- **Architecture Validation**: Clean Architecture pattern compliance
+- **Code Analysis**: Swift best practices and conventions
 - **Import Organization**: Consistent import ordering
-- **Documentation**: Auto-generated usage examples
+- **Preview Providers**: SwiftUI preview configurations
 
 ### 3. Integration Ready
 
-- **Dependency Injection**: Pre-configured Swinject setup
-- **Error Handling**: User-friendly error messages and recovery
-- **Logging**: Proper technical logging for debugging
-- **Accessibility**: Screen reader support and keyboard navigation
+- **Dependency Injection**: Constructor-based DI setup
+- **Error Handling**: User-friendly error messages with proper async error handling
+- **Loading States**: Proper @Published state management
+- **Accessibility**: SwiftUI accessibility modifiers
 
 ## Usage Example
 
-```bash
-# Serena-powered use case generation
-make serena-usecase \
-  NAME=UpdateUserProfile \
-  ENDPOINT=/api/user/profile \
-  INPUT=UpdateProfileRequest \
-  OUTPUT=UserProfile
+```swift
+// Domain Layer - Use Case
+final class UpdateUserProfileUseCase {
+    private let repository: UserRepositoryType
+    
+    init(repository: UserRepositoryType) {
+        self.repository = repository
+    }
+    
+    func execute(request: UpdateProfileRequest) async throws -> UserProfile {
+        try await repository.updateProfile(request: request)
+    }
+}
 
-# Result: Complete implementation across all 6 layers
-# with tests, error handling, and documentation
+// Presentation Layer - ViewModel
+@MainActor
+final class ProfileViewModel: ObservableObject {
+    @Published var profile: UserProfile?
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    
+    private let updateUseCase: UpdateUserProfileUseCase
+    
+    init(updateUseCase: UpdateUserProfileUseCase) {
+        self.updateUseCase = updateUseCase
+    }
+    
+    func updateProfile(request: UpdateProfileRequest) async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            profile = try await updateUseCase.execute(request: request)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
 ```
 
 ## References
 
-- **Architecture**: .ruler/ct-ai-rule-core-architecture.md
-- **Code Standards**: .ruler/ct-ai-rule-code-standards.md
-- **Testing**: .ruler/ct-ai-rule-testing-general.md
-- **Serena Integration**: SERENA_INTEGRATION.md
-- **Project Context**: .serena/ios_context.md
+- **Architecture**: .github/instructions/architecture.md
+- **Code Standards**: .github/instructions/code-standards.md
+- **Code Style**: .github/instructions/code-style.md
+- **Testing**: .github/instructions/testing.md
+- **Project Overview**: .github/copilot-instructions.md
 
 ---
 
-*This enhanced workflow leverages Serena's semantic understanding to deliver production-ready use cases that perfectly align with your established architecture and development standards.*
+*This workflow delivers production-ready use cases following Clean Architecture + SwiftUI patterns with modern Swift concurrency.*

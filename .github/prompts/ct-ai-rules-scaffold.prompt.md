@@ -1,11 +1,12 @@
+````prompt
 ---
-description: "Scaffold basic iOS files following MVVM-C architecture patterns"
+description: "Scaffold basic iOS files following Clean Architecture + SwiftUI patterns"
 mode: "agent"
 ---
 
 # iOS Basic File Scaffolding
 
-Create basic barebone iOS files following our MVVM-C architecture and coding conventions.
+Create basic barebone iOS files following Clean Architecture + SwiftUI and coding conventions.
 
 ## Instructions
 
@@ -17,223 +18,158 @@ Reference our iOS development guidelines:
 Generate basic scaffold files with:
 
 -   Proper MARK sections and imports
--   MVVM+C protocol structure
--   CTDesignSystem components
--   RxSwift patterns
+-   Clean Architecture protocol structure
+-   LMS custom components or native SwiftUI
+-   async/await patterns
 -   TODO comments for implementation
 
 ## Required Imports
 
 ```swift
-import UIKit
-import CTDesignSystem
-import CTCommon
-import CTLocalize
-import CTComponent
-import CTAsset
-import RxSwift
-import RxRelay
-import Swinject
-import CTTracking
-import SnapKit
+import SwiftUI
+import Combine // if needed for advanced state management
 ```
 
-## ViewController Template
+## SwiftUI View Template
 
 ```swift
-import UIKit
-import CTDesignSystem
-import CTCommon
-import CTLocalize
-import CTComponent
-import CTAsset
-import RxSwift
-import RxRelay
-import Swinject
-import CTTracking
-import SnapKit
+import SwiftUI
 
-final class [Name]ViewController: UIViewController, [Name]Presentable {
-
+struct [Name]View: View {
+    
     // MARK: - Properties
-
+    
+    @StateObject private var viewModel: [Name]ViewModel
+    @Environment(\.dismiss) private var dismiss
+    
     enum Config {
-        // TODO: Add configuration constants like sizes, offsets, durations
-        // static let standardSize: CGFloat = 44
-        // static let padding: CGFloat = 16
+        // TODO: Add configuration constants like sizes, spacing, padding
+        // static let spacing: CGFloat = 16
+        // static let padding: CGFloat = 20
+        // static let cornerRadius: CGFloat = 8
     }
-
-    var viewModel: [Name]ViewModelType?
-    weak var listener: [Name]PresentableListener?
-
-    // TODO: Add BehaviorRelay and PublishRelay properties based on your needs
-    // var isLoadingRelay = BehaviorRelay<Bool>(value: false)
-    // var errorMessage = BehaviorRelay<String?>(value: nil)
-    // var triggerSomeAction = PublishRelay<Void>()
-
-    let disposeBag = DisposeBag()
-
-    // MARK: - UI Components
-
-    // TODO: Add lazy var UI components using CTDesignSystem
-    // Example:
-    // private var themeType = ThemeType.default
-    // private var theme: CMTheme { DefaultTheme.themeWithType(type: themeType) }
-    //
-    // lazy var titleLabel: DSLabel = {
-    //     let label = DSLabel()
-    //     label.setStyle(DS.TypoToken.Label.Caption(color: theme.text.textPrimary.color))
-    //     label.text = "Hello"
-    //     return label
-    // }()
-    //
-    // lazy var subtitleLabel: DSLabel = {
-    //     let label = DSLabel()
-    //     label.setStyle(DS.TypoToken.Body.Caption(color: theme.text.textPrimary.color))
-    //     label.text = "World"
-    //     return label
-    // }()
-
-    // MARK: - Life Cycle
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        setupViews()
-        setupActions()
-        configurePresenter()
-        configureViewModel()
+    
+    // MARK: - Initialization
+    
+    init(viewModel: [Name]ViewModel = [Name]ViewModel()) {
+        _viewModel = StateObject(wrappedValue: viewModel)
     }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        // TODO: Add viewWillAppear logic
+    
+    // MARK: - Body
+    
+    var body: some View {
+        NavigationStack {
+            contentView
+                .navigationTitle("Title")
+                .toolbar { toolbarContent }
+                .task { await viewModel.loadData() }
+        }
     }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        // TODO: Add viewWillDisappear logic
+    
+    // MARK: - Private Views
+    
+    private var contentView: some View {
+        ScrollView {
+            VStack(spacing: Config.spacing) {
+                if viewModel.isLoading {
+                    ProgressView()
+                } else if let error = viewModel.errorMessage {
+                    ErrorView(message: error) {
+                        Task { await viewModel.retry() }
+                    }
+                } else {
+                    // TODO: Add content views
+                }
+            }
+            .padding(Config.padding)
+        }
     }
-
-    deinit {
-        // TODO: Add cleanup if needed
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    // MARK: - Private Methods
-
-    private func setupViews() {
-        // TODO: Setup UI hierarchy and constraints with SnapKit
-        // Example:
-        // view.addSubview(someView)
-        // someView.snp.makeConstraints { make in
-        //     make.edges.equalToSuperview()
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        // TODO: Add toolbar items
+        // ToolbarItem(placement: .navigationBarTrailing) {
+        //     Button("Action") {
+        //         Task { await viewModel.performAction() }
+        //     }
         // }
     }
+}
 
-    private func setupActions() {
-        // TODO: Setup button targets and gesture recognizers
-    }
+// MARK: - Preview
 
-    private func configurePresenter() {
-        // TODO: Bind presenter relays to UI updates
-    }
-
-    private func configureViewModel() {
-        // TODO: Configure viewModel and call didBecomeActive
-    }
+#Preview {
+    [Name]View(viewModel: [Name]ViewModel.preview)
 }
 ```
 
 ## ViewModel Template
 
 ```swift
-import RxSwift
-import RxRelay
-import Action
-import CTCommon
+import SwiftUI
 
-// MARK: - ViewModelType
-protocol [Name]ViewModelType: CTViewModelType {
-    var presenter: [Name]Presentable? { get set }
-    var router: [Name]Router? { get set }
-    var listener: [Name]PresentableListener? { get set }
-}
-
-// MARK: - Presentable
-protocol [Name]Presentable: AnyObject {
-    var listener: [Name]PresentableListener? { get set }
-    // TODO: Add BehaviorRelay and PublishRelay properties based on your UI needs
-    // var isLoadingRelay: BehaviorRelay<Bool> { get set }
-    // var errorMessage: BehaviorRelay<String?> { get set }
-    // var datasource: BehaviorRelay<[SomeModel]> { get set }
-    // var triggerSomeAction: PublishRelay<SomeInputType> { get set }
-}
-
-// MARK: - PresentableListener
-protocol [Name]PresentableListener: AnyObject {
-    // TODO: Add PublishRelay properties for triggers from ViewController to ViewModel
-    // var triggerSomeAction: PublishRelay<SomeInputType> { get }
-    // func handleSomeEvent()
-}
-
-// MARK: - Router
-protocol [Name]Router: AnyObject {
-    // TODO: Add navigation methods
-    // func navigateToSomeScreen()
-}
-
-final class [Name]ViewModel: [Name]ViewModelType, [Name]PresentableListener {
-
-    // MARK: - Properties
-
-    weak var presenter: [Name]Presentable?
-    weak var router: [Name]Router?
-    weak var listener: [Name]PresentableListener?
-
-    // TODO: Add UseCase dependencies
-    // private let someUseCase: SomeUseCaseType
-
-    let disposeBag = DisposeBag()
-
+@MainActor
+final class [Name]ViewModel: ObservableObject {
+    
+    // MARK: - Published Properties
+    
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    // TODO: Add @Published properties for UI state
+    // @Published var items: [Item] = []
+    // @Published var selectedItem: Item?
+    
+    // MARK: - Private Properties
+    
+    private let fetchDataUseCase: FetchDataUseCase
+    // TODO: Add additional use case dependencies
+    
     // MARK: - Initialization
-
+    
     init(
-        // TODO: Add UseCase dependencies
-        // someUseCase: SomeUseCaseType
+        fetchDataUseCase: FetchDataUseCase = FetchDataUseCase(
+            repository: Container.shared.resolve(DataRepositoryType.self)!
+        )
     ) {
-        // TODO: Initialize dependencies
-        // self.someUseCase = someUseCase
+        self.fetchDataUseCase = fetchDataUseCase
     }
-
-    // MARK: - Life Cycle
-
-    func didBecomeActive() {
-        presenter?.listener = self
-        configureListener()
-        configurePresenter()
+    
+    // MARK: - Public Methods
+    
+    func loadData() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        do {
+            // TODO: Implement data loading
+            // let result = try await fetchDataUseCase.execute()
+            // items = result
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
-
-    // MARK: - Private Methods
-
-    private func configureListener() {
-        // TODO: Subscribe to triggers from presenter/UI
-        // presenter?.triggerSomeAction.subscribeNext { [weak self] input in
-        //     self?.handleSomeAction(input)
-        // }.disposed(by: disposeBag)
+    
+    func retry() async {
+        await loadData()
     }
+    
+    // TODO: Add additional methods
+    // func selectItem(_ item: Item) {
+    //     selectedItem = item
+    // }
+    //
+    // func deleteItem(at offsets: IndexSet) async {
+    //     // Implementation
+    // }
+}
 
-    private func configurePresenter() {
-        // TODO: Subscribe to UseCase responses and update presenter
-        // someUseCase.action?.elements
-        //     .observe(on: MainScheduler.instance)
-        //     .subscribeNext { [weak self] result in
-        //         self?.presenter?.datasource.accept(result)
-        //     }.disposed(by: disposeBag)
+// MARK: - Preview Support
+
+extension [Name]ViewModel {
+    static var preview: [Name]ViewModel {
+        [Name]ViewModel()
     }
-
-    // MARK: - [Name]PresentableListener
-
-    // TODO: Implement methods from PresentableListener protocol
 }
 ```
 
@@ -241,73 +177,180 @@ final class [Name]ViewModel: [Name]ViewModelType, [Name]PresentableListener {
 
 Based on the file type requested, generate the appropriate files:
 
-### ViewController (${input:fileName})
+### View (${input:fileName})
 
--   Create ViewController with proper MARK organization
+-   Create SwiftUI View with proper MARK organization
 -   Include proper imports and lifecycle methods
--   Follow naming conventions with "ViewController" suffix
--   Include protocol conformance structure
--   Use CTDesignSystem for UI components
+-   Follow naming conventions with "View" suffix
+-   Use native SwiftUI or LMS custom components
 
 ### ViewModel (${input:fileName})
 
--   Create ViewModel implementing CTViewModelType
--   Include Presenter, PresenterListener, Router, and Listener protocols
--   Use proper RxSwift patterns with BehaviorRelay and PublishRelay
+-   Create ViewModel with @MainActor and ObservableObject
+-   Include @Published properties for state
+-   Use proper async/await patterns
 -   Include proper initialization and dependency injection
 
 ### UseCase (${input:fileName})
 
--   Create UseCase following CTUseCaseType or CTActionUseCaseType
--   Include proper Input/Output typealias
+-   Create UseCase following Clean Architecture
+-   Include proper Input/Output if needed
 -   Implement repository pattern integration
--   Include proper error handling
+-   Include proper error handling with async/await
 
 ### Repository (${input:fileName})
 
 -   Create Repository protocol and implementation
 -   Include proper service layer integration
 -   Follow dependency injection patterns
--   Include proper Observable return types
+-   Use async/await (no completion handlers)
 
 ### Service (${input:fileName})
 
 -   Create Service protocol and implementation
--   Include proper API target integration
--   Follow Requestable pattern for network calls
+-   Include proper URLSession integration
+-   Use async/await for network calls
 -   Include proper error handling and mapping
+
+### Entity (${input:fileName})
+
+-   Create entity with proper property definitions
+-   Include Identifiable and Equatable conformance
+-   Follow proper naming conventions
+-   Include preview support
 
 ### Model (${input:fileName})
 
 -   Create model with proper property definitions
--   Include Codable conformance when needed
--   Follow proper naming conventions
+-   Include Codable conformance for API responses
+-   Add toEntity() mapping method
 -   Include proper documentation
 
-### TableViewCell/CollectionViewCell (${input:fileName})
+### Row/Item Component (${input:fileName})
 
--   Create cell with proper XIB structure
--   Include ViewModel for cell configuration
--   Follow reusable cell patterns
--   Include proper constraint setup
--   Use CTDesignSystem for UI components
+-   Create SwiftUI component for List or Grid
+-   Include ViewModel for configuration
+-   Follow reusable patterns
+-   Use native SwiftUI or LMS custom components
+
+## UseCase Template
+
+```swift
+import Foundation
+
+final class [Name]UseCase {
+    
+    // MARK: - Properties
+    
+    private let repository: [Name]RepositoryType
+    
+    // MARK: - Initialization
+    
+    init(repository: [Name]RepositoryType) {
+        self.repository = repository
+    }
+    
+    // MARK: - Execute
+    
+    func execute() async throws -> [ResultEntity] {
+        try await repository.fetchData()
+    }
+}
+```
+
+## Entity Template
+
+```swift
+import Foundation
+
+struct [Name]Entity: Identifiable, Equatable {
+    
+    // MARK: - Properties
+    
+    let id: String
+    // TODO: Add entity properties
+    // let name: String
+    // let description: String?
+    // let createdAt: Date
+    
+    // MARK: - Computed Properties
+    
+    // TODO: Add computed properties
+    // var displayName: String {
+    //     name.isEmpty ? "Unnamed" : name
+    // }
+}
+
+// MARK: - Preview Support
+
+extension [Name]Entity {
+    static var preview: [Name]Entity {
+        [Name]Entity(
+            id: "preview-1"
+            // TODO: Add preview values
+        )
+    }
+}
+```
+
+## Model Template
+
+```swift
+import Foundation
+
+struct [Name]Model: Codable {
+    
+    // MARK: - Properties
+    
+    let id: String
+    // TODO: Add model properties matching API response
+    // let name: String
+    // let description: String?
+    // let createdAt: String
+    
+    // MARK: - CodingKeys
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        // TODO: Map API keys if different from property names
+        // case name = "display_name"
+        // case description
+        // case createdAt = "created_at"
+    }
+    
+    // MARK: - Mapping
+    
+    func toEntity() -> [Name]Entity {
+        [Name]Entity(
+            id: id
+            // TODO: Map model properties to entity
+            // name: name,
+            // description: description,
+            // createdAt: ISO8601DateFormatter().date(from: createdAt) ?? Date()
+        )
+    }
+}
+```
 
 ## Template Variables
 
--   `${input:fileName}`: The base name (e.g., "UserProfile")
--   `${input:module}`: The module name (e.g., "CTUserManagement")
--   `${input:fileType}`: The file type (ViewController, ViewModel, UseCase, etc.)
+-   `${input:fileName}`: The base name (e.g., "UserProfile", "CourseDetail")
+-   `${input:module}`: The module name (e.g., "report_lms")
+-   `${input:fileType}`: The file type (View, ViewModel, UseCase, etc.)
 
 ## Output
 
 Generate basic scaffolding with:
 
-1. Required imports including CTDesignSystem
+1. Required imports (SwiftUI, Combine if needed)
 2. Proper MARK sections
-3. MVVM+C protocol structure
-4. RxSwift patterns with BehaviorRelay/PublishRelay
+3. Clean Architecture protocol structure
+4. async/await patterns (no completion handlers)
 5. Config enum for constants
-6. Lazy var pattern for UI components
+6. @Published properties for state management
 7. TODO comments for implementation
+8. Preview support for SwiftUI components
 
 Keep implementations minimal with TODO guidance for developers.
+
+````

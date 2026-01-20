@@ -1,11 +1,12 @@
+````prompt
 ---
-description: "Generate basic MVVM-C module structure"
+description: "Generate basic Clean Architecture + SwiftUI module structure"
 mode: "agent"
 ---
 
 # iOS Basic Module Generator
 
-Generate basic MVVM-C module with barebone structure following production patterns.
+Generate basic Clean Architecture + SwiftUI module with barebone structure following production patterns.
 
 ## Instructions
 
@@ -16,342 +17,263 @@ Reference our iOS development guidelines:
 
 Generate complete module structure with:
 
--   ViewController implementing Presentable protocol
--   ViewModel implementing ViewModelType and PresentableListener
+-   SwiftUI View with declarative UI
+-   ViewModel implementing ObservableObject with @MainActor
 -   Proper protocol definitions
--   CTDesignSystem usage
--   RxSwift patterns
+-   LMS custom components or native SwiftUI
+-   async/await patterns
 
 ## Template Variables
 
 -   `${input:moduleName}`: Module name (e.g., "UserProfile")
--   `${input:featureName}`: Feature name (e.g., "CTUserManagement")
+-   `${input:featureName}`: Feature name (e.g., "report_lms")
 
 ## Output Files
 
-1. **[ModuleName]ViewController.swift** - UI layer with CTDesignSystem
+1. **[ModuleName]View.swift** - SwiftUI view layer
 2. **[ModuleName]ViewModel.swift** - Business logic with UseCase dependencies
-3. **[ModuleName]Builder.swift** - Dependency injection setup
+3. **[ModuleName]Builder.swift** - Dependency injection setup (optional)
 
 Each file follows production patterns with:
 
--   Required imports (CTDesignSystem, CTCommon, etc.)
+-   Required imports (SwiftUI, Combine)
 -   Config enum for constants
 -   Proper protocol structure
--   RxSwift patterns
+-   async/await patterns
 -   TODO comments for implementation
 
 ## Generated Structure
 
-### ViewController Structure
+### View Structure
 
 ```swift
-import UIKit
-import CTDesignSystem
-import CTCommon
-import CTLocalize
-import CTComponent
-import CTAsset
-import RxSwift
-import RxRelay
-import Swinject
-import CTTracking
-import SnapKit
-import CTAsset
-import RxSwift
-import RxRelay
-import Swinject
-import CTTracking
+import SwiftUI
 
-final class [ModuleName]ViewController: UIViewController, [ModuleName]Presentable {
-
+struct [ModuleName]View: View {
+    
     // MARK: - Properties
-
+    
+    @StateObject private var viewModel: [ModuleName]ViewModel
+    @Environment(\.dismiss) private var dismiss
+    
     enum Config {
         // TODO: Add configuration constants
-        // static let standardSize: CGFloat = 44
-        // static let padding: CGFloat = 16
+        // static let spacing: CGFloat = 16
+        // static let padding: CGFloat = 20
+        // static let cornerRadius: CGFloat = 8
     }
-
-    var viewModel: [ModuleName]ViewModelType?
-    weak var listener: [ModuleName]PresentableListener?
-
-    // TODO: Add BehaviorRelay and PublishRelay properties
-    // var isLoadingRelay = BehaviorRelay<Bool>(value: false)
-    // var errorMessage = BehaviorRelay<String?>(value: nil)
-
-    let disposeBag = DisposeBag()
-
-    // MARK: - UI Components
-
-    // TODO: Add lazy var UI components using CTDesignSystem
-    // Example:
-    // private var themeType = ThemeType.default
-    // private var theme: CMTheme { DefaultTheme.themeWithType(type: themeType) }
-    //
-    // lazy var titleLabel: DSLabel = {
-    //     let label = DSLabel()
-    //     label.setStyle(DS.TypoToken.Label.Caption(color: theme.text.textPrimary.color))
-    //     label.text = "Hello"
-    //     return label
-    // }()
-    //
-    // lazy var subtitleLabel: DSLabel = {
-    //     let label = DSLabel()
-    //     label.setStyle(DS.TypoToken.Body.Caption(color: theme.text.textPrimary.color))
-    //     label.text = "World"
-    //     return label
-    // }()
-
-    // MARK: - Life Cycle
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        setupViews()
-        setupActions()
-        configurePresenter()
-        configureViewModel()
+    
+    // MARK: - Initialization
+    
+    init(viewModel: [ModuleName]ViewModel = Container.shared.resolve([ModuleName]ViewModel.self)!) {
+        _viewModel = StateObject(wrappedValue: viewModel)
     }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        // TODO: Add viewWillAppear logic
+    
+    // MARK: - Body
+    
+    var body: some View {
+        NavigationStack {
+            contentView
+                .navigationTitle("Title")
+                .toolbar { toolbarContent }
+                .task { await viewModel.loadData() }
+        }
     }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        // TODO: Add viewWillDisappear logic
+    
+    // MARK: - Private Views
+    
+    private var contentView: some View {
+        ScrollView {
+            VStack(spacing: Config.spacing) {
+                if viewModel.isLoading {
+                    ProgressView()
+                } else if let error = viewModel.errorMessage {
+                    ErrorView(message: error) {
+                        Task { await viewModel.loadData() }
+                    }
+                } else {
+                    // TODO: Add content views
+                    // dataListView
+                    // actionButtonsView
+                }
+            }
+            .padding(Config.padding)
+        }
     }
-
-    deinit {
-        // TODO: Add cleanup if needed
-        NotificationCenter.default.removeObserver(self)
-    }
-
-    // MARK: - Private Methods
-
-    private func setupViews() {
-        // TODO: Setup UI hierarchy and constraints with SnapKit
-        // Example:
-        // view.addSubview(someView)
-        // someView.snp.makeConstraints { make in
-        //     make.edges.equalToSuperview()
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        // TODO: Add toolbar items
+        // ToolbarItem(placement: .navigationBarTrailing) {
+        //     Button("Save") {
+        //         Task { await viewModel.saveData() }
+        //     }
         // }
     }
+}
 
-    private func setupActions() {
-        // TODO: Setup button targets and gesture recognizers
-    }
+// MARK: - Preview
 
-    private func configurePresenter() {
-        // TODO: Bind presenter relays to UI updates
-    }
-
-    private func configureViewModel() {
-        // TODO: Configure viewModel and call didBecomeActive
-    }
+#Preview {
+    [ModuleName]View(viewModel: [ModuleName]ViewModel.preview)
 }
 ```
 
 ### ViewModel Structure
 
 ```swift
-import RxSwift
-import RxRelay
-import Action
-import CTCommon
+import SwiftUI
+import Combine
 
-// MARK: - ViewModelType
-protocol [ModuleName]ViewModelType: CTViewModelType {
-    var presenter: [ModuleName]Presentable? { get set }
-    var router: [ModuleName]Router? { get set }
-    var listener: [ModuleName]PresentableListener? { get set }
-}
-
-// MARK: - Presentable
-protocol [ModuleName]Presentable: AnyObject {
-    var listener: [ModuleName]PresentableListener? { get set }
-    // TODO: Add BehaviorRelay and PublishRelay properties
-    // var isLoadingRelay: BehaviorRelay<Bool> { get set }
-    // var errorMessage: BehaviorRelay<String?> { get set }
-}
-
-// MARK: - PresentableListener
-protocol [ModuleName]PresentableListener: AnyObject {
-    // TODO: Add PublishRelay properties for triggers
-    // var triggerSomeAction: PublishRelay<SomeInputType> { get }
-}
-
-// MARK: - Router
-protocol [ModuleName]Router: AnyObject {
-    // TODO: Add navigation methods
-}
-
-final class [ModuleName]ViewModel: [ModuleName]ViewModelType, [ModuleName]PresentableListener {
-
-    // MARK: - Properties
-
-    weak var presenter: [ModuleName]Presentable?
-    weak var router: [ModuleName]Router?
-    weak var listener: [ModuleName]PresentableListener?
-
-    // TODO: Add UseCase dependencies
-    // private let someUseCase: SomeUseCaseType
-
-    let disposeBag = DisposeBag()
-
+@MainActor
+final class [ModuleName]ViewModel: ObservableObject {
+    
+    // MARK: - Published Properties
+    
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    // TODO: Add @Published properties for UI state
+    // @Published var items: [Item] = []
+    // @Published var selectedItem: Item?
+    
+    // MARK: - Private Properties
+    
+    private let fetchDataUseCase: FetchDataUseCase
+    // TODO: Add additional use case dependencies
+    
     // MARK: - Initialization
-
+    
     init(
-        // TODO: Add UseCase dependencies
-        // someUseCase: SomeUseCaseType
+        fetchDataUseCase: FetchDataUseCase
+        // TODO: Add additional use case parameters
     ) {
+        self.fetchDataUseCase = fetchDataUseCase
         // TODO: Initialize dependencies
-        // self.someUseCase = someUseCase
     }
-
-    // MARK: - Life Cycle
-
-    func didBecomeActive() {
-        presenter?.listener = self
-        configureListener()
-        configurePresenter()
+    
+    // MARK: - Public Methods
+    
+    func loadData() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        do {
+            // TODO: Implement data loading
+            // let result = try await fetchDataUseCase.execute()
+            // items = result
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
+    
+    // TODO: Add additional methods
+    // func selectItem(_ item: Item) {
+    //     selectedItem = item
+    // }
+    //
+    // func deleteItem(at offsets: IndexSet) async {
+    //     // Implementation
+    // }
+}
 
-    // MARK: - Private Methods
+// MARK: - Preview Support
 
-    private func configureListener() {
-        // TODO: Subscribe to triggers from presenter/UI
+extension [ModuleName]ViewModel {
+    static var preview: [ModuleName]ViewModel {
+        [ModuleName]ViewModel(
+            fetchDataUseCase: MockFetchDataUseCase()
+        )
     }
-
-    private func configurePresenter() {
-        // TODO: Subscribe to UseCase responses and update presenter
+    
+    static var previewLoading: [ModuleName]ViewModel {
+        let vm = preview
+        vm.isLoading = true
+        return vm
+    }
+    
+    static var previewError: [ModuleName]ViewModel {
+        let vm = preview
+        vm.errorMessage = "Failed to load data"
+        return vm
     }
 }
 ```
 
-### Builder Structure
+### Builder Structure (Optional)
 
 ```swift
-import Swinject
+import Foundation
 
 final class [ModuleName]Builder {
-
+    
     // MARK: - Properties
-
+    
     private let container: Container
-
+    
     // MARK: - Initialization
-
-    init(container: Container) {
+    
+    init(container: Container = .shared) {
         self.container = container
     }
-
+    
     // MARK: - Build
-
-    func build() -> [ModuleName]ViewController {
-        let viewController = [ModuleName]ViewController()
+    
+    func build() -> [ModuleName]View {
         let viewModel = [ModuleName]ViewModel(
-            // TODO: Resolve UseCase dependencies from container
-            // someUseCase: container.resolve(SomeUseCaseType.self)!
+            fetchDataUseCase: container.resolve(FetchDataUseCase.self)!
+            // TODO: Resolve additional use case dependencies from container
         )
-
-        viewController.viewModel = viewModel
-        viewModel.presenter = viewController
-
-        return viewController
-    }
-}
-import RxSwift
-import RxCocoa
-
-// MARK: - ViewModelType
-protocol [ModuleName]ViewModelType: CTViewModelType {
-    var presenter: [ModuleName]Presentable? { get set }
-    var router: [ModuleName]Router? { get set }
-    var listener: [ModuleName]PresentableListener? { get set }
-}
-
-// MARK: - Presentable
-protocol [ModuleName]Presentable: AnyObject {
-    var listener: [ModuleName]PresentableListener? { get set }
-    // TODO: Add BehaviorRelay and PublishRelay properties
-}
-
-// MARK: - PresentableListener
-protocol [ModuleName]PresentableListener: AnyObject {
-    // TODO: Add PublishRelay properties for triggers
-}
-
-// MARK: - Router
-protocol [ModuleName]Router: AnyObject {
-    // TODO: Add navigation methods
-}
-
-final class [ModuleName]ViewModel: [ModuleName]ViewModelType, [ModuleName]PresentableListener {
-
-    // MARK: - Properties
-
-    weak var presenter: [ModuleName]Presentable?
-    weak var router: [ModuleName]Router?
-    weak var listener: [ModuleName]PresentableListener?
-
-    // TODO: Add UseCase dependencies
-    let disposeBag = DisposeBag()
-
-    // MARK: - Initialization
-
-    init(
-        // TODO: Add UseCase dependencies
-    ) {
-        // TODO: Initialize dependencies
-    }
-
-    // MARK: - Life Cycle
-
-    func didBecomeActive() {
-        presenter?.listener = self
-        configureListener()
-        configurePresenter()
-    }
-
-    // MARK: - Private Methods
-
-    private func configureListener() {
-        // TODO: Configure listener bindings
-    }
-
-    private func configurePresenter() {
-        // TODO: Configure presenter bindings
+        
+        return [ModuleName]View(viewModel: viewModel)
     }
 }
 ```
 
-### Builder Structure
+## Alternative Simplified ViewModel (No DI Container)
 
 ```swift
-import UIKit
+import SwiftUI
 
-final class [ModuleName]Builder {
-
-    // MARK: - Build
-
-    static func build(listener: [ModuleName]PresentableListener? = nil) -> UIViewController {
-        let viewModel = [ModuleName]ViewModel(
-            // TODO: Add UseCase dependencies
+@MainActor
+final class [ModuleName]ViewModel: ObservableObject {
+    
+    // MARK: - Published Properties
+    
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    // TODO: Add @Published properties
+    
+    // MARK: - Private Properties
+    
+    private let fetchDataUseCase: FetchDataUseCase
+    
+    // MARK: - Initialization
+    
+    init(
+        fetchDataUseCase: FetchDataUseCase = FetchDataUseCase(
+            repository: Container.shared.resolve(DataRepositoryType.self)!
         )
-        let viewController = [ModuleName]ViewController()
-        let router = [ModuleName]Router(viewController: viewController)
-
-        // Setup dependencies
-        viewModel.presenter = viewController
-        viewModel.router = router
-        viewModel.listener = listener
-        viewController.viewModel = viewModel
-
-        return viewController
+    ) {
+        self.fetchDataUseCase = fetchDataUseCase
+    }
+    
+    // MARK: - Public Methods
+    
+    func loadData() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        do {
+            // TODO: Implementation
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 ```
 
 Keep all implementations minimal with clear TODO guidance.
+
+````

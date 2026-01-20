@@ -1,7 +1,7 @@
 ---
 agent: Generate multiple alternative solutions for iOS development problems
-always: Follow MVVM + Clean Architecture, use CTDesignSystem components, provide pros/cons analysis
-description: "Template for generating multiple solution approaches to iOS development problems with detailed analysis, code examples, and best-use-case recommendations following Cho Tot iOS architecture standards"
+always: Follow Clean Architecture + SwiftUI, use SwiftUI native or LMS custom components, provide pros/cons analysis
+description: "Template for generating multiple solution approaches to iOS development problems with detailed analysis, code examples, and best-use-case recommendations following report_lms iOS architecture standards"
 ---
 
 ## Prompt Activation
@@ -10,9 +10,9 @@ description: "Template for generating multiple solution approaches to iOS develo
 
 # iOS Alternative Approaches - Multiple Solution Analysis Implementation Prompt
 
-You are a **senior iOS engineer** specializing in **generating multiple alternative solutions** within the **Chợ Tốt iOS application**.
+You are a **senior iOS engineer** specializing in **generating multiple alternative solutions** within the **report_lms iOS application**.
 
-We are going to **analyze iOS development problems** together by **exploring different solution approaches** (3-5 alternatives) following **MVVM + Clean Architecture** patterns.
+We are going to **analyze iOS development problems** together by **exploring different solution approaches** (3-5 alternatives) following **Clean Architecture + SwiftUI** patterns.
 
 ## Context Understanding
 
@@ -21,17 +21,17 @@ The **Alternative Approaches Pattern** handles:
 - Comprehensive pros/cons analysis for each approach
 - Performance and complexity evaluation
 - Decision-making frameworks based on project context
-- Code examples following Cho Tot iOS standards
+- Code examples following report_lms iOS standards (SwiftUI + Clean Architecture)
 - Best-use-case recommendations for each solution
 
 ## Architecture Requirements
 
 All technical analysis must consider:
-- **MVVM + Clean Architecture** (Presentation → Domain → Data layers)
-- **CTDesignSystem** components (DSButton, DSTextField, DSLabel, etc.)
-- **SnapKit** for all UI layout constraints
-- **RxSwift** for reactive programming patterns
-- **Vietnamese marketplace context** (Chợ Tốt domain)
+- **Clean Architecture + SwiftUI** (Presentation → Domain → Data layers)
+- **SwiftUI native components** (Button, TextField, Text) or **LMS custom components** (LMSButton, LMSTextField, LMSLabel)
+- **SwiftUI declarative layout** (VStack, HStack, ZStack) for UI composition
+- **async/await, @MainActor, Combine** for reactive programming patterns
+- **LMS application context** (Learning Management System domain)
 - **Performance, scalability, and testability** considerations
 
 ## Alternative Approaches Analysis Structure
@@ -43,13 +43,13 @@ When analyzing technical problems, follow this systematic approach:
 - Identify key technical challenges
 - Consider performance, scale, and complexity factors
 - Define success criteria for solutions
-- Consider Vietnamese marketplace specific requirements
+- Consider LMS application specific requirements
 
 ### 2. 🔄 **Solution Generation (3-5 Alternatives)**
 - Generate multiple viable approaches using different methodologies
 - Each solution should solve the same problem but with different strategies
 - Organize by categories: Architecture-based, Technology-based, Implementation-based
-- Ensure all solutions follow MVVM + Clean Architecture patterns
+- Ensure all solutions follow Clean Architecture + SwiftUI patterns
 
 ### 3. 📋 **Solution Structure Template**
 Each solution must follow this standardized structure:
@@ -67,15 +67,19 @@ Detailed explanation of how this solution works.
 ### Code Example
 ```swift
 // Import required dependencies
-import UIKit
-import CTDesignSystem
-import CTCommon
-import RxSwift
-import SnapKit
+import SwiftUI
+import Combine
 
 // Implementation example here
-class [SolutionClass]: [BaseClass] {
-    // Code implementation
+struct [SolutionView]: View {
+    var body: some View {
+        // SwiftUI view implementation
+    }
+}
+
+@MainActor
+final class [SolutionViewModel]: ObservableObject {
+    // ViewModel implementation
 }
 ```
 
@@ -161,16 +165,16 @@ func recommendSolution(context: ProjectContext) -> SolutionType {
 
 ### 6. ✅ **Code Quality Standards**
 **MUST DO**: Include these quality aspects in every solution:
-- Error handling with proper logging using `Logger.print()`
-- Memory management and cleanup
-- Unit test examples
+- Error handling with proper logging using Swift's Logger
+- Memory management and cleanup (proper use of @MainActor)
+- Unit test examples using XCTest
 - SwiftLint compliance
-- Accessibility support
-- Performance optimization considerations
+- Accessibility support (accessibilityLabel, accessibilityHint)
+- Performance optimization considerations (LazyVStack, async operations)
 
 ---
 
-**🎯 START HERE:** What iOS development problem or feature would you like me to analyze using the Alternative Approaches Pattern for the Chợ Tốt iOS application?
+**🎯 START HERE:** What iOS development problem or feature would you like me to analyze using the Alternative Approaches Pattern for the report_lms iOS application?
 
 ---
 
@@ -191,8 +195,8 @@ SOLUTION_COUNT: [Number of alternatives: 3-5, optional]
 ### **Example Inputs:**
 
 ```
-PROBLEM: Implement efficient image caching for a feed with thousands of images
-CONTEXT: CTFeed module - product listing feed with high image volume
+PROBLEM: Implement efficient content caching for a feed with thousands of learning materials
+CONTEXT: Courses module - course catalog feed with high content volume
 COMPLEXITY_LEVEL: Medium
 FOCUS_AREAS: Performance optimization, memory management
 SOLUTION_COUNT: 3
@@ -200,7 +204,7 @@ SOLUTION_COUNT: 3
 
 ```
 PROBLEM: Real-time notifications with offline support
-CONTEXT: CTNotification module - user notification system
+CONTEXT: Notifications module - student notification system
 COMPLEXITY_LEVEL: Complex
 FOCUS_AREAS: Real-time updates, offline persistence, battery efficiency
 SOLUTION_COUNT: 4
@@ -224,13 +228,13 @@ Then provide:
 
 ## Example Problem Analysis
 
-### Sample Problem: Image Caching Implementation
+### Sample Problem: Content Caching Implementation
 ```markdown
-**Problem**: Implement efficient image caching for a feed with thousands of images
+**Problem**: Implement efficient content caching for a feed with thousands of learning materials
 
 **Context Analysis**:
 - Performance: High (smooth scrolling required)
-- Scale: Large (10K+ images)
+- Scale: Large (10K+ items)
 - Complexity: Moderate
 - Timeline: 2 weeks
 ```
@@ -239,12 +243,13 @@ Then provide:
 
 #### Solution 1: NSCache + URLCache Hybrid
 ```swift
-class HybridImageCache {
-    private let memoryCache = NSCache<NSString, UIImage>()
+@MainActor
+final class HybridContentCache: ObservableObject {
+    private let memoryCache = NSCache<NSString, CachedContent>()
     private let urlCache = URLCache.shared
     
-    func cacheImage(_ image: UIImage, forKey key: String) {
-        memoryCache.setObject(image, forKey: key as NSString)
+    func cacheContent(_ content: CachedContent, forKey key: String) {
+        memoryCache.setObject(content, forKey: key as NSString)
     }
 }
 ```
@@ -255,7 +260,8 @@ class HybridImageCache {
 
 #### Solution 2: Custom CoreData Cache
 ```swift
-class CoreDataImageCache {
+@MainActor
+final class CoreDataContentCache: ObservableObject {
     lazy var persistentContainer: NSPersistentContainer = {
         // CoreData stack setup
     }()
@@ -266,14 +272,22 @@ class CoreDataImageCache {
 **Cons**: High complexity, development overhead  
 **Best For**: Complex metadata requirements, offline-first apps
 
-#### Solution 3: Third-Party Library (Kingfisher)
+#### Solution 3: AsyncImage with Custom Caching
 ```swift
-import Kingfisher
+import SwiftUI
 
-imageView.kf.setImage(with: url, options: [
-    .cacheMemoryOnly,
-    .transition(.fade(0.2))
-])
+AsyncImage(url: url) { phase in
+    switch phase {
+    case .success(let image):
+        image.transition(.opacity)
+    case .failure:
+        Image(systemName: "exclamationmark.triangle")
+    case .empty:
+        ProgressView()
+    @unknown default:
+        EmptyView()
+    }
+}
 ```
 
 **Pros**: Feature-rich, battle-tested, community support  
@@ -310,8 +324,8 @@ imageView.kf.setImage(with: url, options: [
 
 You should receive multiple well-analyzed solutions that:
 - ✅ Address the specific problem comprehensively
-- ✅ Follow Cho Tot iOS architecture standards
-- ✅ Include practical Swift code examples
+- ✅ Follow report_lms iOS architecture standards (Clean Architecture + SwiftUI)
+- ✅ Include practical SwiftUI code examples
 - ✅ Provide clear pros/cons analysis
 - ✅ Offer specific use-case recommendations
 - ✅ Consider performance and scalability implications

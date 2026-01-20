@@ -1,11 +1,12 @@
+````prompt
 ---
-description: "Generate basic iOS Service structure"
+description: "Generate basic iOS Service structure with async/await"
 mode: "agent"
 ---
 
 # iOS Basic Service Generator
 
-Generate basic Service following Clean Architecture patterns and API integration.
+Generate basic Service following Clean Architecture patterns and API integration with async/await.
 
 ## Instructions
 
@@ -14,9 +15,8 @@ Reference our iOS development guidelines: [iOS Guidelines](../instructions/ct-ai
 Generate basic Service structure with:
 
 -   Protocol and implementation
--   API Target integration using CTApiClient
--   RxSwift Observable return types
--   Main thread observation
+-   URLSession or custom API client integration
+-   async/await patterns
 -   Proper error handling
 -   TODO comments for implementation
 -   Proper MARK sections
@@ -25,139 +25,238 @@ Generate basic Service structure with:
 
 ```swift
 import Foundation
-import RxSwift
-import CTApiClient
 
 protocol [Name]ServiceType {
-    // TODO: Define service methods with Observable return types
-    // func fetchSomeData(parameter: String) -> Observable<[SomeModel]>
-    // func submitData(_ data: SomeInputModel) -> Observable<SomeResponseModel>
-    // func updateData(id: String, data: SomeInputModel) -> Observable<SomeResponseModel?>
-    // func deleteData(id: String) -> Observable<Bool>
+    // TODO: Define service methods with async throws
+    // func fetchData(parameter: String) async throws -> [SomeModel]
+    // func submitData(_ data: SomeInputModel) async throws -> SomeResponseModel
+    // func updateData(id: String, data: SomeInputModel) async throws -> SomeResponseModel
+    // func deleteData(id: String) async throws -> Bool
 }
 
-struct [Name]Service: [Name]ServiceType {
-
+final class [Name]Service: [Name]ServiceType {
+    
+    // MARK: - Properties
+    
+    private let session: URLSession
+    private let baseURL: URL
+    
+    // MARK: - Initialization
+    
+    init(
+        session: URLSession = .shared,
+        baseURL: URL = URL(string: "https://api.example.com")!
+    ) {
+        self.session = session
+        self.baseURL = baseURL
+    }
+    
     // MARK: - [Name]ServiceType
-
+    
     // TODO: Implement service methods
-    // func fetchSomeData(parameter: String) -> Observable<[SomeModel]> {
-    //     [Name]Targets.FetchData(parameter: parameter)
-    //         .execute()
-    //         .observe(on: MainScheduler.instance)
+    // func fetchData(parameter: String) async throws -> [SomeModel] {
+    //     let url = baseURL.appendingPathComponent("data")
+    //         .appending(queryItems: [URLQueryItem(name: "param", value: parameter)])
+    //     
+    //     let (data, response) = try await session.data(from: url)
+    //     
+    //     guard let httpResponse = response as? HTTPURLResponse,
+    //           (200...299).contains(httpResponse.statusCode) else {
+    //         throw NetworkError.invalidResponse
+    //     }
+    //     
+    //     return try JSONDecoder().decode([SomeModel].self, from: data)
     // }
     //
-    // func submitData(_ data: SomeInputModel) -> Observable<SomeResponseModel> {
-    //     [Name]Targets.SubmitData(data: data)
-    //         .execute()
-    //         .observe(on: MainScheduler.instance)
+    // func submitData(_ data: SomeInputModel) async throws -> SomeResponseModel {
+    //     let url = baseURL.appendingPathComponent("submit")
+    //     var request = URLRequest(url: url)
+    //     request.httpMethod = "POST"
+    //     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    //     request.httpBody = try JSONEncoder().encode(data)
+    //     
+    //     let (responseData, response) = try await session.data(for: request)
+    //     
+    //     guard let httpResponse = response as? HTTPURLResponse,
+    //           (200...299).contains(httpResponse.statusCode) else {
+    //         throw NetworkError.invalidResponse
+    //     }
+    //     
+    //     return try JSONDecoder().decode(SomeResponseModel.self, from: responseData)
     // }
     //
-    // func updateData(id: String, data: SomeInputModel) -> Observable<SomeResponseModel?> {
-    //     [Name]Targets.UpdateData(id: id, data: data)
-    //         .execute()
-    //         .observe(on: MainScheduler.instance)
-    // }
-    //
-    // func deleteData(id: String) -> Observable<Bool> {
-    //     [Name]Targets.DeleteData(id: id)
-    //         .execute()
-    //         .map { _ in true }
-    //         .catchAndReturn(false)
-    //         .observe(on: MainScheduler.instance)
+    // func deleteData(id: String) async throws -> Bool {
+    //     let url = baseURL.appendingPathComponent("data/\(id)")
+    //     var request = URLRequest(url: url)
+    //     request.httpMethod = "DELETE"
+    //     
+    //     let (_, response) = try await session.data(for: request)
+    //     
+    //     guard let httpResponse = response as? HTTPURLResponse,
+    //           (200...299).contains(httpResponse.statusCode) else {
+    //         return false
+    //     }
+    //     
+    //     return true
     // }
 }
 ```
 
-## Advanced Service Template with Error Handling
+## Advanced Service with Error Handling
 
 ```swift
 import Foundation
-import RxSwift
-import CTApiClient
-import CTCommon
 
 protocol [Name]ServiceType {
-    // TODO: Define service methods
-    // func fetchConfiguredData(categoryId: String, type: String) -> Observable<ConfigModel>
-    // func processComplexRequest(params: [String: Any]) -> Observable<[ProcessedModel]>
-    // func validateAndSubmit(data: ValidatedModel) -> Observable<SubmissionResult?>
+    func fetchConfiguredData(categoryId: String, type: String) async throws -> ConfigModel
+    func processComplexRequest(params: [String: Any]) async throws -> [ProcessedModel]
 }
 
-struct [Name]Service: [Name]ServiceType {
-
+final class [Name]Service: [Name]ServiceType {
+    
+    // MARK: - Properties
+    
+    private let session: URLSession
+    private let baseURL: URL
+    
+    enum ServiceError: LocalizedError {
+        case invalidURL
+        case noData
+        case invalidConfiguration(String)
+        
+        var errorDescription: String? {
+            switch self {
+            case .invalidURL:
+                return "Invalid URL"
+            case .noData:
+                return "No data received"
+            case .invalidConfiguration(let type):
+                return "Invalid configuration for type: \(type)"
+            }
+        }
+    }
+    
+    // MARK: - Initialization
+    
+    init(
+        session: URLSession = .shared,
+        baseURL: URL
+    ) {
+        self.session = session
+        self.baseURL = baseURL
+    }
+    
     // MARK: - [Name]ServiceType
-
-    // TODO: Implement service methods with error handling
-    // func fetchConfiguredData(categoryId: String, type: String) -> Observable<ConfigModel> {
-    //     let observable = [Name]Targets.GetConfiguration(categoryId: categoryId).execute()
-    //     return observable
-    //         .map { response in
-    //             guard let config = response[type] else {
-    //                 throw LoadingError.noResponse
-    //             }
-    //             return config
-    //         }
-    //         .observe(on: MainScheduler.instance)
-    // }
-    //
-    // func processComplexRequest(params: [String: Any]) -> Observable<[ProcessedModel]> {
-    //     [Name]Targets.ProcessRequest(requestParams: params)
-    //         .execute()
-    //         .observe(on: MainScheduler.instance)
-    // }
-    //
-    // func validateAndSubmit(data: ValidatedModel) -> Observable<SubmissionResult?> {
-    //     [Name]Targets.SubmitValidatedData(data: data)
-    //         .execute()
-    //         .observe(on: MainScheduler.instance)
-    // }
+    
+    func fetchConfiguredData(categoryId: String, type: String) async throws -> ConfigModel {
+        let url = baseURL.appendingPathComponent("config/\(categoryId)")
+        let (data, response) = try await session.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw NetworkError.invalidResponse
+        }
+        
+        let configResponse = try JSONDecoder().decode([String: ConfigModel].self, from: data)
+        
+        guard let config = configResponse[type] else {
+            throw ServiceError.invalidConfiguration(type)
+        }
+        
+        return config
+    }
+    
+    func processComplexRequest(params: [String: Any]) async throws -> [ProcessedModel] {
+        let url = baseURL.appendingPathComponent("process")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: params)
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw NetworkError.invalidResponse
+        }
+        
+        return try JSONDecoder().decode([ProcessedModel].self, from: data)
+    }
 }
 ```
 
-## Service with Multiple Target Integration
+## Service with Multiple Endpoints
 
 ```swift
 import Foundation
-import RxSwift
-import CTApiClient
 
 protocol [Name]ServiceType {
-    // TODO: Define service methods for different operations
-    // func fetchCategories() -> Observable<[CategoryModel]>
-    // func searchSuggestions(query: String, filters: [String]) -> Observable<[SuggestionModel]>
-    // func analyzeText(content: String) -> Observable<AnalysisResult?>
-    // func checkLimits(userId: String, category: String) -> Observable<LimitResponse?>
+    func fetchCategories() async throws -> [CategoryModel]
+    func searchSuggestions(query: String, filters: [String]) async throws -> [SuggestionModel]
+    func analyzeText(content: String) async throws -> AnalysisResult
+    func checkLimits(userId: String, category: String) async throws -> LimitResponse
 }
 
-struct [Name]Service: [Name]ServiceType {
-
+final class [Name]Service: [Name]ServiceType {
+    
+    // MARK: - Properties
+    
+    private let session: URLSession
+    private let baseURL: URL
+    
+    // MARK: - Initialization
+    
+    init(
+        session: URLSession = .shared,
+        baseURL: URL
+    ) {
+        self.session = session
+        self.baseURL = baseURL
+    }
+    
     // MARK: - [Name]ServiceType
-
-    // TODO: Implement methods using different targets
-    // func fetchCategories() -> Observable<[CategoryModel]> {
-    //     [Name]Targets.FetchCategory()
-    //         .execute()
-    //         .observe(on: MainScheduler.instance)
-    // }
-    //
-    // func searchSuggestions(query: String, filters: [String]) -> Observable<[SuggestionModel]> {
-    //     [Name]Targets.SearchSuggestions(query: query, filters: filters)
-    //         .execute()
-    //         .observe(on: MainScheduler.instance)
-    // }
-    //
-    // func analyzeText(content: String) -> Observable<AnalysisResult?> {
-    //     [Name]Targets.AnalyzeText(content: content)
-    //         .execute()
-    //         .observe(on: MainScheduler.instance)
-    // }
-    //
-    // func checkLimits(userId: String, category: String) -> Observable<LimitResponse?> {
-    //     [Name]Targets.CheckLimits(userId: userId, category: category)
-    //         .execute()
-    //         .observe(on: MainScheduler.instance)
-    // }
+    
+    func fetchCategories() async throws -> [CategoryModel] {
+        let url = baseURL.appendingPathComponent("categories")
+        let (data, _) = try await session.data(from: url)
+        return try JSONDecoder().decode([CategoryModel].self, from: data)
+    }
+    
+    func searchSuggestions(query: String, filters: [String]) async throws -> [SuggestionModel] {
+        var components = URLComponents(url: baseURL.appendingPathComponent("search"), resolvingAgainstBaseURL: true)!
+        components.queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "filters", value: filters.joined(separator: ","))
+        ]
+        
+        guard let url = components.url else {
+            throw ServiceError.invalidURL
+        }
+        
+        let (data, _) = try await session.data(from: url)
+        return try JSONDecoder().decode([SuggestionModel].self, from: data)
+    }
+    
+    func analyzeText(content: String) async throws -> AnalysisResult {
+        let url = baseURL.appendingPathComponent("analyze")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["content": content])
+        
+        let (data, _) = try await session.data(for: request)
+        return try JSONDecoder().decode(AnalysisResult.self, from: data)
+    }
+    
+    func checkLimits(userId: String, category: String) async throws -> LimitResponse {
+        let url = baseURL
+            .appendingPathComponent("limits")
+            .appendingPathComponent(userId)
+            .appending(queryItems: [URLQueryItem(name: "category", value: category)])
+        
+        let (data, _) = try await session.data(from: url)
+        return try JSONDecoder().decode(LimitResponse.self, from: data)
+    }
 }
 ```
 
@@ -166,10 +265,10 @@ struct [Name]Service: [Name]ServiceType {
 ### Required Patterns
 
 1. **Protocol Definition**: Always define a protocol for your service
-2. **Observable Return Types**: All methods must return RxSwift Observable
-3. **Main Thread Observation**: Use `.observe(on: MainScheduler.instance)` for UI updates
-4. **Target Integration**: Use API Targets with `.execute()` method
-5. **Error Handling**: Implement proper error mapping when needed
+2. **async/await**: All methods must use async throws (no completion handlers)
+3. **Error Handling**: Implement proper error mapping and validation
+4. **URLSession**: Use URLSession for network requests
+5. **Codable**: Use Codable for JSON encoding/decoding
 
 ### Naming Conventions
 
@@ -181,52 +280,53 @@ struct [Name]Service: [Name]ServiceType {
 
 ```swift
 import Foundation
-import RxSwift
-import CTApiClient
-// Optional: import CTCommon for error handling
 ```
 
 ### Error Handling Patterns
 
 ```swift
-// Simple error handling
-.catchAndReturn(defaultValue)
-
-// Complex error mapping
-.map { response in
-    guard let data = response.data else {
-        throw LoadingError.noResponse
-    }
-    return data
+// Check HTTP status
+guard let httpResponse = response as? HTTPURLResponse,
+      (200...299).contains(httpResponse.statusCode) else {
+    throw NetworkError.invalidResponse
 }
 
-// Optional response handling
-.compactMap { $0 }
+// Validate data
+guard !data.isEmpty else {
+    throw ServiceError.noData
+}
+
+// Custom validation
+guard let result = response.data else {
+    throw ServiceError.invalidConfiguration("missing data")
+}
 ```
 
 ## Template Variables
 
--   `${input:serviceName}`: Service name (e.g., "SmartAd", "UserProfile")
--   `${input:feature}`: Feature module (e.g., "CTInsertAd", "CTUserManagement")
+-   `${input:serviceName}`: Service name (e.g., "User", "Course", "Report")
+-   `${input:feature}`: Feature module (e.g., "report_lms")
 -   `${input:operations}`: Comma-separated operations (e.g., "fetch,submit,update,delete")
--   `${input:entityName}`: Entity type (e.g., "Category", "User", "Product")
+-   `${input:entityName}`: Entity type (e.g., "User", "Course", "Report")
 
 ## Usage Examples
 
--   `/ios-service serviceName:SmartAd feature:CTInsertAd operations:fetch,submit entityName:Category`
--   `/ios-service serviceName:UserProfile feature:CTUserManagement operations:get,update entityName:User`
--   `/ios-service serviceName:Product feature:CTEcommerce operations:fetch,create,update,delete entityName:Product`
+-   `/ios-service serviceName:User feature:report_lms operations:fetch,update entityName:User`
+-   `/ios-service serviceName:Course feature:report_lms operations:fetch,create,delete entityName:Course`
+-   `/ios-service serviceName:Report feature:report_lms operations:fetch,submit entityName:Report`
 
 ## Output
 
 Generate basic Service with:
 
-1. Protocol definition with method signatures
-2. Service implementation with Target integration
-3. Proper RxSwift Observable patterns
-4. Main thread observation
+1. Protocol definition with async method signatures
+2. Service implementation with URLSession
+3. Proper async/await patterns
+4. Error handling patterns
 5. TODO comments for implementation
 6. Proper MARK sections
-7. Error handling patterns (when applicable)
+7. Codable integration
 
 Keep implementation minimal with TODO guidance for specific business logic.
+
+````
