@@ -77,44 +77,86 @@ struct LMSButton: View {
         }) {
             contentView
         }
-        .buttonStyle(LMSButtonPressableStyle())
+        .buttonStyle(IconOnlyButtonStyle(variant: variant, isDisabled: isDisabled || isLoading))
         .disabled(isDisabled || isLoading)
-        .opacity((isDisabled || isLoading) ? 0.6 : 1.0)
+        .opacity((isDisabled || isLoading) ? 0.5 : 1.0)
         .accessibilityLabel(title)
         .accessibilityHint(isLoading ? "Loading" : "")
         .accessibilityAddTraits(isDisabled ? .isButton : [.isButton])
+    // MARK: - IconOnlyButtonStyle
+}
+
+// MARK: - IconOnlyButtonStyle
+private struct IconOnlyButtonStyle: ButtonStyle {
+    let variant: LMSButtonVariant
+    let isDisabled: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                Group {
+                    if variant == .iconOnly && configuration.isPressed {
+                        Circle()
+                            .fill(Color(.systemGray5))
+                            .frame(width: 36, height: 36)
+                    } else {
+                        Color.clear
+                    }
+                }
+            )
+            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+            .opacity(isDisabled ? 0.5 : 1.0)
     }
+}
     
     // MARK: - Private Views
     
     private var contentView: some View {
-        HStack(spacing: 8) {
-            if isLoading {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(variant.foregroundColor)
-                    .scaleEffect(0.9)
-            } else {
-                if let icon = icon {
-                    Image(systemName: icon)
-                        .font(size.fontSize)
+        Group {
+            if variant == .iconOnly {
+                ZStack {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(variant.foregroundColor)
+                            .scaleEffect(0.9)
+                    } else if let icon = icon {
+                        Image(systemName: icon)
+                            .font(.title2)
+                    }
                 }
-                
-                Text(title)
-                    .font(size.fontSize)
-                    .fontWeight(.semibold)
+                .foregroundColor(variant.foregroundColor)
+                .frame(width: 36, height: 36)
+            } else {
+                HStack(spacing: 8) {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(variant.foregroundColor)
+                            .scaleEffect(0.9)
+                    } else {
+                        if let icon = icon {
+                            Image(systemName: icon)
+                                .font(size.fontSize)
+                        }
+                        Text(title)
+                            .font(size.fontSize)
+                            .fontWeight(.semibold)
+                    }
+                }
+                .foregroundColor(variant.foregroundColor)
+                .frame(maxWidth: isFullWidth ? .infinity : nil)
+                .frame(height: size.height)
+                .padding(.horizontal, size.horizontalPadding)
+                .background(variant.backgroundColor)
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(variant.borderColor ?? .clear, lineWidth: 1)
+                )
             }
         }
-        .foregroundColor(variant.foregroundColor)
-        .frame(maxWidth: isFullWidth ? .infinity : nil)
-        .frame(height: size.height)
-        .padding(.horizontal, size.horizontalPadding)
-        .background(variant.backgroundColor)
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(variant.borderColor ?? .clear, lineWidth: 1)
-        )
     }
 }
 

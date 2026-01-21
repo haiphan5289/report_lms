@@ -1,121 +1,116 @@
 @@ -0,0 +1,230 @@
 # iOS Scaffolding Guide
 
-This guide explains how to use the iOS prompt files to generate code scaffolding for your MVVM+C architecture project.
+This guide explains how to use the iOS prompt files to generate code scaffolding for your Clean Architecture + SwiftUI project.
 
 ## Available Prompts
 
-### 1. **ios-scaffold.prompt.md** - Basic File Scaffolding
-Generate individual files like ViewControllers, ViewModels, etc.
+### 1. **component-creation-pattern.prompt.md** - UI Component Creation
+Generate reusable SwiftUI components with proper styling and theming.
 
-### 2. **ios-module.prompt.md** - Complete Module Generation
-Generate complete MVVM+C modules with ViewController, ViewModel, and Builder.
+### 2. **ct-ai-chain-of-thought-pattern.prompt.md** - Technical Design Analysis
+Analyze complex technical problems with step-by-step reasoning.
 
-### 3. **ios-usecase.prompt.md** - UseCase Generation
+### 3. **ct-ai-rules-module.prompt.md** - Complete Feature Module Generation
+Generate complete Clean Architecture modules with View, ViewModel, and dependencies.
+
+### 4. **ct-ai-rules-usecase.prompt.md** - UseCase Generation
 Generate Clean Architecture use cases with repository dependencies.
 
-### 4. **ios-repository.prompt.md** - Repository Generation
+### 5. **ct-ai-rules-repository.prompt.md** - Repository Generation
 Generate repositories with service layer integration.
 
-### 5. **ios-target.prompt.md** - API Target Generation
-Generate API targets following Requestable protocol patterns.
+### 6. **ct-ai-rules-service.prompt.md** - Service Layer Generation
+Generate service layer for API integration.
 
-### 6. **ios-cell.prompt.md** - Cell Generation
-Generate TableView/CollectionView cells with CTDesignSystem.
-
-### 7. **ios-unittest.prompt.md** - Unit Test Generation
-Generate unit tests using Quick and Nimble with mock classes.
+### 7. **ct-ai-rules-unittest.prompt.md** - Unit Test Generation
+Generate unit tests using XCTest with mock classes.
 
 ## How to Use Prompts
 
 ### Method 1: GitHub Copilot Chat Commands
 
-Use `/` commands in GitHub Copilot Chat:
+Use natural language with context in GitHub Copilot Chat:
 
 ```
-/ios-scaffold fileName:UserProfile fileType:ViewController
-/ios-module moduleName:UserProfile featureName:CTUserManagement
-/ios-usecase useCaseName:GetUserProfile feature:CTUserManagement useCaseType:action
-/ios-repository repositoryName:UserProfile feature:CTUserManagement
-/ios-target targetName:UserProfile feature:CTUserManagement operations:get,create
-/ios-cell cellName:UserProfile feature:CTUserManagement
-/ios-unittest className:UserProfileViewModel feature:CTUserManagement testType:viewModel
+Create a student profile view following Clean Architecture
+Generate a course enrollment use case with repository pattern
+Create a reusable button component for the LMS
+Build a complete report generation feature module
+Generate unit tests for CourseViewModel
 ```
 
-### Method 2: Natural Language Requests
+### Method 2: Reference Prompt Patterns
 
-Ask Copilot to generate code using natural language:
+Reference specific prompt patterns for guidance:
 
 ```
-"Generate a UserProfile ViewController using our iOS scaffold template"
-"Create a complete MVVM+C module for UserProfile in CTUserManagement feature"
-"Generate a UseCase for getting user profile data"
-"Create a repository for UserProfile with service integration"
-"Generate API targets for UserProfile CRUD operations"
-"Create a UserProfile table view cell with CTDesignSystem"
-"Generate unit tests for UserProfileViewModel with Quick and Nimble"
+Follow the component-creation-pattern to create a custom chart component
+Use chain-of-thought-pattern to analyze the video player feature
+Apply the rules-module pattern for the assignment submission feature
 ```
 
 ## Template Variables
 
-All prompts support these variables:
+All prompts support these concepts:
 
-- `${input:fileName}` / `${input:moduleName}` - Base name (e.g., "UserProfile")
-- `${input:featureName}` - Feature module (e.g., "CTUserManagement")
-- `${input:fileType}` - File type (ViewController, ViewModel, UseCase, etc.)
-- `${input:useCaseType}` - "action" or "standard" for UseCase
-- `${input:operations}` - Comma-separated operations for API targets
+- **Feature Name** - Module name (e.g., "Login", "CourseList", "StudentProfile")
+- **Entity Name** - Domain entity (e.g., "User", "Course", "Assignment")
+- **Component Type** - SwiftUI view type (Button, TextField, Card, etc.)
+- **Use Case Type** - Business logic operation (Fetch, Create, Update, Delete)
 
 ## Usage Examples
 
 ### Complete Feature Development Flow
 
-1. **Start with API Target**:
+1. **Define Domain Layer**:
 ```
-/ios-target targetName:UserProfile feature:CTUserManagement operations:get,update,delete
-```
-
-2. **Create Repository**:
-```
-/ios-repository repositoryName:UserProfile feature:CTUserManagement
+Create a Course entity with id, title, description, and enrollment status
+Generate a CourseRepositoryType protocol
+Create a FetchCourseUseCase with repository dependency
 ```
 
-3. **Generate Use Cases**:
+2. **Implement Data Layer**:
 ```
-/ios-usecase useCaseName:GetUserProfile feature:CTUserManagement useCaseType:action
-/ios-usecase useCaseName:UpdateUserProfile feature:CTUserManagement useCaseType:action
-```
-
-4. **Create Complete Module**:
-```
-/ios-module moduleName:UserProfile featureName:CTUserManagement
+Create a CourseModel with Codable conformance
+Generate CourseService for API integration
+Implement CourseRepository following the protocol
 ```
 
-5. **Add Custom Cell (if needed)**:
+3. **Build Presentation Layer**:
 ```
-/ios-cell cellName:UserProfileItem feature:CTUserManagement
+Create CourseListViewModel with async data loading
+Build CourseListView with List and navigation
+Add LMSButton for enrollment action
+```
+
+4. **Add Tests**:
+```
+Generate XCTest suite for FetchCourseUseCase
+Create mock CourseRepository for testing
+Test CourseListViewModel with async expectations
 ```
 
 ### Individual File Generation
 
-**ViewController Only**:
+**SwiftUI View**:
 ```
-/ios-scaffold fileName:UserProfile fileType:ViewController
-```
-
-**ViewModel Only**:
-```
-/ios-scaffold fileName:UserProfile fileType:ViewModel
+Create a StudentProfileView using SwiftUI
 ```
 
-**UseCase Only**:
+**ViewModel**:
 ```
-/ios-usecase useCaseName:ValidateUserInput feature:CTUserManagement useCaseType:standard
+Generate a StudentProfileViewModel with @MainActor
 ```
 
-**Unit Test Only**:
+**Use Case**:
 ```
-/ios-unittest className:UserProfileViewModel feature:CTUserManagement testType:viewModel
+Create an EnrollStudentUseCase with async/await
+```
+
+**Unit Test**:
+```
+Generate XCTest for StudentProfileViewModel
 ```
 
 ## Project Structure
@@ -123,109 +118,136 @@ All prompts support these variables:
 Generated files should be organized in your project like this:
 
 ```
-AppFeatures/
-  CTUserManagement/
-    UserProfile/
-      UserProfileViewController.swift
-      UserProfileViewModel.swift
-      UserProfileBuilder.swift
-    UseCase/
-      GetUserProfileUseCase.swift
-      UpdateUserProfileUseCase.swift
-    Repository/
-      UserProfileRepository.swift
-    Target/
-      UserProfileTarget.swift
-    Cell/
-      UserProfileItemCell.swift
-      UserProfileItemCellViewModel.swift
-ChoTotTests/
-  CTUserManagement/
-    UserProfileViewModelSpec.swift
-    GetUserProfileUseCaseSpec.swift
-    UserProfileRepositorySpec.swift
+report_lms/
+├── Sources/
+│   ├── Domain/
+│   │   ├── Entities/
+│   │   │   ├── Student.swift
+│   │   │   └── Course.swift
+│   │   ├── Repositories/
+│   │   │   ├── StudentRepositoryType.swift
+│   │   │   └── CourseRepositoryType.swift
+│   │   └── UseCases/
+│   │       ├── FetchStudentUseCase.swift
+│   │       └── EnrollCourseUseCase.swift
+│   ├── Data/
+│   │   ├── Models/
+│   │   │   ├── StudentModel.swift
+│   │   │   └── CourseModel.swift
+│   │   ├── Repositories/
+│   │   │   ├── StudentRepository.swift
+│   │   │   └── CourseRepository.swift
+│   │   └── Services/
+│   │       ├── StudentService.swift
+│   │       └── CourseService.swift
+│   ├── Presentation/
+│   │   └── Modules/
+│   │       ├── StudentProfile/
+│   │       │   ├── ViewModels/
+│   │       │   │   └── StudentProfileViewModel.swift
+│   │       │   └── Views/
+│   │       │       └── StudentProfileView.swift
+│   │       └── CourseList/
+│   │           ├── ViewModels/
+│   │           │   └── CourseListViewModel.swift
+│   │           └── Views/
+│   │               └── CourseListView.swift
+│   └── Common/
+│       └── Components/
+│           ├── Buttons/
+│           │   └── LMSButton.swift
+│           ├── Text/
+│           │   └── LMSLabel.swift
+│           └── TextFields/
+│               └── LMSTextField.swift
+└── report_lmsTests/
+    ├── Domain/
+    │   └── UseCases/
+    │       └── FetchStudentUseCaseTests.swift
+    └── Presentation/
+        └── ViewModels/
+            └── StudentProfileViewModelTests.swift
 ```
 
 ## Best Practices
 
 ### 1. **Follow Naming Conventions**
-- Use PascalCase for class names: `UserProfileViewController`
-- Use descriptive names: `GetUserProfileUseCase` instead of `UserUseCase`
-- Include feature prefix when needed: `CTUserManagementConfig`
+- Use PascalCase for types: `StudentProfileView`, `CourseListViewModel`
+- Use descriptive names: `FetchStudentUseCase` instead of `StudentUseCase`
+- Prefix custom components with `LMS`: `LMSButton`, `LMSTextField`
 
 ### 2. **Generate in Order**
-1. API Targets (lowest level)
-2. Repositories
-3. Use Cases
-4. ViewModels & ViewControllers
-5. Supporting files (Cells, etc.)
-6. Unit Tests (after implementation)
+1. Domain Layer (Entities, Repository protocols, Use Cases)
+2. Data Layer (Models, Services, Repository implementations)
+3. Presentation Layer (ViewModels, Views)
+4. Common Components (Reusable UI components)
+5. Unit Tests (After implementation)
 
 ### 3. **Customize After Generation**
-- All generated files contain TODO comments
 - Replace placeholder types with actual models
-- Implement business logic in marked sections
-- Add proper imports based on your needs
+- Implement business logic in Use Cases
+- Add proper error handling
+- Ensure proper state management with @Published properties
 
-### 4. **Use CTDesignSystem**
-- Always use CTDesignSystem for UI components
-- Follow the examples in generated templates
-- Don't use UIKit components directly
+### 4. **Use Native SwiftUI**
+- Always use native SwiftUI components first
+- Create custom LMS components for reusability
+- Follow SwiftUI declarative patterns
+- Use @MainActor for ViewModels
 
 ## Common Commands Reference
 
 ### Quick Module Setup
-```bash
-# Generate complete module with all dependencies
-/ios-module moduleName:ProductListing featureName:CTEcommerce
-
-# Add supporting use cases
-/ios-usecase useCaseName:SearchProducts feature:CTEcommerce useCaseType:action
-/ios-usecase useCaseName:FilterProducts feature:CTEcommerce useCaseType:standard
-
-# Add custom cell
-/ios-cell cellName:ProductItem feature:CTEcommerce
+```
+Create a complete CourseList module with Clean Architecture
+- Generate Course entity and repository protocol
+- Create FetchCoursesUseCase
+- Build CourseListViewModel with async data loading
+- Create CourseListView with List and navigation
 ```
 
 ### API Integration Setup
-```bash
-# Generate API layer
-/ios-target targetName:Product feature:CTEcommerce operations:get,search,filter
-/ios-repository repositoryName:Product feature:CTEcommerce
-/ios-usecase useCaseName:GetProduct feature:CTEcommerce useCaseType:action
+```
+Set up course enrollment API integration
+- Create CourseService with URLSession
+- Implement CourseRepository
+- Generate EnrollCourseUseCase
+- Add enrollment action to ViewModel
 ```
 
 ### UI Component Setup
-```bash
-# Generate UI components
-/ios-scaffold fileName:ProductDetail fileType:ViewController
-/ios-cell cellName:ProductImage feature:CTEcommerce
-/ios-cell cellName:ProductInfo feature:CTEcommerce
+```
+Create reusable LMS components
+- LMSProgressBar for course progress
+- LMSCourseCard for course display
+- LMSEnrollButton with loading state
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Prompt not recognized**: Ensure you're using GitHub Copilot Chat and the prompt files are in `.github/prompts/`
+1. **Architecture confusion**: Follow the three-layer pattern (Presentation → Domain ← Data)
 
-2. **Missing imports**: Add required imports based on your feature dependencies
+2. **State management**: Use @Published in ViewModels, @State/@StateObject in Views
 
-3. **Build errors**: Replace placeholder types with actual models from your project
+3. **Async operations**: Always use async/await with proper error handling
 
-4. **Design system not found**: Ensure CTDesignSystem is properly imported in your project
+4. **Component reusability**: Create custom LMS components in Common/Components/
 
 ### Getting Help
 
-- Reference the iOS general instructions: `.github/instructions/ios-general-instructions.instructions.md`
-- Check existing code in your feature modules for patterns
-- Follow the TODO comments in generated code
-- Use CTDesignSystem documentation for UI components
+- Reference architecture.md in `.github/instructions/`
+- Check code-standards.md for naming and organization
+- Review code-style.md for SwiftUI best practices  
+- Use component-creation-pattern.prompt.md for UI components
 
 ## Tips
 
-- Start with a complete module using `/ios-module` then add specific use cases
-- Use descriptive names that include the feature context
-- Always implement TODO comments before moving to the next component
-- Test your generated code incrementally
-- Follow the MVVM+C architecture patterns shown in the templates
+- Start with Domain layer (entities and protocols) before implementation
+- Use @MainActor for all ViewModels
+- Always provide Preview configurations for SwiftUI views
+- Test Use Cases and ViewModels with XCTest
+- Follow Clean Architecture principles: Domain has no dependencies
+- Use async/await instead of completion handlers
+- Leverage SwiftUI's declarative nature for clean, readable code

@@ -1,6 +1,6 @@
 ---
 agent: Semantically filter and clean PRD content for iOS development analysis
-always: Follow MVVM + Clean Architecture, use CTDesignSystem components, preserve technical requirements
+always: Follow Clean Architecture + SwiftUI, use SwiftUI native and LMS components, preserve technical requirements
 description: "Template for filtering PRD content to extract iOS-relevant information while maintaining security and technical accuracy"
 ---
 
@@ -10,7 +10,7 @@ description: "Template for filtering PRD content to extract iOS-relevant informa
 
 # 🔍 Semantic Filter Pattern Implementation Prompt
 
-You are an expert iOS developer specializing in **analyzing and filtering Product Requirements Documents (PRDs)** to extract **technically relevant information** for the **Chợ Tốt iOS application**.
+You are an expert iOS developer specializing in **analyzing and filtering Product Requirements Documents (PRDs)** to extract **technically relevant information** for the **report_lms iOS application**.
 
 We are going to **clean and semantically filter PRD content** together, removing sensitive information while **preserving all technical requirements** needed for iOS development.
 
@@ -26,10 +26,10 @@ The **Semantic Filter Pattern** is designed to:
 ## Architecture Requirements
 
 All filtered content must preserve:
-- **Technical specifications** for MVVM + Clean Architecture implementation
-- **UI/UX requirements** for CTDesignSystem components
+- **Technical specifications** for Clean Architecture + SwiftUI implementation
+- **UI/UX requirements** for SwiftUI native and LMS components
 - **API specifications** and data models
-- **User flow descriptions** for ViewController navigation
+- **User flow descriptions** for SwiftUI navigation and routing
 - **Validation rules** and business logic for Use Cases
 - **Security requirements** and data handling specifications
 
@@ -59,14 +59,14 @@ All filtered content must preserve:
 
 When filtering, specifically preserve:
 
-#### **MVVM Architecture Requirements**
-- ViewModel specifications and data binding needs
-- View layer requirements for UI components
-- Model definitions and data transformation needs
+#### **Clean Architecture + SwiftUI Requirements**
+- ViewModel specifications and @Published property needs
+- SwiftUI View layer requirements for declarative UI
+- Entity definitions and data transformation needs
 
-#### **CTDesignSystem Integration**
-- UI component specifications (buttons, text fields, labels)
-- Design system compliance requirements
+#### **SwiftUI & LMS Component Integration**
+- UI component specifications (LMSButton, LMSTextField, LMSLabel)
+- SwiftUI native components and modifiers
 - Accessibility and theming needs
 
 #### **Technical Integration Points**
@@ -76,7 +76,7 @@ When filtering, specifically preserve:
 - Background processing requirements
 
 #### **User Experience Flows**
-- Navigation patterns and screen transitions
+- NavigationStack patterns and screen transitions
 - User input validation and feedback
 - Loading states and error handling
 - Offline functionality requirements
@@ -104,17 +104,17 @@ To activate the Semantic Filter Pattern, provide your PRD content in this format
 ```
 📄 RAW PRD CONTENT:
 """
-# Payment Gateway Integration - Q4 Revenue Initiative
+# Student Progress Tracking Integration - Q4 Engagement Initiative
 
 ## Business Context
-Our revenue team (John Smith, Sarah Lee) identified that 60% of users abandon checkout due to payment friction. Market research shows competitors like Shopee achieve 85% conversion rates. We need to increase our GMV from $2M to $3.5M by implementing MoMo wallet integration.
+Our product team (John Smith, Sarah Lee) identified that 60% of students don't complete courses due to lack of progress visibility. Market research shows competitors like Coursera achieve 85% completion rates. We need to increase our course completion from 40% to 65% by implementing real-time progress tracking.
 
 ## Technical Requirements
-- Users can add funds to e-wallet using credit cards
-- Real-time balance updates via WebSocket connection
-- Payment flow uses OAuth 2.0 authentication
-- Transaction history with pagination (20 items per page)
-- Offline capability for viewing recent transactions
+- Students can view course progress with visual indicators
+- Real-time progress updates via WebSocket connection
+- Progress synchronization using OAuth 2.0 authentication
+- Achievement history with pagination (20 items per page)
+- Offline capability for viewing recent progress
 """
 ```
 
@@ -122,17 +122,17 @@ Our revenue team (John Smith, Sarah Lee) identified that 60% of users abandon ch
 ```
 ✅ FILTERED PRD:
 """
-# Payment Gateway Integration
+# Student Progress Tracking Integration
 
 ## Business Context
-Users frequently abandon checkout due to payment friction. Market analysis indicates payment method variety significantly impacts conversion rates. Implementation of digital wallet integration will improve user experience and transaction completion.
+Students frequently lack visibility into their learning progress. Analysis indicates real-time progress tracking significantly impacts course completion rates. Implementation of comprehensive progress tracking will improve student engagement and course completion.
 
 ## Technical Requirements
-- Users can add funds to e-wallet using credit cards
-- Real-time balance updates via WebSocket connection
-- Payment flow uses OAuth 2.0 authentication
-- Transaction history with pagination (20 items per page)
-- Offline capability for viewing recent transactions
+- Students can view course progress with visual indicators
+- Real-time progress updates via WebSocket connection
+- Progress synchronization using OAuth 2.0 authentication
+- Achievement history with pagination (20 items per page)
+- Offline capability for viewing recent progress
 """
 ```
 
@@ -153,7 +153,18 @@ We are going to **semantically filter [PRD TITLE/FEATURE NAME]** together to ext
 Follow the **Semantic Filter Pattern**:
 - **Remove sensitive information** while preserving technical requirements
 - **Maintain PRD structure** for easier subsequent analysis
-- **Focus on iOS development needs** (MVVM, CTDesignSystem, RxSwift, etc.)
+- **Focus on iOS development needs** (Clean Architecture + SwiftUI, LMS components, async/await, etc.)
+- **Preserve user stories and functional specs** needed for implementation
+
+Provide the raw PRD content you want me to filter.
+
+````
+We are going to **semantically filter [PRD TITLE/FEATURE NAME]** together to extract iOS-relevant technical information.
+
+Follow the **Semantic Filter Pattern**:
+- **Remove sensitive information** while preserving technical requirements
+- **Maintain PRD structure** for easier subsequent analysis
+- **Focus on iOS development needs** (Clean Architecture + SwiftUI, LMS components, async/await, etc.)
 - **Preserve user stories and functional specs** needed for implementation
 
 Provide the raw PRD content you want me to filter.

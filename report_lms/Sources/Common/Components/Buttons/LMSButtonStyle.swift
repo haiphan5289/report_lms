@@ -15,6 +15,7 @@ enum LMSButtonVariant {
     case tertiary
     case destructive
     case ghost
+    case iconOnly
     
     var backgroundColor: Color {
         switch self {
@@ -26,7 +27,7 @@ enum LMSButtonVariant {
             return .clear
         case .destructive:
             return .red
-        case .ghost:
+        case .ghost, .iconOnly:
             return .clear
         }
     }
@@ -37,7 +38,7 @@ enum LMSButtonVariant {
             return .white
         case .secondary:
             return .primary
-        case .tertiary, .ghost:
+        case .tertiary, .ghost, .iconOnly:
             return .blue
         }
     }

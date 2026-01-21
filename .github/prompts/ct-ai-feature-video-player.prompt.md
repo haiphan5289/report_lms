@@ -173,170 +173,112 @@ private func playerDidFinishPlaying() {
     isPlaying = false
     player?.seek(to: .zero)
 }
-```
-
-#### Video completion handler
-```swift
-@objc private func playerDidFinishPlaying() {
-    playButton?.isHidden = false
-    player?.seek(to: .zero)
-}
-```
-
-### Step 7: Implement Observer Pattern and Error Handling
-Add these methods to handle player state changes and errors:
-
-#### KVO observer for player status
-```swift
-override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
-    if keyPath == "status", let playerItem = object as? AVPlayerItem {
-        switch playerItem.status {
-        case .readyToPlay:
-            DispatchQueue.main.async { [weak self] in
-                self?.loadingIndicator?.stopAnimating()
-                self?.playButton?.isHidden = false
-                self?.playerLayer?.frame = self?.containerVideoView.bounds ?? .zero
-                Logger.print("Video loaded successfully", level: .info)
-            }
-        case .failed:
-            DispatchQueue.main.async { [weak self] in
-                let error = playerItem.error?.localizedDescription ?? "Unknown error"
-                Logger.print("Video failed to load: \(error)", level: .error)
-                self?.tryNextVideoURL()
-            }
-        case .unknown:
-            break
-        @unknown default:
-            break
-        }
-    }
-}
-```
-
-#### Error fallback handling
-```swift
-private func tryNextVideoURL() {
-    let currentIndex = containerVideoView.tag
-    // Retrieve video URLs from your data source or stored property
-    let videoURLs = getVideoURLs() // You need to implement this method
-    
-    // Clean up current player
-    player?.currentItem?.removeObserver(self, forKeyPath: "status")
-    NotificationCenter.default.removeObserver(self)
-    playerLayer?.removeFromSuperlayer()
-    player = nil
-    playerLayer = nil
-    
-    // Try next URL
-    loadVideoFromURLs(videoURLs, currentIndex: currentIndex + 1)
-}
-```
-
-### Step 8: Add Cleanup Methods
+### Step 7: Add Cleanup Methods
 Implement proper resource cleanup to prevent memory leaks:
 
 #### Main cleanup method
 ```swift
 private func cleanupVideoPlayer() {
     player?.pause()
-    player?.currentItem?.removeObserver(self, forKeyPath: "status")
     NotificationCenter.default.removeObserver(self)
-    playerLayer?.removeFromSuperlayer()
     player = nil
-    playerLayer = nil
+    isPlaying = false
+    isLoading = false
 }
 ```
-
-#### Layout update handling
-```swift
-override func layoutSubviews() {
-    super.layoutSubviews()
-    playerLayer?.frame = containerVideoView.bounds
-}
-```
-
-### Step 9: Create Public Interface
-Add these public methods for external control of the video player:
-
-#### Configuration method
-```swift
-func configure(videoURLs: [String], title: String? = nil) {
-    // Configure other UI elements if needed
-    loadVideo(urls: videoURLs)
-}
-
-func pauseVideo() {
-    player?.pause()
-    playButton?.isHidden = false
-}
-
-func playVideo() {
-    player?.play()
-    playButton?.isHidden = true
-}
 ```
 
 ## Critical Implementation Notes
 
-### Container View Configuration
-**MUST DO**: Configure your container view properly:
-- Set corner radius: `containerVideoView.layer.cornerRadius = DS.BorderRadius.radiusCard.value()`
-- Enable clipping: `containerVideoView.clipsToBounds = true`
+### SwiftUI VideoPlayer Configuration
+**MUST DO**: Configure your video player properly:
+- Use native `VideoPlayer` from SwiftUI when possible
+- Set appropriate aspect ratio: `.aspectRatio(16/9, contentMode: .fit)`
+- Enable corner radius: `.cornerRadius(8)`
 
 ### Memory Management Requirements
 **MUST DO**: Always implement proper cleanup:
-- Call cleanup in both `prepareForReuse` and `deinit`
-- Remove observers and notifications during cleanup
-- Set player and playerLayer to nil after cleanup
+- Clean up in `.onDisappear` modifier
+- Remove NotificationCenter observers
+- Set player to nil after cleanup
 
 ### Error Handling Strategy
 **MUST DO**: Implement robust error handling:
 - Use fallback URLs for improved reliability
-- Log errors using `Logger.print()` from CTCommon
+- Log errors using print() or custom logger
 - Handle network issues gracefully without crashes
+- Show user-friendly error states
 
 ### UI/UX Guidelines
 **MUST DO**: Follow these UX patterns:
 - Show loading indicator while video loads
 - Only show play button when video is ready or paused
 - Auto-hide play button during playback
-- Use CTDesignSystem components exclusively
+- Use LMS design system components exclusively
 
 ### Performance Optimization
 **MUST DO**: Optimize for performance:
-- Pause video in `prepareForReuse` to save resources
+- Pause video when view disappears
 - Consider implementing visibility-based playback
 - Use appropriate video gravity settings
+- Use async/await for loading operations
 
 ## Complete Example Implementation
 
 ```swift
-class VideoPlayerCell: UITableViewCell {
-    @IBOutlet private weak var containerVideoView: UIView!
+struct VideoPlayerView: View {
+    let videoURLs: [String]
+    let title: String?
     
-    // Add all properties and methods from steps above
+    @State private var player: AVPlayer?
+    @State private var isPlaying = false
+    @State private var isLoading = false
+    @State private var hasError = false
     
-    func configure(with videoData: VideoData) {
-        let urls = [videoData.primaryURL, videoData.fallbackURL]
-        configure(videoURLs: urls, title: videoData.title)
+    var body: some View {
+        ZStack {
+            if let player = player {
+                VideoPlayer(player: player)
+            }
+            
+            if isLoading {
+                ProgressView()
+            }
+            
+            if !isPlaying && !isLoading {
+                Button(action: playButtonTapped) {
+                    Image(systemName: "play.circle.fill")
+                        .resizable()
+                        .frame(width: 60, height: 60)
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .aspectRatio(16/9, contentMode: .fit)
+        .cornerRadius(8)
+        .onAppear { loadVideo() }
+        .onDisappear { cleanupVideoPlayer() }
     }
+    
+    // Add loading and control methods from steps above
 }
 ```
 
 ## Available Customization Options
 
-1. **Video Display**: Change `.resizeAspectFill` to `.resizeAspect` or `.resize`
-2. **Play Button**: Customize size, color, or icon style
-3. **Loading Indicator**: Modify style or color scheme
+1. **Video Display**: Use native SwiftUI VideoPlayer or AVPlayerLayer
+2. **Play Button**: Customize size, color, or icon style with SF Symbols
+3. **Loading Indicator**: Modify ProgressView style
 4. **Auto Play**: Add automatic playback when ready
 5. **Loop Playback**: Enable continuous video looping
 6. **Volume Control**: Add volume management if needed
 
 ## Expected Outcome
-You should have a fully functional video player cell that:
+You should have a fully functional video player view that:
 - ✅ Loads videos with fallback URL support
 - ✅ Shows loading states and handles errors gracefully  
 - ✅ Provides intuitive play/pause controls
-- ✅ Manages memory properly for cell reuse
-- ✅ Follows Cho Tot iOS architecture and design patterns
-- ✅ Uses only CTDesignSystem components
+- ✅ Manages memory properly with proper cleanup
+- ✅ Follows report_lms iOS architecture and design patterns
+- ✅ Uses SwiftUI and async/await patterns
+- ✅ Implements proper state management

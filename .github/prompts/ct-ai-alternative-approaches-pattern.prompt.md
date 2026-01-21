@@ -290,19 +290,19 @@ AsyncImage(url: url) { phase in
 }
 ```
 
-**Pros**: Feature-rich, battle-tested, community support  
-**Cons**: External dependency, learning curve  
-**Best For**: Feature-rich requirements, experienced teams
+**Pros**: SwiftUI native, simple implementation, automatic caching  
+**Cons**: Limited customization, basic error handling  
+**Best For**: Standard image caching, quick implementation
 
 ## Critical Implementation Notes
 
 ### Code Quality Standards
 **MUST DO**: Include these quality aspects:
-- Error handling with proper logging using `Logger.print()`
-- Memory management and cleanup
-- Unit test examples
+- Error handling with proper logging using Swift's `Logger`
+- Memory management and cleanup (proper use of @MainActor)
+- Unit test examples using XCTest
 - SwiftLint compliance
-- Accessibility support
+- Accessibility support (accessibilityLabel, accessibilityHint)
 
 ### Performance Considerations
 **MUST DO**: Address performance in every solution:

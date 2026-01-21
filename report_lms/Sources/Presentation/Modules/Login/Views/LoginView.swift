@@ -17,26 +17,37 @@ struct LoginView: View {
     var body: some View {
         VStack(spacing: 28) {
             Spacer().frame(height: 32)
-
+            
             VStack(spacing: 12) {
                 LMSLabel("IPSLMS", style: .largeTitle, alignment: .center)
                 LMSLabel("Đăng nhập bằng email", style: .caption, color: .secondary, alignment: .center)
-
+                
                 LMSTextField(
                     "Email",
                     text: $viewModel.username,
                     icon: "envelope",
                     keyboardType: .emailAddress
                 )
-
+                
                 LMSTextField(
                     "Mật khẩu",
                     text: $viewModel.password,
                     icon: "lock",
                     isSecure: true
                 )
+                
+                HStack {
+                    Spacer()
+                    NavigationLink(destination: ForgotPasswordView()) {
+                        Text("Quên mật khẩu?")
+                            .font(.footnote)
+                            .foregroundColor(.accentColor)
+                            .padding(.vertical, 4)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
             }
-
+            
             VStack(spacing: 4) {
                 if let error = viewModel.errorMessage {
                     HStack(alignment: .center, spacing: 6) {
@@ -48,7 +59,7 @@ struct LoginView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 0)
                 }
-
+                
                 LMSButton(
                     viewModel.isLoading ? "Đang đăng nhập..." : "Đăng nhập",
                     variant: .primary,
@@ -73,5 +84,7 @@ struct LoginView: View {
     let repository = AuthRepository(service: service)
     let useCase = LoginUseCase(repository: repository)
     let viewModel = LoginViewModel(loginUseCase: useCase)
-    LoginView(viewModel: viewModel)
+    NavigationStack {
+        LoginView(viewModel: viewModel)
+    }
 }

@@ -1,8 +1,8 @@
 Prompt instructions file:
 ---
 agent: Extract actionable facts from PRDs and convert into development checklists
-always: Follow MVVM + Clean Architecture, use CTDesignSystem components, ensure comprehensive task breakdown
-description: "Template for analyzing PRDs and extracting key actionable facts into structured development checklists following Cho Tot iOS architecture standards"
+always: Follow Clean Architecture + SwiftUI, use SwiftUI native and LMS components, ensure comprehensive task breakdown
+description: "Template for analyzing PRDs and extracting key actionable facts into structured development checklists following report_lms iOS architecture standards"
 ---
 
 ## Prompt Activation
@@ -11,9 +11,9 @@ description: "Template for analyzing PRDs and extracting key actionable facts in
 
 # 🧠 Fact Checklist Pattern Implementation Prompt
 
-You are an expert iOS developer specializing in **analyzing Product Requirements Documents (PRDs)** and converting them into **actionable development tasks** for the **Chợ Tốt iOS application**.
+You are an expert iOS developer specializing in **analyzing Product Requirements Documents (PRDs)** and converting them into **actionable development tasks** for the **report_lms iOS application**.
 
-We are going to analyze PRD content together and extract **key actionable facts** to create a **comprehensive development checklist**, following **MVVM + Clean Architecture** patterns.
+We are going to analyze PRD content together and extract **key actionable facts** to create a **comprehensive development checklist**, following **Clean Architecture + SwiftUI** patterns.
 
 ## Context Understanding
 
@@ -22,16 +22,16 @@ The **Fact Checklist Pattern** is designed to:
 - Convert business requirements into technical tasks
 - Ensure comprehensive coverage of all development aspects
 - Create structured checklists for iOS development teams
-- Maintain alignment with Chợ Tốt's architecture standards
+- Maintain alignment with report_lms architecture standards
 
 ## Architecture Requirements
 
 All task extractions must consider:
-- **MVVM + Clean Architecture** (Presentation → Domain → Data layers)
-- **CTDesignSystem** components (DSButton, DSTextField, DSLabel, etc.)
-- **SnapKit** for all UI layout constraints
-- **RxSwift** for reactive programming
-- **Dependency Injection** via Swinject
+- **Clean Architecture + SwiftUI** (Presentation → Domain ← Data layers)
+- **SwiftUI native components** and LMS custom components (LMSButton, LMSTextField, LMSLabel)
+- **SwiftUI declarative layout** for all UI implementation
+- **async/await and Combine** for reactive programming
+- **Dependency Injection** (protocol-based or SwiftUI environment)
 - **Security best practices** for sensitive data
 
 ## Fact Checklist Pattern Rules
@@ -68,7 +68,7 @@ Generate a comprehensive list of actionable tasks for the iOS dev team, organize
 
 #### **Architecture & Setup**
 - [ ] Create module structure following Clean Architecture
-- [ ] Set up dependency injection with Swinject
+- [ ] Set up dependency injection (protocol-based or environment)
 - [ ] Define protocols for services and repositories
 
 #### **Data Layer**
@@ -83,10 +83,10 @@ Generate a comprehensive list of actionable tasks for the iOS dev team, organize
 - [ ] Add error handling strategies
 
 #### **Presentation Layer**
-- [ ] Create ViewModels conforming to CTViewModelType
-- [ ] Implement ViewControllers using CTDesignSystem
-- [ ] Set up RxSwift bindings and reactive flows
-- [ ] Create custom UI components if needed
+- [ ] Create ViewModels as ObservableObject classes
+- [ ] Implement SwiftUI Views using declarative syntax
+- [ ] Set up async/await patterns and Combine publishers
+- [ ] Create custom UI components with SwiftUI or use LMS components
 
 #### **Integration & Testing**
 - [ ] Write unit tests for ViewModels and Use Cases
@@ -116,20 +116,20 @@ To activate the Fact Checklist Pattern, provide your PRD content in this format:
 ```
 📄 PRD CONTENT:
 """
-# E-Wallet Payment Integration
+# Student Course Enrollment
 
 ## Overview
-Users need the ability to add funds to their e-wallet and make payments for marketplace transactions.
+Students need the ability to browse available courses and enroll in their preferred learning paths.
 
 ## User Stories
-- As a user, I want to add money to my e-wallet using my credit card
-- As a user, I want to pay for marketplace purchases using my e-wallet balance
-- As a user, I want to view my transaction history
+- As a student, I want to browse all available courses in the catalog
+- As a student, I want to enroll in courses that match my interests
+- As a student, I want to view my enrolled courses and progress
 
 ## Technical Requirements
-- Integration with MoMo payment gateway
-- Real-time balance updates
-- Transaction encryption for security
+- Integration with course management API
+- Real-time enrollment status updates
+- Offline course viewing support
 """
 ```
 
