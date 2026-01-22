@@ -11,7 +11,7 @@ import SwiftUI
 struct report_lmsApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            LMSHome()
         }
     }
 }

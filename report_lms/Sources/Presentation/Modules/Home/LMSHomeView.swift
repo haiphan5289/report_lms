@@ -37,9 +37,10 @@ struct LMSHome: View {
             header
             tabBar
             tabContent
-            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
+        .ignoresSafeArea(.container, edges: .bottom)
         .sheet(isPresented: $showMenu) {
             // Placeholder for menu action
             VStack {
@@ -52,7 +53,7 @@ struct LMSHome: View {
             Button("OK", role: .cancel) {}
         }
     }
-
+    
     // MARK: - Private Views
     private var header: some View {
         HStack {
@@ -115,7 +116,7 @@ struct LMSHome: View {
         Group {
             switch selectedTab {
             case .plan:
-                VStack { LMSLabel("Nội dung Kế hoạch", style: .body, alignment: .center) }
+                PlanLMSHomeView()
             case .inProgress:
                 VStack { LMSLabel("Nội dung Trong tiến trình", style: .body, alignment: .center) }
             case .report:
