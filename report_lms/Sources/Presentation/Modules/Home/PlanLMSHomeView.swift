@@ -28,6 +28,7 @@ struct PlanLMSHomeView: View {
                 let viewModel = CatelogyPlanViewModel()
                 CatelogyPlanView(viewModel: viewModel)
                     .presentationDetents([.medium])
+                    .presentationDragIndicator(.hidden)
             }
         }
     

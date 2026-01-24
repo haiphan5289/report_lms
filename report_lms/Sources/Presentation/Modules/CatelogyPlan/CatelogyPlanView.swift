@@ -23,14 +23,13 @@ struct CatelogyPlanView: View {
     // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
-            Spacer().frame(height: 16)
             contentView
+                .padding(.top, 8)
             Spacer().frame(height: 32)
             cancelButton
         }
         .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: -2)
+        .navigationBarHidden(true)
     }
     
     // MARK: - Private Views
@@ -38,10 +37,6 @@ struct CatelogyPlanView: View {
         VStack(spacing: 0) {
             ForEach(viewModel.items, id: \.self) { option in
                 optionRow(option)
-                if option != CatelogyPlanViewModel.InspectionOption.allCases.last {
-                    Divider()
-                        .padding(.leading, 16)
-                }
             }
         }
         .background(Color(.systemBackground))
@@ -74,7 +69,8 @@ struct CatelogyPlanView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.top, option == viewModel.items.first ? 0 : 6)
+        .padding(.bottom, 6)
     }
     
     private var cancelButton: some View {

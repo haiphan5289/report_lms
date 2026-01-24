@@ -1,0 +1,92 @@
+//
+//  ProductInfoInput.swift
+//  report_lms
+//
+//  Created by GitHub Copilot on 22/01/2026.
+//  Copyright © 2026 report_lms. All rights reserved.
+//
+
+import SwiftUI
+
+enum ProductInfoInputType {
+    case normal
+    case required
+    case dropdown
+}
+
+struct ProductInfoInput: View {
+    // MARK: - Properties
+    let title: String
+    @Binding var text: String
+    let type: ProductInfoInputType
+    var errorMessage: String? = nil
+    var dropdownOptions: [String] = []
+    var onDropdownTap: (() -> Void)? = nil
+
+    // MARK: - Body
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.headline)
+            inputField
+            if type == .required, let error = errorMessage, !error.isEmpty {
+                LMSLabel(error, style: .caption, color: .error)
+            }
+        }
+    }
+
+    // MARK: - Private Views
+    @ViewBuilder
+    private var inputField: some View {
+        let baseTextField = TextField("", text: $text)
+            .textFieldStyle(.roundedBorder)
+        
+        switch type {
+        case .normal:
+            baseTextField
+        case .required:
+            baseTextField
+        case .dropdown:
+            baseTextField
+                .disabled(true)
+                .overlay(
+                    HStack {
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onDropdownTap?()
+                }
+        }
+    }
+}
+
+// MARK: - Preview
+#Preview {
+    VStack(spacing: 24) {
+        ProductInfoInput(
+            title: "Normal Input",
+            text: .constant("") ,
+            type: .normal
+        )
+        ProductInfoInput(
+            title: "Required Input",
+            text: .constant("") ,
+            type: .required,
+            errorMessage: "This field is required."
+        )
+        ProductInfoInput(
+            title: "Dropdown Input",
+            text: .constant("Select type"),
+            type: .dropdown,
+            dropdownOptions: ["Type A", "Type B"],
+            onDropdownTap: { print("Dropdown tapped") }
+        )
+    }
+    .padding()
+}
+
+
