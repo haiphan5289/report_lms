@@ -19,27 +19,34 @@ struct ProductInfoInput: View {
     let title: String
     @Binding var text: String
     let type: ProductInfoInputType
-    var errorMessage: String? = nil
     var dropdownOptions: [String] = []
     var onDropdownTap: (() -> Void)? = nil
+    var errorMessage: String? = nil
 
     // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(title + (type == .required ? " *" : ""))
                 .font(.headline)
             inputField
-            if type == .required, let error = errorMessage, !error.isEmpty {
-                LMSLabel(error, style: .caption, color: .error)
+            if let errorToShow = errorToShow {
+                LMSLabel(errorToShow, style: .caption, color: .error)
             }
         }
     }
+    
+    // MARK: - Computed Properties
+    private var errorToShow: String? {
+        return errorMessage
+    }
 
-    // MARK: - Private Views
     @ViewBuilder
     private var inputField: some View {
         let baseTextField = TextField("", text: $text)
             .textFieldStyle(.roundedBorder)
+            .onChange(of: text) { newValue in
+                print("User input text: \(newValue)")
+            }
         
         switch type {
         case .normal:
@@ -66,17 +73,24 @@ struct ProductInfoInput: View {
 
 // MARK: - Preview
 #Preview {
-    VStack(spacing: 24) {
+    @Previewable @State var requiredText = ""
+    
+    return VStack(spacing: 24) {
         ProductInfoInput(
             title: "Normal Input",
             text: .constant("") ,
             type: .normal
         )
         ProductInfoInput(
-            title: "Required Input",
-            text: .constant("") ,
+            title: "Required Input (shows error when errorMessage is provided)",
+            text: $requiredText,
             type: .required,
-            errorMessage: "This field is required."
+            errorMessage: "This field is required"
+        )
+        ProductInfoInput(
+            title: "Required Input with Text (no error shown)",
+            text: .constant("Some text") ,
+            type: .required
         )
         ProductInfoInput(
             title: "Dropdown Input",

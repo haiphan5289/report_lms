@@ -19,36 +19,15 @@ struct CreateInspectionView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
-                    ProductInfoInput(
-                        title: "Tên sản phẩm",
-                        text: $viewModel.productName,
-                        type: .required
-                    )
-                    
-                    ProductInfoInput(
-                        title: "Mã sản phẩm",
-                        text: $viewModel.productCode,
-                        type: .required
-                    )
-                    
-                    ProductInfoInput(
-                        title: "Mã đơn hàng",
-                        text: $viewModel.orderCode,
-                        type: .required
-                    )
-                    
-                    ProductInfoInput(
-                        title: "Loại kiểm tra",
-                        text: $viewModel.inspectionType,
-                        type: .dropdown,
-                        onDropdownTap: {
-                            showingInspectionTypePicker = true
-                        }
-                    )
-                    
-                    if let error = viewModel.errorMessage {
-                        LMSLabel(error, style: .body, color: .error)
-                            .multilineTextAlignment(.center)
+                    ForEach(viewModel.inputFields.indices, id: \.self) { index in
+                        let field = viewModel.inputFields[index]
+                        ProductInfoInput(
+                            title: field.title,
+                            text: field.text,
+                            type: field.type,
+                            onDropdownTap: field.onDropdownTap,
+                            errorMessage: errorMessageForIndex(index)
+                        )
                     }
                     
                     LMSButton(
@@ -82,6 +61,21 @@ struct CreateInspectionView: View {
                     isPresented: $showingInspectionTypePicker
                 )
             }
+            .onAppear {
+                viewModel.configureDropdownTapHandler {
+                    showingInspectionTypePicker = true
+                }
+            }
+        }
+    }
+    
+    private func errorMessageForIndex(_ index: Int) -> String? {
+        switch index {
+        case 0: return viewModel.productNameError
+        case 1: return viewModel.productCodeError
+        case 2: return viewModel.orderCodeError
+        case 3: return viewModel.inspectionTypeError
+        default: return nil
         }
     }
     
