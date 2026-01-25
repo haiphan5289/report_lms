@@ -67,6 +67,7 @@ struct ProductInfoInput: View {
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
+
                     onDropdownTap?()
                 }
         case .quantity:

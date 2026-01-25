@@ -102,17 +102,19 @@ final class CreateInspectionViewModel: ObservableObject {
     // MARK: - Initialization
     init(createInspectionUseCase: CreateInspectionUseCase) {
         self.createInspectionUseCase = createInspectionUseCase
+        // Initialize inputFields immediately
+        inputFields = InputFieldType.allCases.map { type in
+            InputField(
+                title: type.title,
+                placeholder: "",
+                type: type.inputType,
+                text: type.binding(for: self)
+            )
+        }
     }
     
     // MARK: - Input Fields Configuration
-    lazy var inputFields: [InputField] = InputFieldType.allCases.map { type in
-        InputField(
-            title: type.title,
-            placeholder: "",
-            type: type.inputType,
-            text: type.binding(for: self)
-        )
-    }
+    private(set) var inputFields: [InputField] = []
     
     // MARK: - Field Errors Array (for dynamic access)
     var fieldErrors: [String?] {
@@ -200,9 +202,8 @@ extension InputFieldType {
     var inputType: ProductInfoInputType {
         switch self {
         case .productName, .productCode, .orderCode: return .required
-        case .inspectionForm, .inspectionType, .samplingMethod: return .dropdown
+        case .inspectionForm, .inspectionType, .samplingMethod, .factory, .productionUnit: return .dropdown
         case .quantity: return .quantity
-        case .factory, .productionUnit: return .normal
         }
     }
     

@@ -60,11 +60,14 @@ private struct SuccessView: View {
 struct CreateInspectionView: View {
     // MARK: - Properties
     @StateObject private var viewModel: CreateInspectionViewModel
-    @State private var showingInspectionTypePicker = false
+    @State private var showingSearchableList = false
+    @State private var currentDropdownField: InputFieldType?
     
     // MARK: - Initialization
     init(viewModel: CreateInspectionViewModel? = nil) {
-        _viewModel = StateObject(wrappedValue: viewModel ?? CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!))
+        let vm = viewModel ?? CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
+        _viewModel = StateObject(wrappedValue: vm)
+        setupDropdownHandlers()
     }
     
     // MARK: - Body
@@ -81,17 +84,19 @@ struct CreateInspectionView: View {
         }
         .navigationTitle("Tạo kiểm tra")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingInspectionTypePicker) {
-            InspectionTypePickerView(
-                selectedType: $viewModel.inspectionType,
-                types: InspectionTypes.all,
-                isPresented: $showingInspectionTypePicker
-            )
-        }
-        .onAppear {
-            viewModel.configureDropdownTapHandler {
-                showingInspectionTypePicker = true
+        .sheet(isPresented: $showingSearchableList) {
+            if let fieldType = currentDropdownField {
+                let searchableData = createSearchableData(for: fieldType)
+                let searchableViewModel = SearchableListViewModel(items: searchableData)
+                
+                SearchableListView(viewModel: searchableViewModel) { selectedItem in
+                    handleDropdownSelection(selectedItem, for: fieldType)
+                    showingSearchableList = false // Close the sheet after selection
+                }
             }
+        }
+        .onChange(of: showingSearchableList) { newValue in
+            // Handle sheet presentation state changes if needed
         }
     }
     
@@ -110,7 +115,10 @@ struct CreateInspectionView: View {
                     title: field.title,
                     text: field.text,
                     type: field.type,
-                    onDropdownTap: field.onDropdownTap,
+                    onDropdownTap: {
+                        currentDropdownField = getFieldType(for: field.title)
+                        showingSearchableList = true
+                    },
                     errorMessage: viewModel.fieldErrors[safe: index] ?? nil
                 )
             }
@@ -143,37 +151,112 @@ struct CreateInspectionView: View {
             }
         }
     }
-}
-
-// MARK: - Inspection Type Picker Component
-private struct InspectionTypePickerView: View {
-    @Binding var selectedType: String
-    let types: [String]
-    @Binding var isPresented: Bool
     
-    var body: some View {
-        NavigationView {
-            List(types, id: \.self) { type in
-                Button(action: {
-                    selectedType = type
-                    isPresented = false
-                }) {
-                    HStack {
-                        Text(type)
-                        Spacer()
-                        if selectedType == type {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.accentColor)
-                        }
-                    }
+    // MARK: - Private Methods
+    private func setupDropdownHandlers() {
+        // Configure dropdown handlers for different field types
+        for field in viewModel.inputFields {
+            if field.type == .dropdown {
+                // Determine field type based on title or index
+                let fieldType = getFieldType(for: field.title)
+                field.onDropdownTap = {
+                    currentDropdownField = fieldType
+                    showingSearchableList = true
                 }
             }
-            .navigationTitle("Chọn loại kiểm tra")
-            .navigationBarItems(trailing: Button("Đóng") {
-                isPresented = false
-            })
         }
     }
+    
+    private func getFieldType(for title: String) -> InputFieldType {
+        switch title {
+        case "Loại kiểm tra":
+            return .inspectionType
+        case "Biểu mẫu kiểm hàng":
+            return .inspectionForm
+        case "Phương pháp lấy mẫu":
+            return .samplingMethod
+        case "Nhà máy":
+            return .factory
+        case "Đơn vị sản xuất":
+            return .productionUnit
+        default:
+            return .inspectionType // fallback
+        }
+    }
+    
+    private func createSearchableData(for fieldType: InputFieldType) -> ListItemProtocol {
+        switch fieldType {
+        case .inspectionType:
+            return SampleListItem(
+                title: "Loại kiểm tra",
+                datas: InspectionTypes.all.enumerated().map { index, type in
+                    ListDataItem(id: index + 1, name: type)
+                }
+            )
+        case .inspectionForm:
+            return SampleListItem(
+                title: "Biểu mẫu kiểm hàng",
+                datas: [
+                    ListDataItem(id: 1, name: "Biểu mẫu A"),
+                    ListDataItem(id: 2, name: "Biểu mẫu B"),
+                    ListDataItem(id: 3, name: "Biểu mẫu C"),
+                    ListDataItem(id: 4, name: "Biểu mẫu D")
+                ]
+            )
+        case .samplingMethod:
+            return SampleListItem(
+                title: "Phương pháp lấy mẫu",
+                datas: [
+                    ListDataItem(id: 1, name: "Lấy mẫu ngẫu nhiên"),
+                    ListDataItem(id: 2, name: "Lấy mẫu theo lô"),
+                    ListDataItem(id: 3, name: "Lấy mẫu theo tỷ lệ")
+                ]
+            )
+        case .factory:
+            return SampleListItem(
+                title: "Nhà máy",
+                datas: [
+                    ListDataItem(id: 1, name: "Nhà máy Hà Nội"),
+                    ListDataItem(id: 2, name: "Nhà máy Hồ Chí Minh"),
+                    ListDataItem(id: 3, name: "Nhà máy Đà Nẵng")
+                ]
+            )
+        case .productionUnit:
+            return SampleListItem(
+                title: "Đơn vị sản xuất",
+                datas: [
+                    ListDataItem(id: 1, name: "Đơn vị A"),
+                    ListDataItem(id: 2, name: "Đơn vị B"),
+                    ListDataItem(id: 3, name: "Đơn vị C")
+                ]
+            )
+        default:
+            return SampleListItem(title: "Options", datas: [])
+        }
+    }
+    
+    private func handleDropdownSelection(_ selectedItem: ListDataItem, for fieldType: InputFieldType) {
+        switch fieldType {
+        case .inspectionType:
+            viewModel.inspectionType = selectedItem.name
+        case .inspectionForm:
+            viewModel.inspectionForm = selectedItem.name
+        case .samplingMethod:
+            viewModel.samplingMethod = selectedItem.name
+        case .factory:
+            viewModel.factory = selectedItem.name
+        case .productionUnit:
+            viewModel.productionUnit = selectedItem.name
+        default:
+            break
+        }
+    }
+}
+
+// MARK: - Sample List Item for Searchable Data
+private struct SampleListItem: ListItemProtocol {
+    let title: String?
+    let datas: [ListDataItem]
 }
 
 // MARK: - Preview
