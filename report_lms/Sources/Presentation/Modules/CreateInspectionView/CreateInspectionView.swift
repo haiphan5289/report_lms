@@ -7,55 +7,12 @@
 
 import SwiftUI
 
-// MARK: - Constants
-private enum InspectionTypes {
-    static let all = [
-        "Kiểm tra chất lượng",
-        "Kiểm tra an toàn",
-        "Kiểm tra kỹ thuật",
-        "Kiểm tra định kỳ"
-    ]
-}
-
 // MARK: - Array Extension for Safe Access
 private extension Array {
     subscript(safe index: Index) -> Element? {
         indices.contains(index) ? self[index] : nil
     }
 }
-
-// MARK: - Success View Component
-private struct SuccessView: View {
-    let inspection: Inspection
-    let onCreateNew: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.largeTitle)
-                .foregroundColor(.green)
-            
-            LMSLabel("Tạo kiểm tra thành công!", style: .headline, alignment: .center)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Mã kiểm tra: \(inspection.id)")
-                Text("Sản phẩm: \(inspection.productName)")
-                Text("Loại: \(inspection.inspectionType)")
-                Text("Số lượng: \(inspection.quantity)")
-                Text("Nhà máy: \(inspection.factory)")
-                Text("Đơn vị sản xuất: \(inspection.productionUnit)")
-            }
-            .font(.subheadline)
-            .foregroundColor(.secondary)
-            
-            LMSButton("Tạo kiểm tra mới", variant: .secondary, action: onCreateNew)
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-    }
-}
-
 @MainActor
 struct CreateInspectionView: View {
     // MARK: - Properties
@@ -67,7 +24,6 @@ struct CreateInspectionView: View {
     init(viewModel: CreateInspectionViewModel? = nil) {
         let vm = viewModel ?? CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
         _viewModel = StateObject(wrappedValue: vm)
-        setupDropdownHandlers()
     }
     
     // MARK: - Body
@@ -80,7 +36,6 @@ struct CreateInspectionView: View {
                 .padding()
             }
             createButtonSection
-            successSection
         }
         .navigationTitle("Tạo kiểm tra")
         .navigationBarTitleDisplayMode(.inline)
@@ -142,31 +97,7 @@ struct CreateInspectionView: View {
         .background(Color(.systemBackground))
     }
     
-    private var successSection: some View {
-        Group {
-            if let inspection = viewModel.createdInspection {
-                SuccessView(inspection: inspection) {
-                    viewModel.resetForm()
-                }
-            }
-        }
-    }
-    
     // MARK: - Private Methods
-    private func setupDropdownHandlers() {
-        // Configure dropdown handlers for different field types
-        for field in viewModel.inputFields {
-            if field.type == .dropdown {
-                // Determine field type based on title or index
-                let fieldType = getFieldType(for: field.title)
-                field.onDropdownTap = {
-                    currentDropdownField = fieldType
-                    showingSearchableList = true
-                }
-            }
-        }
-    }
-    
     private func getFieldType(for title: String) -> InputFieldType {
         switch title {
         case "Loại kiểm tra":
@@ -189,9 +120,12 @@ struct CreateInspectionView: View {
         case .inspectionType:
             return SampleListItem(
                 title: "Loại kiểm tra",
-                datas: InspectionTypes.all.enumerated().map { index, type in
-                    ListDataItem(id: index + 1, name: type)
-                }
+                datas: [
+                    ListDataItem(id: 1, name: "Kiểm tra chất lượng"),
+                    ListDataItem(id: 2, name: "Kiểm tra an toàn"),
+                    ListDataItem(id: 3, name: "Kiểm tra định kỳ"),
+                    ListDataItem(id: 4, name: "Kiểm tra đột xuất")
+                ]
             )
         case .inspectionForm:
             return SampleListItem(

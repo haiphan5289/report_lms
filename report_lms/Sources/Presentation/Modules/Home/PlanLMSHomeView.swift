@@ -11,24 +11,21 @@ import SwiftUI
 
 struct PlanLMSHomeView: View {
     // MARK: - Properties
-    @StateObject private var viewModel: PlanLMSHomeViewModel
+    let onQuickInspection: () -> Void
     
     // MARK: - Initialization
     init(onQuickInspection: @escaping () -> Void = {}) {
-        _viewModel = StateObject(wrappedValue: PlanLMSHomeViewModel(onQuickInspection: onQuickInspection))
+        self.onQuickInspection = onQuickInspection
     }
     
     // MARK: - Body
     var body: some View {
-        NavigationStack(path: $viewModel.navigationPath) {
+        NavigationStack(path: $navigationPath) {
             ZStack(alignment: .top) {
                 contentView
                 floatingButton
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .sheet(isPresented: $viewModel.showSheet) {
-                categoryPlanSheet
-            }
             .navigationDestination(for: String.self) { destination in
                 if destination == "createInspection" {
                     let viewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
@@ -37,6 +34,8 @@ struct PlanLMSHomeView: View {
             }
         }
     }
+    
+    @State private var navigationPath = NavigationPath()
     
     // MARK: - Private Views
     private var contentView: some View {
@@ -48,7 +47,7 @@ struct PlanLMSHomeView: View {
             Spacer()
             HStack {
                 Spacer()
-                LMSButton("", icon: "plus", variant: .iconOnly, action: viewModel.showFloatingButtonAction)
+                LMSButton("", icon: "plus", variant: .iconOnly, action: onQuickInspection)
                     .frame(width: 56, height: 56)
                     .background(Circle().fill(Color.primary))
                     .foregroundColor(.white)
@@ -58,17 +57,4 @@ struct PlanLMSHomeView: View {
             }
         }
     }
-    
-    private var categoryPlanSheet: some View {
-        let viewModel = CatelogyPlanViewModel()
-        return CatelogyPlanView(viewModel: viewModel, onQuickInspection: self.viewModel.handleQuickInspection)
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.hidden)
-    }
-}
-
-// MARK: - Preview
-
-#Preview {
-    PlanLMSHomeView()
 }

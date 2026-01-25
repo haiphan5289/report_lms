@@ -122,13 +122,6 @@ final class CreateInspectionViewModel: ObservableObject {
     }
     
     // MARK: - Public Methods
-    func configureDropdownTapHandler(_ handler: @escaping () -> Void) {
-        // Find the inspection type field and set the dropdown tap handler
-        if let index = inputFields.firstIndex(where: { $0.title == "Loại kiểm tra" }) {
-            inputFields[index].onDropdownTap = handler
-        }
-    }
-    
     func createInspection() async {
         guard validateInputs() else { return }
         

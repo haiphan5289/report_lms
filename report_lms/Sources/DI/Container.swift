@@ -28,11 +28,6 @@ final class Container {
     }
     
     private func registerDependencies() {
-        // Auth
-        register(AuthServiceType.self) { AuthService() }
-        register(AuthRepositoryType.self) { AuthRepository(service: Container.shared.resolve(AuthServiceType.self)!) }
-        register(LoginUseCase.self) { LoginUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!) }
-        
         // Inspection
         register(InspectionServiceType.self) { InspectionService() }
         register(InspectionRepositoryType.self) { InspectionRepository(service: Container.shared.resolve(InspectionServiceType.self)!) }

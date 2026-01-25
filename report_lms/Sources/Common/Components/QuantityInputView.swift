@@ -22,10 +22,13 @@ struct QuantityInputView: View {
         HStack(spacing: spacing) {
             LMSLabel(labelText, style: .headline, color: .primary)
             Spacer()
-            LMSTextField(placeholder, text: $text)
+            LMSTextField(placeholder: placeholder, text: $text)
                 .frame(maxWidth: 200)
                 .multilineTextAlignment(.trailing)
         }
+        .padding(.horizontal, containerPadding)
+        .padding(.vertical, 8)
+        .background(showContainerBackground ? Color(.systemGray6) : Color.clear)
         .cornerRadius(showContainerBackground ? 8 : 0)
     }
 }

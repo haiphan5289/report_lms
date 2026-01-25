@@ -41,8 +41,6 @@ final class LMSHomeViewModel: ObservableObject {
     // MARK: - Private Methods
     private func handleNavigationBack() {
         // Handle event when user navigates back to LMSHome
-        print("User navigated back to LMSHome")
-        
         // You can add any logic here when navigation comes back
         // For example: refresh data, show success message, update UI state, etc.
         

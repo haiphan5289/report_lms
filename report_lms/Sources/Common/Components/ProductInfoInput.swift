@@ -45,9 +45,6 @@ struct ProductInfoInput: View {
     private var inputField: some View {
         let baseTextField = TextField("", text: $text)
             .textFieldStyle(.roundedBorder)
-            .onChange(of: text) { newValue in
-                print("User input text: \(newValue)")
-            }
         
         switch type {
         case .normal:

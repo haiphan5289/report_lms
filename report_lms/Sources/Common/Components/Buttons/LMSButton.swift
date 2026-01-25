@@ -160,13 +160,98 @@ private struct IconOnlyButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Custom Button Style
+// MARK: - Button Variants
 
-struct LMSButtonPressableStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+enum LMSButtonVariant {
+    case primary
+    case secondary
+    case tertiary
+    case destructive
+    case ghost
+    case iconOnly
+    
+    var backgroundColor: Color {
+        switch self {
+        case .primary:
+            return Color.blue
+        case .secondary:
+            return Color(.systemGray4)
+        case .tertiary:
+            return Color(.systemGray5)
+        case .destructive:
+            return Color.red
+        case .ghost:
+            return Color.clear
+        case .iconOnly:
+            return Color.clear
+        }
+    }
+    
+    var foregroundColor: Color {
+        switch self {
+        case .primary:
+            return Color.white
+        case .secondary:
+            return Color.primary
+        case .tertiary:
+            return Color.primary
+        case .destructive:
+            return Color.white
+        case .ghost:
+            return Color.blue
+        case .iconOnly:
+            return Color.primary
+        }
+    }
+    
+    var borderColor: Color? {
+        switch self {
+        case .tertiary:
+            return Color(.systemGray4)
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - Button Sizes
+
+enum LMSButtonSize {
+    case small
+    case medium
+    case large
+    
+    var height: CGFloat {
+        switch self {
+        case .small:
+            return 32
+        case .medium:
+            return 44
+        case .large:
+            return 52
+        }
+    }
+    
+    var horizontalPadding: CGFloat {
+        switch self {
+        case .small:
+            return 12
+        case .medium:
+            return 16
+        case .large:
+            return 20
+        }
+    }
+    
+    var fontSize: Font {
+        switch self {
+        case .small:
+            return .footnote
+        case .medium:
+            return .body
+        case .large:
+            return .headline
+        }
     }
 }
 
