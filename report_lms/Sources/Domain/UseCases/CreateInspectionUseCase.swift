@@ -18,13 +18,19 @@ final class CreateInspectionUseCase {
         productName: String,
         productCode: String,
         orderCode: String,
-        inspectionType: String
+        inspectionType: String,
+        quantity: String,
+        factory: String,
+        productionUnit: String
     ) async throws -> Inspection {
         let inspection = Inspection(
             productName: productName,
             productCode: productCode,
             orderCode: orderCode,
-            inspectionType: inspectionType
+            inspectionType: inspectionType,
+            quantity: quantity,
+            factory: factory,
+            productionUnit: productionUnit
         )
         return try await repository.createInspection(inspection)
     }

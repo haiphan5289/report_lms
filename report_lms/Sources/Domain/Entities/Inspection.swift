@@ -13,6 +13,9 @@ struct Inspection: Identifiable, Equatable {
     let productCode: String
     let orderCode: String
     let inspectionType: String
+    let quantity: String
+    let factory: String
+    let productionUnit: String
     let createdAt: Date
     let inspectorId: String?
     
@@ -22,6 +25,9 @@ struct Inspection: Identifiable, Equatable {
         productCode: String,
         orderCode: String,
         inspectionType: String,
+        quantity: String,
+        factory: String,
+        productionUnit: String,
         createdAt: Date = Date(),
         inspectorId: String? = nil
     ) {
@@ -30,6 +36,9 @@ struct Inspection: Identifiable, Equatable {
         self.productCode = productCode
         self.orderCode = orderCode
         self.inspectionType = inspectionType
+        self.quantity = quantity
+        self.factory = factory
+        self.productionUnit = productionUnit
         self.createdAt = createdAt
         self.inspectorId = inspectorId
     }

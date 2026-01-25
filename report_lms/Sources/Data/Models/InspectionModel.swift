@@ -13,6 +13,9 @@ struct InspectionModel: Codable {
     let productCode: String
     let orderCode: String
     let inspectionType: String
+    let quantity: String
+    let factory: String
+    let productionUnit: String
     let createdAt: String
     let inspectorId: String?
     
@@ -23,6 +26,9 @@ struct InspectionModel: Codable {
             productCode: productCode,
             orderCode: orderCode,
             inspectionType: inspectionType,
+            quantity: quantity,
+            factory: factory,
+            productionUnit: productionUnit,
             createdAt: ISO8601DateFormatter().date(from: createdAt) ?? Date(),
             inspectorId: inspectorId
         )
@@ -35,6 +41,9 @@ struct InspectionModel: Codable {
             productCode: entity.productCode,
             orderCode: entity.orderCode,
             inspectionType: entity.inspectionType,
+            quantity: entity.quantity,
+            factory: entity.factory,
+            productionUnit: entity.productionUnit,
             createdAt: ISO8601DateFormatter().string(from: entity.createdAt),
             inspectorId: entity.inspectorId
         )

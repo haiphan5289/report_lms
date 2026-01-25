@@ -12,6 +12,7 @@ enum ProductInfoInputType {
     case normal
     case required
     case dropdown
+    case quantity
 }
 
 struct ProductInfoInput: View {
@@ -62,11 +63,14 @@ struct ProductInfoInput: View {
                         Image(systemName: "chevron.right")
                             .foregroundColor(.gray)
                     }
+                        .padding()
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
                     onDropdownTap?()
                 }
+        case .quantity:
+            baseTextField
         }
     }
 }

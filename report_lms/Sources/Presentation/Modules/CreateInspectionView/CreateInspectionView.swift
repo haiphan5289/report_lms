@@ -7,79 +7,29 @@
 
 import SwiftUI
 
-struct CreateInspectionView: View {
-    @StateObject private var viewModel: CreateInspectionViewModel
-    @State private var showingInspectionTypePicker = false
-    
-    init(viewModel: CreateInspectionViewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+// MARK: - Constants
+private enum InspectionTypes {
+    static let all = [
+        "Kiểm tra chất lượng",
+        "Kiểm tra an toàn",
+        "Kiểm tra kỹ thuật",
+        "Kiểm tra định kỳ"
+    ]
+}
+
+// MARK: - Array Extension for Safe Access
+private extension Array {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
+}
+
+// MARK: - Success View Component
+private struct SuccessView: View {
+    let inspection: Inspection
+    let onCreateNew: () -> Void
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    ForEach(viewModel.inputFields.indices, id: \.self) { index in
-                        let field = viewModel.inputFields[index]
-                        ProductInfoInput(
-                            title: field.title,
-                            text: field.text,
-                            type: field.type,
-                            onDropdownTap: field.onDropdownTap,
-                            errorMessage: errorMessageForIndex(index)
-                        )
-                    }
-                    
-                    LMSButton(
-                        "Tạo kiểm tra",
-                        variant: .primary,
-                        isFullWidth: true,
-                        isLoading: $viewModel.isLoading
-                    ) {
-                        Task {
-                            await viewModel.createInspection()
-                        }
-                    }
-                    
-                    if let inspection = viewModel.createdInspection {
-                        successView(inspection: inspection)
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Tạo kiểm tra")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showingInspectionTypePicker) {
-                InspectionTypePickerView(
-                    selectedType: $viewModel.inspectionType,
-                    types: [
-                        "Kiểm tra chất lượng",
-                        "Kiểm tra an toàn",
-                        "Kiểm tra kỹ thuật",
-                        "Kiểm tra định kỳ"
-                    ],
-                    isPresented: $showingInspectionTypePicker
-                )
-            }
-            .onAppear {
-                viewModel.configureDropdownTapHandler {
-                    showingInspectionTypePicker = true
-                }
-            }
-        }
-    }
-    
-    private func errorMessageForIndex(_ index: Int) -> String? {
-        switch index {
-        case 0: return viewModel.productNameError
-        case 1: return viewModel.productCodeError
-        case 2: return viewModel.orderCodeError
-        case 3: return viewModel.inspectionTypeError
-        default: return nil
-        }
-    }
-    
-    private func successView(inspection: Inspection) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.largeTitle)
@@ -91,13 +41,14 @@ struct CreateInspectionView: View {
                 Text("Mã kiểm tra: \(inspection.id)")
                 Text("Sản phẩm: \(inspection.productName)")
                 Text("Loại: \(inspection.inspectionType)")
+                Text("Số lượng: \(inspection.quantity)")
+                Text("Nhà máy: \(inspection.factory)")
+                Text("Đơn vị sản xuất: \(inspection.productionUnit)")
             }
             .font(.subheadline)
             .foregroundColor(.secondary)
             
-            LMSButton("Tạo kiểm tra mới", variant: .secondary) {
-                viewModel.resetForm()
-            }
+            LMSButton("Tạo kiểm tra mới", variant: .secondary, action: onCreateNew)
         }
         .padding()
         .background(Color(.systemGray6))
@@ -105,7 +56,99 @@ struct CreateInspectionView: View {
     }
 }
 
-struct InspectionTypePickerView: View {
+struct CreateInspectionView: View {
+    @StateObject private var viewModel: CreateInspectionViewModel
+    @State private var showingInspectionTypePicker = false
+    
+    init(viewModel: CreateInspectionViewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        inputFieldsSection
+                    }
+                    .padding()
+                    .padding(.bottom, 100) // Add bottom padding for button area
+                }
+                VStack {
+                    Spacer()
+                    createButtonSection
+                }
+                successSection
+            }
+            .navigationTitle("Tạo kiểm tra")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingInspectionTypePicker) {
+                InspectionTypePickerView(
+                    selectedType: $viewModel.inspectionType,
+                    types: InspectionTypes.all,
+                    isPresented: $showingInspectionTypePicker
+                )
+            }
+            .onAppear {
+                viewModel.configureDropdownTapHandler {
+                    showingInspectionTypePicker = true
+                }
+            }
+        }
+    }
+    
+    // MARK: - View Sections
+    private var inputFieldsSection: some View {
+        ForEach(viewModel.inputFields.indices, id: \.self) { index in
+            let field = viewModel.inputFields[index]
+            if field.type == .quantity {
+                QuantityInputView(
+                    labelText: field.title,
+                    placeholder: "Nhập số lượng",
+                    text: field.text
+                )
+            } else {
+                ProductInfoInput(
+                    title: field.title,
+                    text: field.text,
+                    type: field.type,
+                    onDropdownTap: field.onDropdownTap,
+                    errorMessage: viewModel.fieldErrors[safe: index] ?? nil
+                )
+            }
+        }
+    }
+    
+    private var createButtonSection: some View {
+        VStack {
+            LMSButton(
+                "Tạo kiểm tra",
+                variant: .primary,
+                isFullWidth: true,
+                isLoading: $viewModel.isLoading
+            ) {
+                Task {
+                    await viewModel.createInspection()
+                }
+            }
+            .padding()
+        }
+        .background(Color(.systemBackground))
+    }
+    
+    private var successSection: some View {
+        Group {
+            if let inspection = viewModel.createdInspection {
+                SuccessView(inspection: inspection) {
+                    viewModel.resetForm()
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Inspection Type Picker Component
+private struct InspectionTypePickerView: View {
     @Binding var selectedType: String
     let types: [String]
     @Binding var isPresented: Bool
