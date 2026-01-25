@@ -12,7 +12,8 @@ struct LMSHome: View {
     @State private var showMenu = false
     @State private var showCloudAction = false
     @State private var selectedTab: Tab = .plan
-
+    @State private var navigationPath = NavigationPath()
+    
     enum Tab: Int, CaseIterable {
         case plan, inProgress, report
         var title: String {
@@ -33,24 +34,39 @@ struct LMSHome: View {
 
     // MARK: - Body
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            tabBar
-            tabContent
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
-        .ignoresSafeArea(.container, edges: .bottom)
-        .sheet(isPresented: $showMenu) {
-            // Placeholder for menu action
-            VStack {
-                LMSLabel("Menu action triggered!", style: .title, alignment: .center)
-                Spacer()
+        NavigationStack(path: $navigationPath) {
+            VStack(spacing: 0) {
+                header
+                tabBar
+                tabContent
             }
-            .padding()
-        }
-        .alert("Cloud action triggered!", isPresented: $showCloudAction) {
-            Button("OK", role: .cancel) {}
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemGroupedBackground))
+            .ignoresSafeArea(.container, edges: .bottom)
+            .sheet(isPresented: $showMenu) {
+                // Placeholder for menu action
+                VStack {
+                    LMSLabel("Menu action triggered!", style: .title, alignment: .center)
+                    Spacer()
+                }
+                .padding()
+            }
+            .alert("Cloud action triggered!", isPresented: $showCloudAction) {
+                Button("OK", role: .cancel) {}
+            }
+            .navigationDestination(for: String.self) { destination in
+                if destination == "createInspection" {
+                    let viewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
+                    CreateInspectionView(viewModel: viewModel)
+                }
+            }
+            .onChange(of: navigationPath) { oldValue, newValue in
+                // Handle navigation back event
+                if oldValue.count > newValue.count {
+                    // User navigated back to LMSHome
+                    handleNavigationBack()
+                }
+            }
         }
     }
     
@@ -116,7 +132,9 @@ struct LMSHome: View {
         Group {
             switch selectedTab {
             case .plan:
-                PlanLMSHomeView()
+                PlanLMSHomeView(onQuickInspection: {
+                    navigationPath.append("createInspection")
+                })
             case .inProgress:
                 VStack { LMSLabel("Nội dung Trong tiến trình", style: .body, alignment: .center) }
             case .report:
@@ -126,6 +144,21 @@ struct LMSHome: View {
         .frame(maxWidth: .infinity, minHeight: 120)
         .background(Color(.systemGroupedBackground))
         .animation(.easeInOut, value: selectedTab)
+    }
+    
+    // MARK: - Navigation Handlers
+    private func handleNavigationBack() {
+        // Handle event when user navigates back to LMSHome
+        print("User navigated back to LMSHome")
+        
+        // You can add any logic here when navigation comes back
+        // For example: refresh data, show success message, update UI state, etc.
+        
+        // Example: Switch to a specific tab or show a toast message
+        // selectedTab = .report
+        
+        // Example: Show success feedback
+        // showSuccessMessage = true
     }
 }
 

@@ -8,12 +8,16 @@
 import SwiftUI
 
 struct PlanLMSHomeView: View {
-        @State private var showSheet = false
-
-        var body: some View {
+    @State private var showSheet = false
+    @State private var navigationPath = NavigationPath()
+    
+    var onQuickInspection: () -> Void = {}
+    
+    var body: some View {
+        NavigationStack(path: $navigationPath) {
             ZStack(alignment: .top) {
                 Text("Hello, World!")
-            
+                
                 VStack {
                     Spacer()
                     HStack {
@@ -26,11 +30,21 @@ struct PlanLMSHomeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .sheet(isPresented: $showSheet) {
                 let viewModel = CatelogyPlanViewModel()
-                CatelogyPlanView(viewModel: viewModel)
+                CatelogyPlanView(viewModel: viewModel, onQuickInspection: {
+                    showSheet = false
+                    navigationPath.append("createInspection")
+                })
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.hidden)
             }
+            .navigationDestination(for: String.self) { destination in
+                if destination == "createInspection" {
+                    let viewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
+                    CreateInspectionView(viewModel: viewModel)
+                }
+            }
         }
+    }
     
     private var floatingButton: some View {
         // Floating Action Button

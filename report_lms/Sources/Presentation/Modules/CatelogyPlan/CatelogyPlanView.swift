@@ -16,8 +16,16 @@ struct CatelogyPlanView: View {
     var onStartInspection: () -> Void = {}
     var onQuickInspection: () -> Void = {}
     
-    init(viewModel: CatelogyPlanViewModel) {
+    init(viewModel: CatelogyPlanViewModel, 
+         onCombineInspection: @escaping () -> Void = {},
+         onScanBarcode: @escaping () -> Void = {},
+         onStartInspection: @escaping () -> Void = {},
+         onQuickInspection: @escaping () -> Void = {}) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.onCombineInspection = onCombineInspection
+        self.onScanBarcode = onScanBarcode
+        self.onStartInspection = onStartInspection
+        self.onQuickInspection = onQuickInspection
     }
     
     // MARK: - Body

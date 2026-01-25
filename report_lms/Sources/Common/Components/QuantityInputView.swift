@@ -32,7 +32,7 @@ struct QuantityInputView: View {
 
 // MARK: - Preview
 #Preview("Default") {
-    @State var text = ""
+    @Previewable @State var text = ""
     return QuantityInputView(
         labelText: "Quantity",
         placeholder: "Enter quantity",

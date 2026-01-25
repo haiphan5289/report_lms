@@ -65,34 +65,28 @@ struct CreateInspectionView: View {
     }
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                ScrollView {
-                    VStack(spacing: 24) {
-                        inputFieldsSection
-                    }
-                    .padding()
-                    .padding(.bottom, 100) // Add bottom padding for button area
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 24) {
+                    inputFieldsSection
                 }
-                VStack {
-                    Spacer()
-                    createButtonSection
-                }
-                successSection
+                .padding()
             }
-            .navigationTitle("Tạo kiểm tra")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showingInspectionTypePicker) {
-                InspectionTypePickerView(
-                    selectedType: $viewModel.inspectionType,
-                    types: InspectionTypes.all,
-                    isPresented: $showingInspectionTypePicker
-                )
-            }
-            .onAppear {
-                viewModel.configureDropdownTapHandler {
-                    showingInspectionTypePicker = true
-                }
+            createButtonSection
+            successSection
+        }
+        .navigationTitle("Tạo kiểm tra")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingInspectionTypePicker) {
+            InspectionTypePickerView(
+                selectedType: $viewModel.inspectionType,
+                types: InspectionTypes.all,
+                isPresented: $showingInspectionTypePicker
+            )
+        }
+        .onAppear {
+            viewModel.configureDropdownTapHandler {
+                showingInspectionTypePicker = true
             }
         }
     }
