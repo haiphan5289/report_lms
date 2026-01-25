@@ -1,5 +1,5 @@
 //
-//  LMSHome.swift
+//  LMSHomeView.swift
 //  report_lms
 //
 //  Created by AI on January 21, 2026.
@@ -7,34 +7,20 @@
 
 import SwiftUI
 
-struct LMSHome: View {
-    // MARK: - Properties
-    @State private var showMenu = false
-    @State private var showCloudAction = false
-    @State private var selectedTab: Tab = .plan
-    @State private var navigationPath = NavigationPath()
-    
-    enum Tab: Int, CaseIterable {
-        case plan, inProgress, report
-        var title: String {
-            switch self {
-            case .plan: return "Kế hoạch"
-            case .inProgress: return "Trong tiến trình"
-            case .report: return "Báo cáo"
-            }
-        }
-        var icon: String {
-            switch self {
-            case .plan: return "calendar"
-            case .inProgress: return "clock.arrow.circlepath"
-            case .report: return "doc.text.magnifyingglass"
-            }
-        }
-    }
+// MARK: - LMSHomeView
 
+struct LMSHomeView: View {
+    // MARK: - Properties
+    @StateObject private var viewModel: LMSHomeViewModel
+    
+    // MARK: - Initialization
+    init(viewModel: LMSHomeViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
+    
     // MARK: - Body
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationStack(path: $viewModel.navigationPath) {
             VStack(spacing: 0) {
                 header
                 tabBar
@@ -43,15 +29,10 @@ struct LMSHome: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemGroupedBackground))
             .ignoresSafeArea(.container, edges: .bottom)
-            .sheet(isPresented: $showMenu) {
-                // Placeholder for menu action
-                VStack {
-                    LMSLabel("Menu action triggered!", style: .title, alignment: .center)
-                    Spacer()
-                }
-                .padding()
+            .sheet(isPresented: $viewModel.showMenu) {
+                menuSheet
             }
-            .alert("Cloud action triggered!", isPresented: $showCloudAction) {
+            .alert("Cloud action triggered!", isPresented: $viewModel.showCloudAction) {
                 Button("OK", role: .cancel) {}
             }
             .navigationDestination(for: String.self) { destination in
@@ -60,12 +41,8 @@ struct LMSHome: View {
                     CreateInspectionView(viewModel: viewModel)
                 }
             }
-            .onChange(of: navigationPath) { oldValue, newValue in
-                // Handle navigation back event
-                if oldValue.count > newValue.count {
-                    // User navigated back to LMSHome
-                    handleNavigationBack()
-                }
+            .onChange(of: viewModel.navigationPath) { oldValue, newValue in
+                viewModel.handleNavigationBack(from: oldValue, to: newValue)
             }
         }
     }
@@ -73,12 +50,12 @@ struct LMSHome: View {
     // MARK: - Private Views
     private var header: some View {
         HStack {
-            LMSButton("", icon: "line.3.horizontal", variant: .iconOnly, action: { showMenu = true })
+            LMSButton("", icon: "line.3.horizontal", variant: .iconOnly, action: viewModel.showMenuAction)
                 .frame(width: 44, height: 44)
             Spacer()
             LMSLabel("Kiểm tra", style: .title, alignment: .center)
             Spacer()
-            LMSButton("", icon: "cloud", variant: .iconOnly, action: { showCloudAction = true })
+            LMSButton("", icon: "cloud", variant: .iconOnly, action: viewModel.triggerCloudAction)
                 .frame(width: 44, height: 44)
         }
         .padding(.horizontal, 8)
@@ -86,26 +63,26 @@ struct LMSHome: View {
         .background(Color(.systemBackground))
         .shadow(color: Color(.black).opacity(0.04), radius: 2, y: 1)
     }
-
+    
     private var tabBar: some View {
         HStack(spacing: 0) {
-            ForEach(Tab.allCases, id: \ .self) { tab in
+            ForEach(LMSHomeViewModel.Tab.allCases, id: \.self) { tab in
                 Button(action: {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        selectedTab = tab
+                        viewModel.selectedTab = tab
                     }
                 }) {
                     VStack(spacing: 4) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
-                            LMSLabel(tab.title,
-                                     style: .body,
-                                     color: selectedTab == tab ? .custom(Color.accentColor) : .secondary,
-                                     alignment: .center)
-                               .fontWeight(selectedTab == tab ? .semibold : .regular)
+                            .foregroundColor(viewModel.selectedTab == tab ? .accentColor : .secondary)
+                        LMSLabel(tab.title,
+                                 style: .body,
+                                 color: viewModel.selectedTab == tab ? .custom(Color.accentColor) : .secondary,
+                                 alignment: .center)
+                            .fontWeight(viewModel.selectedTab == tab ? .semibold : .regular)
                         ZStack {
-                            if selectedTab == tab {
+                            if viewModel.selectedTab == tab {
                                 Capsule()
                                     .fill(Color.accentColor)
                                     .frame(height: 3)
@@ -125,16 +102,12 @@ struct LMSHome: View {
         .overlay(Divider(), alignment: .bottom)
         .padding(.bottom, 2)
     }
-
-    @Namespace private var tabBarNamespace
-
+    
     private var tabContent: some View {
         Group {
-            switch selectedTab {
+            switch viewModel.selectedTab {
             case .plan:
-                PlanLMSHomeView(onQuickInspection: {
-                    navigationPath.append("createInspection")
-                })
+                PlanLMSHomeView(onQuickInspection: viewModel.navigateToCreateInspection)
             case .inProgress:
                 VStack { LMSLabel("Nội dung Trong tiến trình", style: .body, alignment: .center) }
             case .report:
@@ -143,28 +116,23 @@ struct LMSHome: View {
         }
         .frame(maxWidth: .infinity, minHeight: 120)
         .background(Color(.systemGroupedBackground))
-        .animation(.easeInOut, value: selectedTab)
+        .animation(.easeInOut, value: viewModel.selectedTab)
     }
     
-    // MARK: - Navigation Handlers
-    private func handleNavigationBack() {
-        // Handle event when user navigates back to LMSHome
-        print("User navigated back to LMSHome")
-        
-        // You can add any logic here when navigation comes back
-        // For example: refresh data, show success message, update UI state, etc.
-        
-        // Example: Switch to a specific tab or show a toast message
-        // selectedTab = .report
-        
-        // Example: Show success feedback
-        // showSuccessMessage = true
+    private var menuSheet: some View {
+        VStack {
+            LMSLabel("Menu action triggered!", style: .title, alignment: .center)
+            Spacer()
+        }
+        .padding()
     }
+    
+    // MARK: - Private Properties
+    @Namespace private var tabBarNamespace
 }
 
 // MARK: - Preview
 
 #Preview {
-    LMSHome()
+    LMSHomeView(viewModel: LMSHomeViewModel())
 }
-

@@ -7,35 +7,27 @@
 
 import SwiftUI
 
+// MARK: - PlanLMSHomeView
+
 struct PlanLMSHomeView: View {
-    @State private var showSheet = false
-    @State private var navigationPath = NavigationPath()
+    // MARK: - Properties
+    @StateObject private var viewModel: PlanLMSHomeViewModel
     
-    var onQuickInspection: () -> Void = {}
+    // MARK: - Initialization
+    init(onQuickInspection: @escaping () -> Void = {}) {
+        _viewModel = StateObject(wrappedValue: PlanLMSHomeViewModel(onQuickInspection: onQuickInspection))
+    }
     
+    // MARK: - Body
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationStack(path: $viewModel.navigationPath) {
             ZStack(alignment: .top) {
-                Text("Hello, World!")
-                
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        floatingButton
-                        Spacer().frame(width: 32)
-                    }
-                }
+                contentView
+                floatingButton
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .sheet(isPresented: $showSheet) {
-                let viewModel = CatelogyPlanViewModel()
-                CatelogyPlanView(viewModel: viewModel, onQuickInspection: {
-                    showSheet = false
-                    navigationPath.append("createInspection")
-                })
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.hidden)
+            .sheet(isPresented: $viewModel.showSheet) {
+                categoryPlanSheet
             }
             .navigationDestination(for: String.self) { destination in
                 if destination == "createInspection" {
@@ -46,18 +38,36 @@ struct PlanLMSHomeView: View {
         }
     }
     
+    // MARK: - Private Views
+    private var contentView: some View {
+        Text("Hello, World!")
+    }
+    
     private var floatingButton: some View {
-        // Floating Action Button
-        LMSButton("", icon: "plus", variant: .iconOnly, action: {
-            showSheet = true
-        })
-        .frame(width: 56, height: 56)
-        .background(Circle().fill(Color.primary))
-        .foregroundColor(.white)
-        .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
-        .padding([.bottom, .trailing], 24)
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                LMSButton("", icon: "plus", variant: .iconOnly, action: viewModel.showFloatingButtonAction)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(Color.primary))
+                    .foregroundColor(.white)
+                    .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
+                    .padding([.bottom, .trailing], 24)
+                Spacer().frame(width: 32)
+            }
+        }
+    }
+    
+    private var categoryPlanSheet: some View {
+        let viewModel = CatelogyPlanViewModel()
+        return CatelogyPlanView(viewModel: viewModel, onQuickInspection: self.viewModel.handleQuickInspection)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.hidden)
     }
 }
+
+// MARK: - Preview
 
 #Preview {
     PlanLMSHomeView()

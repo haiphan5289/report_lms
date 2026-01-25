@@ -56,14 +56,18 @@ private struct SuccessView: View {
     }
 }
 
+@MainActor
 struct CreateInspectionView: View {
+    // MARK: - Properties
     @StateObject private var viewModel: CreateInspectionViewModel
     @State private var showingInspectionTypePicker = false
     
-    init(viewModel: CreateInspectionViewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+    // MARK: - Initialization
+    init(viewModel: CreateInspectionViewModel? = nil) {
+        _viewModel = StateObject(wrappedValue: viewModel ?? CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!))
     }
     
+    // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
@@ -91,7 +95,7 @@ struct CreateInspectionView: View {
         }
     }
     
-    // MARK: - View Sections
+    // MARK: - Private Views
     private var inputFieldsSection: some View {
         ForEach(viewModel.inputFields.indices, id: \.self) { index in
             let field = viewModel.inputFields[index]
@@ -172,6 +176,7 @@ private struct InspectionTypePickerView: View {
     }
 }
 
+// MARK: - Preview
 #Preview {
     CreateInspectionView()
 }

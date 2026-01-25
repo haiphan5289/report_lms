@@ -32,66 +32,8 @@ class InputField {
 }
 
 // MARK: - Input Field Type Extensions
-extension InputFieldType {
-    var title: String {
-        switch self {
-        case .productName: return "Tên sản phẩm"
-        case .productCode: return "Mã sản phẩm"
-        case .orderCode: return "Mã đơn hàng"
-        case .inspectionForm: return "Biểu mẫu kiểm hàng"
-        case .inspectionType: return "Loại kiểm tra"
-        case .samplingMethod: return "Phương pháp lấy mẫu"
-        case .quantity: return "Số lượng"
-        case .factory: return "Nhà máy"
-        case .productionUnit: return "Đơn vị sản xuất"
-        }
-    }
-    
-    var inputType: ProductInfoInputType {
-        switch self {
-        case .productName, .productCode, .orderCode: return .required
-        case .inspectionForm, .inspectionType, .samplingMethod: return .dropdown
-        case .quantity: return .quantity
-        case .factory, .productionUnit: return .normal
-        }
-    }
-    
-    func binding(for viewModel: CreateInspectionViewModel) -> Binding<String> {
-        switch self {
-        case .productName: return Binding(get: { viewModel.productName }, set: { viewModel.productName = $0 })
-        case .productCode: return Binding(get: { viewModel.productCode }, set: { viewModel.productCode = $0 })
-        case .orderCode: return Binding(get: { viewModel.orderCode }, set: { viewModel.orderCode = $0 })
-        case .inspectionForm: return Binding(get: { viewModel.inspectionForm }, set: { viewModel.inspectionForm = $0 })
-        case .inspectionType: return Binding(get: { viewModel.inspectionType }, set: { viewModel.inspectionType = $0 })
-        case .samplingMethod: return Binding(get: { viewModel.samplingMethod }, set: { viewModel.samplingMethod = $0 })
-        case .quantity: return Binding(get: { viewModel.quantity }, set: { viewModel.quantity = $0 })
-        case .factory: return Binding(get: { viewModel.factory }, set: { viewModel.factory = $0 })
-        case .productionUnit: return Binding(get: { viewModel.productionUnit }, set: { viewModel.productionUnit = $0 })
-        }
-    }
-    
-    func errorMessage(for viewModel: CreateInspectionViewModel) -> String? {
-        switch self {
-        case .productName: return viewModel.productNameError
-        case .productCode: return viewModel.productCodeError
-        case .orderCode: return viewModel.orderCodeError
-        case .inspectionForm: return viewModel.inspectionFormError
-        case .inspectionType: return viewModel.inspectionTypeError
-        case .samplingMethod: return viewModel.samplingMethodError
-        case .quantity: return viewModel.quantityError
-        case .factory: return viewModel.factoryError
-        case .productionUnit: return viewModel.productionUnitError
-        }
-    }
-}
 
-// MARK: - Field Validation
-private extension CreateInspectionViewModel {
-    func validateField(_ value: String, fieldName: String) -> String? {
-        return value.isEmpty ? "\(fieldName) không được để trống" : nil
-    }
-}
-
+@MainActor
 final class CreateInspectionViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var productName: String = "" {
@@ -208,6 +150,7 @@ final class CreateInspectionViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Private Methods
     private func validateInputs() -> Bool {
         // Check if any required fields have errors
         return fieldErrors.allSatisfy { $0 == nil }
@@ -235,5 +178,68 @@ final class CreateInspectionViewModel: ObservableObject {
         productionUnitError = nil
         errorMessage = nil
         createdInspection = nil
+    }
+}
+
+// MARK: - Input Field Type Extensions
+extension InputFieldType {
+    var title: String {
+        switch self {
+        case .productName: return "Tên sản phẩm"
+        case .productCode: return "Mã sản phẩm"
+        case .orderCode: return "Mã đơn hàng"
+        case .inspectionForm: return "Biểu mẫu kiểm hàng"
+        case .inspectionType: return "Loại kiểm tra"
+        case .samplingMethod: return "Phương pháp lấy mẫu"
+        case .quantity: return "Số lượng"
+        case .factory: return "Nhà máy"
+        case .productionUnit: return "Đơn vị sản xuất"
+        }
+    }
+    
+    var inputType: ProductInfoInputType {
+        switch self {
+        case .productName, .productCode, .orderCode: return .required
+        case .inspectionForm, .inspectionType, .samplingMethod: return .dropdown
+        case .quantity: return .quantity
+        case .factory, .productionUnit: return .normal
+        }
+    }
+    
+    @MainActor
+    func binding(for viewModel: CreateInspectionViewModel) -> Binding<String> {
+        switch self {
+        case .productName: return Binding(get: { viewModel.productName }, set: { viewModel.productName = $0 })
+        case .productCode: return Binding(get: { viewModel.productCode }, set: { viewModel.productCode = $0 })
+        case .orderCode: return Binding(get: { viewModel.orderCode }, set: { viewModel.orderCode = $0 })
+        case .inspectionForm: return Binding(get: { viewModel.inspectionForm }, set: { viewModel.inspectionForm = $0 })
+        case .inspectionType: return Binding(get: { viewModel.inspectionType }, set: { viewModel.inspectionType = $0 })
+        case .samplingMethod: return Binding(get: { viewModel.samplingMethod }, set: { viewModel.samplingMethod = $0 })
+        case .quantity: return Binding(get: { viewModel.quantity }, set: { viewModel.quantity = $0 })
+        case .factory: return Binding(get: { viewModel.factory }, set: { viewModel.factory = $0 })
+        case .productionUnit: return Binding(get: { viewModel.productionUnit }, set: { viewModel.productionUnit = $0 })
+        }
+    }
+    
+    @MainActor
+    func errorMessage(for viewModel: CreateInspectionViewModel) -> String? {
+        switch self {
+        case .productName: return viewModel.productNameError
+        case .productCode: return viewModel.productCodeError
+        case .orderCode: return viewModel.orderCodeError
+        case .inspectionForm: return viewModel.inspectionFormError
+        case .inspectionType: return viewModel.inspectionTypeError
+        case .samplingMethod: return viewModel.samplingMethodError
+        case .quantity: return viewModel.quantityError
+        case .factory: return viewModel.factoryError
+        case .productionUnit: return viewModel.productionUnitError
+        }
+    }
+}
+
+// MARK: - Field Validation
+private extension CreateInspectionViewModel {
+    func validateField(_ value: String, fieldName: String) -> String? {
+        return value.isEmpty ? "\(fieldName) không được để trống" : nil
     }
 }
