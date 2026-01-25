@@ -49,3 +49,21 @@ struct InspectionModel: Codable {
         )
     }
 }
+
+// MARK: - ListItemProtocol
+extension InspectionModel: ListItemProtocol {
+    var title: String? {
+        productName
+    }
+    
+    var datas: [ListDataItem] {
+        [
+            ListDataItem(id: 1, name: "Mã sản phẩm: \(productCode)"),
+            ListDataItem(id: 2, name: "Mã đơn hàng: \(orderCode)"),
+            ListDataItem(id: 3, name: "Loại kiểm tra: \(inspectionType)"),
+            ListDataItem(id: 4, name: "Số lượng: \(quantity)"),
+            ListDataItem(id: 5, name: "Nhà máy: \(factory)"),
+            ListDataItem(id: 6, name: "Đơn vị sản xuất: \(productionUnit)")
+        ]
+    }
+}

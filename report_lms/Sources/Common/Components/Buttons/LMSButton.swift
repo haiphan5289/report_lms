@@ -71,7 +71,7 @@ struct LMSButton: View {
     // MARK: - Body
     
     var body: some View {
-        Button(action: {
+        let baseButton = Button(action: {
             guard !isLoading && !isDisabled else { return }
             action()
         }) {
@@ -83,8 +83,21 @@ struct LMSButton: View {
         .accessibilityLabel(title)
         .accessibilityHint(isLoading ? "Loading" : "")
         .accessibilityAddTraits(isDisabled ? .isButton : [.isButton])
-    // MARK: - IconOnlyButtonStyle
-}
+        
+        if variant == .iconOnly {
+            baseButton
+        } else {
+            ZStack {
+                variant.backgroundColor
+                baseButton
+            }
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(variant.borderColor ?? .clear, lineWidth: 1)
+            )
+        }
+    }
 
 // MARK: - IconOnlyButtonStyle
 private struct IconOnlyButtonStyle: ButtonStyle {
@@ -149,12 +162,6 @@ private struct IconOnlyButtonStyle: ButtonStyle {
                 .frame(maxWidth: isFullWidth ? .infinity : nil)
                 .frame(height: size.height)
                 .padding(.horizontal, size.horizontalPadding)
-                .background(variant.backgroundColor)
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(variant.borderColor ?? .clear, lineWidth: 1)
-                )
             }
         }
     }
