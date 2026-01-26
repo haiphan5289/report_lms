@@ -51,16 +51,14 @@ struct PlanLMSHomeView: View {
     
     private var emptyStateView: some View {
         VStack(spacing: 24) {
-            VStack {
-                VStack(spacing: 8) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary.opacity(0.6))
-                    LMSLabel("Không có yêu cầu kiểm tra nào được tải xuống", style: .body, alignment: .center)
-                    LMSLabel("Nhấn button bên dưới để xem thêm", style: .subheadline, color: .secondary, alignment: .center)
-                }
-                .padding()
+            VStack(spacing: 8) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.system(size: 48))
+                    .foregroundColor(.secondary.opacity(0.6))
+                LMSLabel("Không có yêu cầu kiểm tra nào được tải xuống", style: .body, alignment: .center)
+                LMSLabel("Nhấn button bên dưới để xem thêm", style: .subheadline, color: .secondary, alignment: .center)
             }
+            .padding()
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 12)
