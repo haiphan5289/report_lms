@@ -213,6 +213,137 @@ struct PlanLMSHomeView: View {
     }
 }
 
+// MARK: - Preview Helpers
+
+// Mock service that returns preview data
+private final class PreviewInspectionService: InspectionServiceType {
+    private let mockInspections: [InspectionModel]
+    
+    init(inspections: [Inspection]) {
+        self.mockInspections = inspections.map { InspectionModel.fromEntity($0) }
+    }
+    
+    func createInspection(_ model: InspectionModel) async throws -> InspectionModel {
+        model
+    }
+    
+    func getInspections() async throws -> [InspectionModel] {
+        mockInspections
+    }
+    
+    func getInspection(id: String) async throws -> InspectionModel {
+        guard let inspection = mockInspections.first(where: { $0.id == id }) else {
+            throw NSError(domain: "PreviewService", code: 404, userInfo: [NSLocalizedDescriptionKey: "Not found"])
+        }
+        return inspection
+    }
+}
+
+@MainActor
+private func createPreviewViewModel() -> PlanLMSHomeViewModel {
+    // Create mock inspection data
+    let mockInspections = [
+        Inspection(
+            id: "1",
+            inspectionNumber: "INS-2026-001",
+            companyName: "Công ty TNHH ABC",
+            productName: "Áo thun cotton",
+            productCode: "AT-001",
+            orderCode: "ORD-2026-001",
+            inspectionType: "Kiểm tra chất lượng",
+            quantity: "1000",
+            factory: "Nhà máy Hà Nội",
+            productionUnit: "Xưởng sản xuất 1",
+            createdAt: Date(),
+            status: .plan
+        ),
+        Inspection(
+            id: "2",
+            inspectionNumber: "INS-2026-002",
+            companyName: "Công ty TNHH XYZ",
+            productName: "Quần jean nam",
+            productCode: "QJ-002",
+            orderCode: "ORD-2026-002",
+            inspectionType: "Kiểm tra cuối cùng",
+            quantity: "500",
+            factory: "Nhà máy TP.HCM",
+            productionUnit: "Xưởng sản xuất 2",
+            createdAt: Date().addingTimeInterval(-86400),
+            status: .plan
+        ),
+        Inspection(
+            id: "3",
+            inspectionNumber: "INS-2026-003",
+            companyName: "Công ty TNHH DEF",
+            productName: "Váy công sở",
+            productCode: "VCS-003",
+            orderCode: "ORD-2026-003",
+            inspectionType: "Kiểm tra trong quá trình",
+            quantity: "800",
+            factory: "Nhà máy Đà Nẵng",
+            productionUnit: "Xưởng sản xuất 3",
+            createdAt: Date().addingTimeInterval(-172800),
+            status: .plan
+        ),
+        Inspection(
+            id: "4",
+            inspectionNumber: "INS-2026-004",
+            companyName: "Công ty TNHH GHI",
+            productName: "Áo khoác nam",
+            productCode: "AK-004",
+            orderCode: "ORD-2026-004",
+            inspectionType: "Kiểm tra chất lượng",
+            quantity: "600",
+            factory: "Nhà máy Hà Nội",
+            productionUnit: "Xưởng sản xuất 1",
+            createdAt: Date().addingTimeInterval(-259200),
+            status: .plan
+        ),
+        Inspection(
+            id: "5",
+            inspectionNumber: "INS-2026-005",
+            companyName: "Công ty TNHH JKL",
+            productName: "Áo sơ mi nữ",
+            productCode: "ASM-005",
+            orderCode: "ORD-2026-005",
+            inspectionType: "Kiểm tra cuối cùng",
+            quantity: "1200",
+            factory: "Nhà máy Biên Hòa",
+            productionUnit: "Xưởng sản xuất 4",
+            createdAt: Date().addingTimeInterval(-604800),
+            status: .plan
+        ),
+        Inspection(
+            id: "6",
+            inspectionNumber: "INS-2026-006",
+            companyName: "Công ty TNHH MNO",
+            productName: "Quần tây nam",
+            productCode: "QT-006",
+            orderCode: "ORD-2026-006",
+            inspectionType: "Kiểm tra chất lượng",
+            quantity: "700",
+            factory: "Nhà máy Hải Phòng",
+            productionUnit: "Xưởng sản xuất 5",
+            createdAt: Date().addingTimeInterval(-691200),
+            status: .plan
+        )
+    ]
+    
+    // Create mock service that returns our data
+    let mockService = PreviewInspectionService(inspections: mockInspections)
+    let mockRepository = InspectionRepository(service: mockService)
+    let mockFetchUseCase = FetchInspectionsUseCase(repository: mockRepository)
+    let mockGroupUseCase = GroupInspectionsByWeekUseCase()
+    
+    let viewModel = PlanLMSHomeViewModel(
+        fetchInspectionsUseCase: mockFetchUseCase,
+        groupInspectionsByWeekUseCase: mockGroupUseCase,
+        repository: mockRepository
+    )
+    
+    return viewModel
+}
+
 #Preview {
-    PlanLMSHomeView()
+    PlanLMSHomeView(viewModel: createPreviewViewModel())
 }
