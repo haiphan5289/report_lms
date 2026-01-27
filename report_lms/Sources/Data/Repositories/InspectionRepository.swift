@@ -6,9 +6,15 @@
 //
 
 import Foundation
+import Combine
 
 final class InspectionRepository: InspectionRepositoryType {
     private let service: InspectionServiceType
+    private let inspectionsSubject = CurrentValueSubject<[Inspection], Never>([])
+    
+    var inspectionsPublisher: AnyPublisher<[Inspection], Never> {
+        inspectionsSubject.eraseToAnyPublisher()
+    }
     
     init(service: InspectionServiceType) {
         self.service = service
@@ -17,7 +23,14 @@ final class InspectionRepository: InspectionRepositoryType {
     func createInspection(_ inspection: Inspection) async throws -> Inspection {
         let model = InspectionModel.fromEntity(inspection)
         let responseModel = try await service.createInspection(model)
-        return responseModel.toEntity()
+        let newInspection = responseModel.toEntity()
+        
+        // Notify subscribers
+        var currentInspections = inspectionsSubject.value
+        currentInspections.insert(newInspection, at: 0)
+        inspectionsSubject.send(currentInspections)
+        
+        return newInspection
     }
     
     func getInspections() async throws -> [Inspection] {
@@ -28,5 +41,12 @@ final class InspectionRepository: InspectionRepositoryType {
     func getInspection(id: String) async throws -> Inspection {
         let model = try await service.getInspection(id: id)
         return model.toEntity()
+    }
+    
+    func fetchInspections() async throws -> [Inspection] {
+        let models = try await service.getInspections()
+        let inspections = models.map { $0.toEntity() }
+        inspectionsSubject.send(inspections)
+        return inspections
     }
 }

@@ -9,6 +9,8 @@ import Foundation
 
 struct Inspection: Identifiable, Equatable {
     let id: String
+    let inspectionNumber: String
+    let companyName: String
     let productName: String
     let productCode: String
     let orderCode: String
@@ -18,9 +20,12 @@ struct Inspection: Identifiable, Equatable {
     let productionUnit: String
     let createdAt: Date
     let inspectorId: String?
+    let status: InspectionStatus
     
     init(
         id: String = UUID().uuidString,
+        inspectionNumber: String = "",
+        companyName: String = "",
         productName: String,
         productCode: String,
         orderCode: String,
@@ -29,9 +34,12 @@ struct Inspection: Identifiable, Equatable {
         factory: String,
         productionUnit: String,
         createdAt: Date = Date(),
-        inspectorId: String? = nil
+        inspectorId: String? = nil,
+        status: InspectionStatus = .plan
     ) {
         self.id = id
+        self.inspectionNumber = inspectionNumber
+        self.companyName = companyName
         self.productName = productName
         self.productCode = productCode
         self.orderCode = orderCode
@@ -41,5 +49,13 @@ struct Inspection: Identifiable, Equatable {
         self.productionUnit = productionUnit
         self.createdAt = createdAt
         self.inspectorId = inspectorId
+        self.status = status
+    }
+    
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "EEE, dd MMM yyyy"
+        return formatter.string(from: createdAt)
     }
 }

@@ -9,6 +9,8 @@ import Foundation
 
 struct InspectionModel: Codable {
     let id: String
+    let inspectionNumber: String?
+    let companyName: String?
     let productName: String
     let productCode: String
     let orderCode: String
@@ -18,10 +20,13 @@ struct InspectionModel: Codable {
     let productionUnit: String
     let createdAt: String
     let inspectorId: String?
+    let status: String?
     
     func toEntity() -> Inspection {
         Inspection(
             id: id,
+            inspectionNumber: inspectionNumber ?? "",
+            companyName: companyName ?? "",
             productName: productName,
             productCode: productCode,
             orderCode: orderCode,
@@ -30,13 +35,16 @@ struct InspectionModel: Codable {
             factory: factory,
             productionUnit: productionUnit,
             createdAt: ISO8601DateFormatter().date(from: createdAt) ?? Date(),
-            inspectorId: inspectorId
+            inspectorId: inspectorId,
+            status: InspectionStatus(rawValue: status ?? "") ?? .plan
         )
     }
     
     static func fromEntity(_ entity: Inspection) -> InspectionModel {
         InspectionModel(
             id: entity.id,
+            inspectionNumber: entity.inspectionNumber,
+            companyName: entity.companyName,
             productName: entity.productName,
             productCode: entity.productCode,
             orderCode: entity.orderCode,
@@ -45,7 +53,8 @@ struct InspectionModel: Codable {
             factory: entity.factory,
             productionUnit: entity.productionUnit,
             createdAt: ISO8601DateFormatter().string(from: entity.createdAt),
-            inspectorId: entity.inspectorId
+            inspectorId: entity.inspectorId,
+            status: entity.status.rawValue
         )
     }
 }

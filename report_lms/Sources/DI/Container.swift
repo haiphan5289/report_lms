@@ -28,9 +28,42 @@ final class Container {
     }
     
     private func registerDependencies() {
-        // Inspection
-        register(InspectionServiceType.self) { InspectionService() }
-        register(InspectionRepositoryType.self) { InspectionRepository(service: Container.shared.resolve(InspectionServiceType.self)!) }
-        register(CreateInspectionUseCase.self) { CreateInspectionUseCase(repository: Container.shared.resolve(InspectionRepositoryType.self)!) }
+        // Services
+        register(InspectionServiceType.self) { 
+            InspectionService() 
+        }
+        
+        // Repositories
+        register(InspectionRepositoryType.self) { 
+            InspectionRepository(
+                service: Container.shared.resolve(InspectionServiceType.self)!
+            ) 
+        }
+        
+        // Use Cases
+        register(CreateInspectionUseCase.self) { 
+            CreateInspectionUseCase(
+                repository: Container.shared.resolve(InspectionRepositoryType.self)!
+            ) 
+        }
+        
+        register(FetchInspectionsUseCase.self) {
+            FetchInspectionsUseCase(
+                repository: Container.shared.resolve(InspectionRepositoryType.self)!
+            )
+        }
+        
+        register(GroupInspectionsByWeekUseCase.self) {
+            GroupInspectionsByWeekUseCase()
+        }
+        
+        // ViewModels
+        register(PlanLMSHomeViewModel.self) {
+            PlanLMSHomeViewModel(
+                fetchInspectionsUseCase: Container.shared.resolve(FetchInspectionsUseCase.self)!,
+                groupInspectionsByWeekUseCase: Container.shared.resolve(GroupInspectionsByWeekUseCase.self)!,
+                repository: Container.shared.resolve(InspectionRepositoryType.self)!
+            )
+        }
     }
 }
