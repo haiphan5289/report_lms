@@ -123,13 +123,29 @@ final class CreateInspectionViewModel: ObservableObject {
     
     // MARK: - Public Methods
     func createInspection() async {
-        guard validateInputs() else { return }
+        print("🟡 [CreateInspectionViewModel] createInspection() called")
+        print("🟡 [CreateInspectionViewModel] Validating inputs...")
+        
+        guard validateInputs() else {
+            print("🔴 [CreateInspectionViewModel] Validation failed!")
+            print("🔴 [CreateInspectionViewModel] Field errors: \(fieldErrors)")
+            return
+        }
+        
+        print("🟡 [CreateInspectionViewModel] Validation passed")
+        print("🟡 [CreateInspectionViewModel] Product: \(productName)")
+        print("🟡 [CreateInspectionViewModel] Code: \(productCode)")
+        print("🟡 [CreateInspectionViewModel] Order: \(orderCode)")
         
         isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
+        defer { 
+            isLoading = false 
+            print("🟡 [CreateInspectionViewModel] isLoading set to false")
+        }
         
         do {
+            print("🟡 [CreateInspectionViewModel] Calling createInspectionUseCase.execute()...")
             let inspection = try await createInspectionUseCase.execute(
                 productName: productName,
                 productCode: productCode,
@@ -139,8 +155,13 @@ final class CreateInspectionViewModel: ObservableObject {
                 factory: factory,
                 productionUnit: productionUnit
             )
+            print("✅ [CreateInspectionViewModel] Inspection created successfully!")
+            print("✅ [CreateInspectionViewModel] Inspection ID: \(inspection.id)")
+            print("✅ [CreateInspectionViewModel] Setting createdInspection property...")
             createdInspection = inspection
+            print("✅ [CreateInspectionViewModel] createdInspection is now: \(String(describing: createdInspection))")
         } catch {
+            print("🔴 [CreateInspectionViewModel] Error creating inspection: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }

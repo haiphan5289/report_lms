@@ -29,7 +29,7 @@ public struct SearchableListView: View {
             searchBar
             listView
         }
-        .onChange(of: searchText) { newValue in
+        .onChange(of: searchText) { _, newValue in
             viewModel.searchTextDidChange(newValue)
         }
     }

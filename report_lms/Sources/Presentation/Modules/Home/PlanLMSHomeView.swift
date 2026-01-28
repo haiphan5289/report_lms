@@ -37,7 +37,12 @@ struct PlanLMSHomeView: View {
                     let createViewModel = CreateInspectionViewModel(
                         createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!
                     )
-                    CreateInspectionView(viewModel: createViewModel)
+                    CreateInspectionView(viewModel: createViewModel) { createdInspection in
+                        print("🟣 [PlanLMSHomeView] Callback received with inspection: \(createdInspection.id)")
+                        print("🟣 [PlanLMSHomeView] Calling viewModel.addNewInspection()")
+                        viewModel.addNewInspection(createdInspection)
+                        print("🟣 [PlanLMSHomeView] addNewInspection completed")
+                    }
                 }
             }
             .task {

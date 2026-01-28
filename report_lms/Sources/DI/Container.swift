@@ -11,6 +11,7 @@ final class Container {
     static let shared = Container()
     
     private var services: [String: Any] = [:]
+    private var singletons: [String: Any] = [:]
     
     private init() {
         registerDependencies()
@@ -21,26 +22,36 @@ final class Container {
         services[key] = factory
     }
     
+    func registerSingleton<T>(_ type: T.Type, instance: T) {
+        let key = String(describing: type)
+        singletons[key] = instance
+    }
+    
     func resolve<T>(_ type: T.Type) -> T? {
         let key = String(describing: type)
+        
+        // Check singletons first
+        if let singleton = singletons[key] as? T {
+            return singleton
+        }
+        
+        // Then check factories
         guard let factory = services[key] as? () -> T else { return nil }
         return factory()
     }
     
     private func registerDependencies() {
-        // Services
-        register(InspectionServiceType.self) { 
-            InspectionService() 
-        }
+        // Services - Singleton to maintain state
+        let inspectionService = InspectionService()
+        registerSingleton(InspectionServiceType.self, instance: inspectionService)
         
-        // Repositories
-        register(InspectionRepositoryType.self) { 
-            InspectionRepository(
-                service: Container.shared.resolve(InspectionServiceType.self)!
-            ) 
-        }
+        // Repositories - Singleton to maintain publisher state
+        let inspectionRepository = InspectionRepository(
+            service: inspectionService
+        )
+        registerSingleton(InspectionRepositoryType.self, instance: inspectionRepository)
         
-        // Use Cases
+        // Use Cases - Can be transient since they're stateless
         register(CreateInspectionUseCase.self) { 
             CreateInspectionUseCase(
                 repository: Container.shared.resolve(InspectionRepositoryType.self)!
@@ -57,7 +68,7 @@ final class Container {
             GroupInspectionsByWeekUseCase()
         }
         
-        // ViewModels
+        // ViewModels - Transient (new instance each time)
         register(PlanLMSHomeViewModel.self) {
             PlanLMSHomeViewModel(
                 fetchInspectionsUseCase: Container.shared.resolve(FetchInspectionsUseCase.self)!,

@@ -16,14 +16,18 @@ private extension Array {
 @MainActor
 struct CreateInspectionView: View {
     // MARK: - Properties
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: CreateInspectionViewModel
     @State private var showingSearchableList = false
     @State private var currentDropdownField: InputFieldType?
     
+    var onInspectionCreated: ((Inspection) -> Void)?
+    
     // MARK: - Initialization
-    init(viewModel: CreateInspectionViewModel? = nil) {
+    init(viewModel: CreateInspectionViewModel? = nil, onInspectionCreated: ((Inspection) -> Void)? = nil) {
         let vm = viewModel ?? CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
         _viewModel = StateObject(wrappedValue: vm)
+        self.onInspectionCreated = onInspectionCreated
     }
     
     // MARK: - Body
@@ -50,8 +54,18 @@ struct CreateInspectionView: View {
                 }
             }
         }
-        .onChange(of: showingSearchableList) { newValue in
-            // Handle sheet presentation state changes if needed
+        .onChange(of: viewModel.createdInspection) { _, newInspection in
+            print("🟢 [CreateInspectionView] onChange triggered - createdInspection changed")
+            print("🟢 [CreateInspectionView] newInspection: \(String(describing: newInspection))")
+            if let inspection = newInspection {
+                print("🟢 [CreateInspectionView] Inspection created successfully: \(inspection.id)")
+                print("🟢 [CreateInspectionView] Calling onInspectionCreated callback")
+                onInspectionCreated?(inspection)
+                print("🟢 [CreateInspectionView] Dismissing view")
+                dismiss()
+            } else {
+                print("🔴 [CreateInspectionView] newInspection is nil - not dismissing")
+            }
         }
     }
     
@@ -88,8 +102,12 @@ struct CreateInspectionView: View {
                 isFullWidth: true,
                 isLoading: $viewModel.isLoading
             ) {
+                print("🔵 [CreateInspectionView] Button tapped - Starting inspection creation")
                 Task {
+                    print("🔵 [CreateInspectionView] Calling viewModel.createInspection()")
                     await viewModel.createInspection()
+                    print("🔵 [CreateInspectionView] viewModel.createInspection() completed")
+                    print("🔵 [CreateInspectionView] createdInspection: \(String(describing: viewModel.createdInspection))")
                 }
             }
             .padding()
