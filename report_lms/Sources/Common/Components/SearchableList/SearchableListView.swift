@@ -57,7 +57,7 @@ public struct SearchableListView: View {
     
     private var searchBar: some View {
         LMSTextField(
-            placeholder: "Search...",
+            "Search...",
             text: $searchText,
             icon: "magnifyingglass"
         )

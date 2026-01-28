@@ -22,7 +22,7 @@ struct QuantityInputView: View {
         HStack(spacing: spacing) {
             LMSLabel(labelText, style: .headline, color: .primary)
             Spacer()
-            LMSTextField(placeholder: placeholder, text: $text)
+            LMSTextField(placeholder, text: $text)
                 .frame(maxWidth: 200)
                 .multilineTextAlignment(.trailing)
         }
