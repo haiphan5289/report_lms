@@ -10,7 +10,24 @@ import SwiftUI
 struct InspectionCardView: View {
     // MARK: - Properties
     let inspection: Inspection
+    let isLastIndex: Bool
+    let isExpanded: Bool
     let onTap: () -> Void
+    let onExpandTap: (() -> Void)?
+    
+    init(
+        inspection: Inspection,
+        isLastIndex: Bool = false,
+        isExpanded: Bool = false,
+        onTap: @escaping () -> Void,
+        onExpandTap: (() -> Void)? = nil
+    ) {
+        self.inspection = inspection
+        self.isLastIndex = isLastIndex
+        self.isExpanded = isExpanded
+        self.onTap = onTap
+        self.onExpandTap = onExpandTap
+    }
     
     // MARK: - Body
     var body: some View {
@@ -27,8 +44,10 @@ struct InspectionCardView: View {
             // Product info section
             productInfoView
             
-            // Expand button if needed
-            expandButtonView
+            // Expand button if this is the last item
+            if isLastIndex {
+                expandButtonView
+            }
         }
         .background(Color(.systemBackground))
         .cornerRadius(8)
@@ -118,24 +137,27 @@ struct InspectionCardView: View {
     }
     
     private var expandButtonView: some View {
-        Group {
-            Button(action: {
-                // TODO: Implement expand action
-            }) {
-                HStack {
-                    Spacer()
-                    LMSLabel("HIỆN THỊ TẤT CẢ",
-                            style: .caption,
-                             color: .primary)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12))
+        Button(action: {
+            onExpandTap?()
+        }) {
+            HStack {
+                Spacer()
+                HStack(spacing: 4) {
+                    LMSLabel(
+                        isExpanded ? "ẨN BỚT" : "HIỆN THỊ TẤT CẢ",
+                        style: .caption,
+                        color: .custom(Color.blue)
+                    )
+                    Image(systemName: isExpanded ? "minus.circle.fill" : "plus.circle.fill")
+                        .font(.system(size: 14))
                         .foregroundColor(.blue)
-                    Spacer()
                 }
-                .padding(.vertical, 12)
+                Spacer()
             }
-            .background(Color.gray.opacity(0.05))
+            .padding(.vertical, 12)
+            .background(Color(.systemBackground))
         }
+        .buttonStyle(.plain)
     }
 }
 

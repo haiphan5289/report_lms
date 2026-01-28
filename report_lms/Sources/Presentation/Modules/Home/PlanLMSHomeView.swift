@@ -127,16 +127,23 @@ struct PlanLMSHomeView: View {
                 ForEach(viewModel.weeklyInspections) { section in
                     Section {
                         VStack(spacing: 12) {
-                            ForEach(viewModel.visibleInspections(for: section)) { inspection in
-                                InspectionCardView(inspection: inspection) {
-                                    // TODO: Navigate to detail
-                                }
-                                .padding(.horizontal, 16)
-                            }
+                            let visibleInspections = viewModel.visibleInspections(for: section)
                             
-                            // Show expand button inside section
-                            if viewModel.shouldShowExpandButton(for: section) {
-                                expandCollapseButton(for: section)
+                            ForEach(Array(visibleInspections.enumerated()), id: \.element.id) { index, inspection in
+                                InspectionCardView(
+                                    inspection: inspection,
+                                    isLastIndex: index == visibleInspections.count - 1,
+                                    isExpanded: viewModel.isExpanded(section.id),
+                                    onTap: {
+                                        // TODO: Navigate to detail
+                                    },
+                                    onExpandTap: {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            viewModel.toggleSection(section.id)
+                                        }
+                                    }
+                                )
+                                .padding(.horizontal, 16)
                             }
                         }
                         .padding(.vertical, 12)
@@ -167,34 +174,6 @@ struct PlanLMSHomeView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color(.systemGroupedBackground))
-    }
-    
-    private func expandCollapseButton(for section: WeekSection) -> some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                viewModel.toggleSection(section.id)
-            }
-        }) {
-            HStack {
-                Spacer()
-                HStack(spacing: 4) {
-                    LMSLabel(
-                        viewModel.isExpanded(section.id) ? "ẨN BớT" : "HIỆN THỊ TẤT CẢ",
-                        style: .caption,
-                        color: .custom(Color.blue)
-                    )
-                    Image(systemName: viewModel.isExpanded(section.id) ? "minus.circle.fill" : "plus.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.blue)
-                }
-                Spacer()
-            }
-            .padding(.vertical, 12)
-            .background(Color(.systemBackground))
-            .cornerRadius(8)
-            .padding(.horizontal, 16)
-        }
-        .buttonStyle(.plain)
     }
     
     private var floatingButton: some View {

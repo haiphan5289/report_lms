@@ -93,6 +93,7 @@ struct CreateInspectionView: View {
                 }
             }
             .padding()
+            .frame(height: 56)
         }
         .background(Color(.systemBackground))
     }

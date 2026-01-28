@@ -111,7 +111,7 @@ private struct IconOnlyButtonStyle: ButtonStyle {
                     if variant == .iconOnly && configuration.isPressed {
                         Circle()
                             .fill(Color(.systemGray5))
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                     } else {
                         Color.clear
                     }
@@ -140,7 +140,7 @@ private struct IconOnlyButtonStyle: ButtonStyle {
                     }
                 }
                 .foregroundColor(variant.foregroundColor)
-                .frame(width: 36, height: 36)
+                .frame(width: 44, height: 44)
             } else {
                 HStack(spacing: 8) {
                     if isLoading {
@@ -231,22 +231,22 @@ enum LMSButtonSize {
     var height: CGFloat {
         switch self {
         case .small:
-            return 32
+            return 36
         case .medium:
             return 44
         case .large:
-            return 52
+            return 56
         }
     }
     
     var horizontalPadding: CGFloat {
         switch self {
         case .small:
-            return 12
-        case .medium:
             return 16
-        case .large:
+        case .medium:
             return 20
+        case .large:
+            return 24
         }
     }
     
