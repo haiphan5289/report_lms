@@ -64,7 +64,7 @@ struct PlanLMSHomeView: View {
     private var contentView: some View {
         Group {
             if viewModel.isLoading && viewModel.weeklyInspections.isEmpty {
-                loadingView
+                LMSLoadingView()
             } else if let errorMessage = viewModel.errorMessage {
                 errorView(message: errorMessage)
             } else if viewModel.weeklyInspections.isEmpty {
@@ -72,14 +72,6 @@ struct PlanLMSHomeView: View {
             } else {
                 inspectionListView
             }
-        }
-    }
-    
-    private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .progressViewStyle(.circular)
-            LMSLabel("Đang tải...", style: .body, color: .secondary)
         }
     }
     

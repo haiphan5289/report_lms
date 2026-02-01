@@ -30,7 +30,7 @@ struct InspectionDetailView: View {
             contentView
             
             if viewModel.isLoading {
-                loadingOverlay
+                LMSLoadingOverlay()
             }
         }
         .navigationTitle(viewModel.inspectionDetail?.inspectionNumber ?? "")
@@ -134,26 +134,6 @@ struct InspectionDetailView: View {
             .frame(height: 44)
         }
         .padding()
-    }
-    
-    private var loadingOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 16) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(.white)
-                
-                LMSLabel("Đang tải...", style: .body, color: .custom(.white))
-            }
-            .padding(24)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.systemGray))
-            )
-        }
     }
 }
 
