@@ -55,13 +55,8 @@ struct CreateInspectionView: View {
             }
         }
         .onChange(of: viewModel.createdInspection) { _, newInspection in
-            print("🟢 [CreateInspectionView] onChange triggered - createdInspection changed")
-            print("🟢 [CreateInspectionView] newInspection: \(String(describing: newInspection))")
             if let inspection = newInspection {
-                print("🟢 [CreateInspectionView] Inspection created successfully: \(inspection.id)")
-                print("🟢 [CreateInspectionView] Calling onInspectionCreated callback")
                 onInspectionCreated?(inspection)
-                print("🟢 [CreateInspectionView] Dismissing view")
                 dismiss()
             } else {
                 print("🔴 [CreateInspectionView] newInspection is nil - not dismissing")

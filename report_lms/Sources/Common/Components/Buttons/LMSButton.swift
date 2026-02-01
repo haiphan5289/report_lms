@@ -91,6 +91,7 @@ struct LMSButton: View {
                 variant.backgroundColor
                 baseButton
             }
+            .frame(height: size.height)
             .cornerRadius(8)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)

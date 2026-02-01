@@ -10,8 +10,24 @@ import SwiftUI
 // MARK: - LMSHomeView
 
 struct LMSHomeView: View {
+    // MARK: - Constants
+    private enum Layout {
+        static let headerHorizontalPadding: CGFloat = 8
+        static let headerVerticalPadding: CGFloat = 4
+        static let iconButtonSize: CGFloat = 44
+        static let shadowOpacity: CGFloat = 0.04
+        static let shadowRadius: CGFloat = 2
+        static let shadowY: CGFloat = 1
+        static let tabIconSize: CGFloat = 18
+        static let tabSpacing: CGFloat = 4
+        static let tabUnderlineHeight: CGFloat = 3
+        static let tabBottomPadding: CGFloat = 2
+        static let minContentHeight: CGFloat = 120
+    }
+    
     // MARK: - Properties
     @StateObject private var viewModel: LMSHomeViewModel
+    @Namespace private var tabBarNamespace
     
     // MARK: - Initialization
     init(viewModel: LMSHomeViewModel) {
@@ -50,57 +66,97 @@ struct LMSHomeView: View {
     // MARK: - Private Views
     private var header: some View {
         HStack {
-            LMSButton("", icon: "line.3.horizontal", variant: .iconOnly, action: viewModel.showMenuAction)
-                .frame(width: 44, height: 44)
+            menuButton
             Spacer()
             LMSLabel("Kiểm tra", style: .title, alignment: .center)
             Spacer()
-            LMSButton("", icon: "cloud", variant: .iconOnly, action: viewModel.triggerCloudAction)
-                .frame(width: 44, height: 44)
+            cloudButton
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, Layout.headerHorizontalPadding)
+        .padding(.vertical, Layout.headerVerticalPadding)
         .background(Color(.systemBackground))
-        .shadow(color: Color(.black).opacity(0.04), radius: 2, y: 1)
+        .shadow(
+            color: Color(.black).opacity(Layout.shadowOpacity),
+            radius: Layout.shadowRadius,
+            y: Layout.shadowY
+        )
+    }
+    
+    private var menuButton: some View {
+        LMSButton(
+            "",
+            icon: "line.3.horizontal",
+            variant: .iconOnly,
+            action: viewModel.showMenuAction
+        )
+        .frame(width: Layout.iconButtonSize, height: Layout.iconButtonSize)
+    }
+    
+    private var cloudButton: some View {
+        LMSButton(
+            "",
+            icon: "cloud",
+            variant: .iconOnly,
+            action: viewModel.triggerCloudAction
+        )
+        .frame(width: Layout.iconButtonSize, height: Layout.iconButtonSize)
     }
     
     private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(LMSHomeViewModel.Tab.allCases, id: \.self) { tab in
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        viewModel.selectedTab = tab
-                    }
-                }) {
-                    VStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(viewModel.selectedTab == tab ? .accentColor : .secondary)
-                        LMSLabel(tab.title,
-                                 style: .body,
-                                 color: viewModel.selectedTab == tab ? .custom(Color.accentColor) : .secondary,
-                                 alignment: .center)
-                            .fontWeight(viewModel.selectedTab == tab ? .semibold : .regular)
-                        ZStack {
-                            if viewModel.selectedTab == tab {
-                                Capsule()
-                                    .fill(Color.accentColor)
-                                    .frame(height: 3)
-                                    .matchedGeometryEffect(id: "tabUnderline", in: tabBarNamespace)
-                            } else {
-                                Color.clear.frame(height: 3)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 0)
-                }
-                .buttonStyle(.plain)
+                tabButton(for: tab)
             }
         }
         .background(Color(.systemBackground))
         .overlay(Divider(), alignment: .bottom)
-        .padding(.bottom, 2)
+        .padding(.bottom, Layout.tabBottomPadding)
+    }
+    
+    private func tabButton(for tab: LMSHomeViewModel.Tab) -> some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                viewModel.selectedTab = tab
+            }
+        }) {
+            tabButtonContent(for: tab)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func tabButtonContent(for tab: LMSHomeViewModel.Tab) -> some View {
+        let isSelected = viewModel.selectedTab == tab
+        
+        return VStack(spacing: Layout.tabSpacing) {
+            Image(systemName: tab.icon)
+                .font(.system(size: Layout.tabIconSize, weight: .semibold))
+                .foregroundColor(isSelected ? .accentColor : .secondary)
+            
+            LMSLabel(
+                tab.title,
+                style: .body,
+                color: isSelected ? .custom(Color.accentColor) : .secondary,
+                alignment: .center
+            )
+            .fontWeight(isSelected ? .semibold : .regular)
+            
+            tabUnderline(isSelected: isSelected)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 0)
+    }
+    
+    private func tabUnderline(isSelected: Bool) -> some View {
+        ZStack {
+            if isSelected {
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(height: Layout.tabUnderlineHeight)
+                    .matchedGeometryEffect(id: "tabUnderline", in: tabBarNamespace)
+            } else {
+                Color.clear.frame(height: Layout.tabUnderlineHeight)
+            }
+        }
     }
     
     private var tabContent: some View {
@@ -109,26 +165,47 @@ struct LMSHomeView: View {
             case .plan:
                 PlanLMSHomeView(onQuickInspection: viewModel.navigateToCreateInspection)
             case .inProgress:
-                VStack { LMSLabel("Nội dung Trong tiến trình", style: .body, alignment: .center) }
+                inProgressContent
             case .report:
-                VStack { LMSLabel("Nội dung Báo cáo", style: .body, alignment: .center) }
+                reportContent
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 120)
+        .frame(maxWidth: .infinity, minHeight: Layout.minContentHeight)
         .background(Color(.systemGroupedBackground))
         .animation(.easeInOut, value: viewModel.selectedTab)
     }
     
+    private var inProgressContent: some View {
+        VStack {
+            LMSLabel(
+                "Nội dung Trong tiến trình",
+                style: .body,
+                alignment: .center
+            )
+        }
+    }
+    
+    private var reportContent: some View {
+        VStack {
+            LMSLabel(
+                "Nội dung Báo cáo",
+                style: .body,
+                alignment: .center
+            )
+        }
+    }
+    
     private var menuSheet: some View {
         VStack {
-            LMSLabel("Menu action triggered!", style: .title, alignment: .center)
+            LMSLabel(
+                "Menu action triggered!",
+                style: .title,
+                alignment: .center
+            )
             Spacer()
         }
         .padding()
     }
-    
-    // MARK: - Private Properties
-    @Namespace private var tabBarNamespace
 }
 
 // MARK: - Preview

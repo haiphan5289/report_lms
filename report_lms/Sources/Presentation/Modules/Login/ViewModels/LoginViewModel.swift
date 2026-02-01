@@ -15,6 +15,7 @@ final class LoginViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var userSession: UserSession?
+    @Published var isLoginSuccessful: Bool = false
     
     // MARK: - Private Properties
     private let loginUseCase: LoginUseCase
@@ -33,8 +34,10 @@ final class LoginViewModel: ObservableObject {
             let request = LoginRequest(username: username, password: password)
             let session = try await loginUseCase.execute(request: request)
             userSession = session
+            isLoginSuccessful = true
         } catch {
             errorMessage = error.localizedDescription
+            isLoginSuccessful = false
         }
     }
 }
