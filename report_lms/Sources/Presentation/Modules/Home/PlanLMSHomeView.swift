@@ -138,14 +138,8 @@ struct PlanLMSHomeView: View {
                                 InspectionCardView(
                                     inspection: inspection,
                                     isLastIndex: index == visibleInspections.count - 1,
-                                    isExpanded: viewModel.isExpanded(section.id),
                                     onTap: {
                                         // TODO: Navigate to detail
-                                    },
-                                    onExpandTap: {
-                                        withAnimation(.easeInOut(duration: 0.3)) {
-                                            viewModel.toggleSection(section.id)
-                                        }
                                     }
                                 )
                                 .padding(.horizontal, 16)
@@ -166,8 +160,6 @@ struct PlanLMSHomeView: View {
             Image(systemName: "chevron.down")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
-                .rotationEffect(.degrees(viewModel.isExpanded(section.id) ? 0 : -90))
-                .animation(.easeInOut(duration: 0.2), value: viewModel.isExpanded(section.id))
             
             LMSLabel(section.title, 
                     style: .subheadline, 
@@ -175,7 +167,6 @@ struct PlanLMSHomeView: View {
             
             Spacer()
         }
-        .contentShape(Rectangle())
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color(.systemGroupedBackground))

@@ -11,22 +11,16 @@ struct InspectionCardView: View {
     // MARK: - Properties
     let inspection: Inspection
     let isLastIndex: Bool
-    let isExpanded: Bool
     let onTap: () -> Void
-    let onExpandTap: (() -> Void)?
     
     init(
         inspection: Inspection,
         isLastIndex: Bool = false,
-        isExpanded: Bool = false,
-        onTap: @escaping () -> Void,
-        onExpandTap: (() -> Void)? = nil
+        onTap: @escaping () -> Void
     ) {
         self.inspection = inspection
         self.isLastIndex = isLastIndex
-        self.isExpanded = isExpanded
         self.onTap = onTap
-        self.onExpandTap = onExpandTap
     }
     
     // MARK: - Body
@@ -43,11 +37,6 @@ struct InspectionCardView: View {
             
             // Product info section
             productInfoView
-            
-            // Expand button if this is the last item
-            if isLastIndex {
-                expandButtonView
-            }
         }
         .background(Color(.systemBackground))
         .cornerRadius(8)
@@ -134,30 +123,6 @@ struct InspectionCardView: View {
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 16)
-    }
-    
-    private var expandButtonView: some View {
-        Button(action: {
-            onExpandTap?()
-        }) {
-            HStack {
-                Spacer()
-                HStack(spacing: 4) {
-                    LMSLabel(
-                        isExpanded ? "ẨN BỚT" : "HIỆN THỊ TẤT CẢ",
-                        style: .caption,
-                        color: .custom(Color.blue)
-                    )
-                    Image(systemName: isExpanded ? "minus.circle.fill" : "plus.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.blue)
-                }
-                Spacer()
-            }
-            .padding(.vertical, 12)
-            .background(Color(.systemBackground))
-        }
-        .buttonStyle(.plain)
     }
 }
 
