@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import PhotosUI
 
 struct InspectionDetailView: View {
     // MARK: - Constants
@@ -24,7 +23,6 @@ struct InspectionDetailView: View {
     // MARK: - Properties
     @StateObject private var viewModel: InspectionDetailViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedPhoto: PhotosPickerItem?
     
     // MARK: - Initialization
     init(inspectionId: String, inspectionNumber: String) {
@@ -55,18 +53,9 @@ struct InspectionDetailView: View {
         .task {
             await viewModel.loadInspectionDetail()
         }
-        .photosPicker(
-            isPresented: $viewModel.showPhotoPicker,
-            selection: $selectedPhoto,
-            matching: .images
-        )
-        .onChange(of: selectedPhoto) { _, newValue in
-            Task {
-                if let data = try? await newValue?.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    viewModel.handlePhotoSelection(image)
-                }
-                selectedPhoto = nil
+        .fullScreenCover(isPresented: $viewModel.showCamera) {
+            CameraView { image in
+                viewModel.handlePhotoSelection(image)
             }
         }
     }

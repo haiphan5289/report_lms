@@ -16,7 +16,7 @@ final class InspectionDetailViewModel: ObservableObject {
     @Published var capturedPhotos: [String: UIImage] = [:] // fieldId: image
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var showPhotoPicker = false
+    @Published var showCamera = false
     @Published var selectedFieldId: String?
     
     // MARK: - Private Properties
@@ -70,7 +70,7 @@ final class InspectionDetailViewModel: ObservableObject {
     
     func openPhotoPicker(for fieldId: String) {
         selectedFieldId = fieldId
-        showPhotoPicker = true
+        showCamera = true
     }
     
     func savePhoto(_ image: UIImage, for fieldId: String) {
