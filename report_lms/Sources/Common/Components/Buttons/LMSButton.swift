@@ -71,32 +71,41 @@ struct LMSButton: View {
     // MARK: - Body
     
     var body: some View {
-        let baseButton = Button(action: {
-            guard !isLoading && !isDisabled else { return }
-            action()
-        }) {
-            contentView
-        }
-        .buttonStyle(IconOnlyButtonStyle(variant: variant, isDisabled: isDisabled || isLoading))
-        .disabled(isDisabled || isLoading)
-        .opacity((isDisabled || isLoading) ? 0.5 : 1.0)
-        .accessibilityLabel(title)
-        .accessibilityHint(isLoading ? "Loading" : "")
-        .accessibilityAddTraits(isDisabled ? .isButton : [.isButton])
-        
         if variant == .iconOnly {
-            baseButton
-        } else {
-            ZStack {
-                variant.backgroundColor
-                baseButton
+            Button(action: {
+                guard !isLoading && !isDisabled else { return }
+                action()
+            }) {
+                contentView
             }
-            .frame(height: size.height)
+            .buttonStyle(IconOnlyButtonStyle(variant: variant, isDisabled: isDisabled || isLoading))
+            .disabled(isDisabled || isLoading)
+            .opacity((isDisabled || isLoading) ? 0.5 : 1.0)
+            .accessibilityLabel(title)
+            .accessibilityHint(isLoading ? "Loading" : "")
+            .accessibilityAddTraits(isDisabled ? .isButton : [.isButton])
+        } else {
+            Button(action: {
+                guard !isLoading && !isDisabled else { return }
+                action()
+            }) {
+                contentView
+                    .frame(maxWidth: .infinity)
+                    .frame(height: size.height)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(variant.backgroundColor)
             .cornerRadius(8)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(variant.borderColor ?? .clear, lineWidth: 1)
             )
+            .disabled(isDisabled || isLoading)
+            .opacity((isDisabled || isLoading) ? 0.5 : 1.0)
+            .accessibilityLabel(title)
+            .accessibilityHint(isLoading ? "Loading" : "")
+            .accessibilityAddTraits(isDisabled ? .isButton : [.isButton])
         }
     }
 
@@ -160,8 +169,6 @@ private struct IconOnlyButtonStyle: ButtonStyle {
                     }
                 }
                 .foregroundColor(variant.foregroundColor)
-                .frame(maxWidth: isFullWidth ? .infinity : nil)
-                .frame(height: size.height)
                 .padding(.horizontal, size.horizontalPadding)
             }
         }
