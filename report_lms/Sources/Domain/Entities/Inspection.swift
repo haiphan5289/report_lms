@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Inspection: Identifiable, Equatable {
+struct Inspection: Identifiable, Equatable, Hashable {
     let id: String
     let inspectionNumber: String
     let companyName: String

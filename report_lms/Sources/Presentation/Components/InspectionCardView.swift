@@ -11,12 +11,12 @@ struct InspectionCardView: View {
     // MARK: - Properties
     let inspection: Inspection
     let isLastIndex: Bool
-    let onTap: () -> Void
+    let onTap: (() -> Void)?
     
     init(
         inspection: Inspection,
         isLastIndex: Bool = false,
-        onTap: @escaping () -> Void
+        onTap: (() -> Void)? = nil
     ) {
         self.inspection = inspection
         self.isLastIndex = isLastIndex
@@ -41,7 +41,9 @@ struct InspectionCardView: View {
         .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
-        .onTapGesture(perform: onTap)
+        .if(onTap != nil) { view in
+            view.onTapGesture(perform: onTap!)
+        }
     }
     
     // MARK: - Private Views

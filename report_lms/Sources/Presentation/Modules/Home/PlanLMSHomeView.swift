@@ -45,6 +45,12 @@ struct PlanLMSHomeView: View {
                     }
                 }
             }
+            .navigationDestination(for: Inspection.self) { inspection in
+                InspectionDetailView(
+                    inspectionId: inspection.id,
+                    inspectionNumber: inspection.inspectionNumber
+                )
+            }
             .task {
                 await viewModel.loadInspections()
             }
@@ -135,13 +141,13 @@ struct PlanLMSHomeView: View {
                             let visibleInspections = viewModel.visibleInspections(for: section)
                             
                             ForEach(Array(visibleInspections.enumerated()), id: \.element.id) { index, inspection in
-                                InspectionCardView(
-                                    inspection: inspection,
-                                    isLastIndex: index == visibleInspections.count - 1,
-                                    onTap: {
-                                        // TODO: Navigate to detail
-                                    }
-                                )
+                                NavigationLink(value: inspection) {
+                                    InspectionCardView(
+                                        inspection: inspection,
+                                        isLastIndex: index == visibleInspections.count - 1
+                                    )
+                                }
+                                .buttonStyle(.plain)
                                 .padding(.horizontal, 16)
                             }
                         }

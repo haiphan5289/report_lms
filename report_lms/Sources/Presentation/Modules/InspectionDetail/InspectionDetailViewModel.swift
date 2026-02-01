@@ -1,0 +1,106 @@
+//
+//  InspectionDetailViewModel.swift
+//  report_lms
+//
+//  Created by GitHub Copilot on 1/2/26.
+//
+
+import Foundation
+import SwiftUI
+
+@MainActor
+final class InspectionDetailViewModel: ObservableObject {
+    // MARK: - Published Properties
+    @Published var inspectionDetail: InspectionDetail?
+    @Published var expandedSections: Set<String> = []
+    @Published var capturedPhotos: [String: UIImage] = [:] // fieldId: image
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    @Published var showPhotoPicker = false
+    @Published var selectedFieldId: String?
+    
+    // MARK: - Private Properties
+    private let inspectionId: String
+    private let inspectionNumber: String
+    
+    // MARK: - Initialization
+    init(inspectionId: String, inspectionNumber: String) {
+        self.inspectionId = inspectionId
+        self.inspectionNumber = inspectionNumber
+    }
+    
+    // MARK: - Public Methods
+    
+    func loadInspectionDetail() async {
+        isLoading = true
+        errorMessage = nil
+        
+        defer { isLoading = false }
+        
+        // Simulate network delay
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        
+        // For now, use mock data
+        inspectionDetail = InspectionDetail.mock(
+            inspectionId: inspectionId,
+            inspectionNumber: inspectionNumber
+        )
+        
+        // Auto-expand first section
+        if let firstSection = inspectionDetail?.sections.first {
+            expandedSections.insert(firstSection.id)
+        }
+    }
+    
+    func toggleSection(_ sectionId: String) {
+        if expandedSections.contains(sectionId) {
+            expandedSections.remove(sectionId)
+        } else {
+            expandedSections.insert(sectionId)
+        }
+    }
+    
+    func isExpanded(_ sectionId: String) -> Bool {
+        expandedSections.contains(sectionId)
+    }
+    
+    func hasPhoto(for fieldId: String) -> Bool {
+        capturedPhotos[fieldId] != nil
+    }
+    
+    func openPhotoPicker(for fieldId: String) {
+        selectedFieldId = fieldId
+        showPhotoPicker = true
+    }
+    
+    func savePhoto(_ image: UIImage, for fieldId: String) {
+        capturedPhotos[fieldId] = image
+    }
+    
+    func handlePhotoSelection(_ image: UIImage?) {
+        guard let image = image, let fieldId = selectedFieldId else { return }
+        savePhoto(image, for: fieldId)
+        selectedFieldId = nil
+    }
+    
+    func submitInspection() async {
+        // TODO: Implement submission logic
+        // Validate required fields
+        // Upload photos
+        // Submit form data
+    }
+}
+
+// MARK: - Preview Helpers
+extension InspectionDetailViewModel {
+    static func preview() -> InspectionDetailViewModel {
+        let vm = InspectionDetailViewModel(
+            inspectionId: "1",
+            inspectionNumber: "001"
+        )
+        Task { @MainActor in
+            await vm.loadInspectionDetail()
+        }
+        return vm
+    }
+}
