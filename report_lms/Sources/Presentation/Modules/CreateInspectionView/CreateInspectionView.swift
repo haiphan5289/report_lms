@@ -97,12 +97,8 @@ struct CreateInspectionView: View {
                 isFullWidth: true,
                 isLoading: $viewModel.isLoading
             ) {
-                print("🔵 [CreateInspectionView] Button tapped - Starting inspection creation")
                 Task {
-                    print("🔵 [CreateInspectionView] Calling viewModel.createInspection()")
                     await viewModel.createInspection()
-                    print("🔵 [CreateInspectionView] viewModel.createInspection() completed")
-                    print("🔵 [CreateInspectionView] createdInspection: \(String(describing: viewModel.createdInspection))")
                 }
             }
             .padding()

@@ -22,7 +22,6 @@ struct LoginView: View {
     
     // MARK: - Properties
     @StateObject private var viewModel: LoginViewModel
-    @State private var navigateToHome = false
     
     // MARK: - Initialization
     init(viewModel: LoginViewModel) {
@@ -31,21 +30,20 @@ struct LoginView: View {
     
     // MARK: - Body
     var body: some View {
-        NavigationStack {
-            contentView
-                .navigationDestination(isPresented: $navigateToHome) {
-                    homeView
-                }
-                .onChange(of: viewModel.isLoginSuccessful) { _, isSuccessful in
-                    handleLoginSuccess(isSuccessful)
-                }
+        Group {
+            if viewModel.isLoginSuccessful {
+                LMSHomeView(viewModel: LMSHomeViewModel())
+            } else {
+                loginContentView
+            }
         }
     }
     
     // MARK: - Private Views
-    private var homeView: some View {
-        LMSHomeView(viewModel: LMSHomeViewModel())
-            .navigationBarBackButtonHidden(true)
+    private var loginContentView: some View {
+        NavigationStack {
+            contentView
+        }
     }
     
     private var contentView: some View {
@@ -153,13 +151,6 @@ struct LoginView: View {
     
     private var isLoginButtonDisabled: Bool {
         viewModel.isLoading || viewModel.username.isEmpty || viewModel.password.isEmpty
-    }
-    
-    // MARK: - Private Methods
-    private func handleLoginSuccess(_ isSuccessful: Bool) {
-        if isSuccessful {
-            navigateToHome = true
-        }
     }
 }
 

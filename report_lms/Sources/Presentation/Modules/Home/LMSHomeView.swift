@@ -53,9 +53,17 @@ struct LMSHomeView: View {
             }
             .navigationDestination(for: String.self) { destination in
                 if destination == "createInspection" {
-                    let viewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
-                    CreateInspectionView(viewModel: viewModel)
+                    let createViewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
+                    CreateInspectionView(viewModel: createViewModel) { createdInspection in
+                        viewModel.handleNewInspectionCreated(createdInspection)
+                    }
                 }
+            }
+            .navigationDestination(for: Inspection.self) { inspection in
+                InspectionDetailView(
+                    inspectionId: inspection.id,
+                    inspectionNumber: inspection.inspectionNumber
+                )
             }
             .onChange(of: viewModel.navigationPath) { oldValue, newValue in
                 viewModel.handleNavigationBack(from: oldValue, to: newValue)

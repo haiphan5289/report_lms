@@ -30,6 +30,15 @@ final class LMSHomeViewModel: ObservableObject {
         navigationPath.append("createInspection")
     }
     
+    func navigateToInspectionDetail(_ inspection: Inspection) {
+        navigationPath.append(inspection)
+    }
+    
+    func handleNewInspectionCreated(_ inspection: Inspection) {
+        // Handle the new inspection creation
+        // You can add it to a list or trigger a refresh
+    }
+    
     func handleNavigationBack(from oldValue: NavigationPath, to newValue: NavigationPath) {
         // Handle navigation back event
         if oldValue.count > newValue.count {
