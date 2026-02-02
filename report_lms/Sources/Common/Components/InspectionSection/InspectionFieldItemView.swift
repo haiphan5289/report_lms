@@ -12,6 +12,7 @@ struct InspectionFieldItemView: View {
     // MARK: - Properties
     let fieldName: String
     let hasPhoto: Bool
+    let images: [UIImage]
     let onCameraTap: () -> Void
     
     // MARK: - Body
@@ -40,9 +41,30 @@ struct InspectionFieldItemView: View {
                     .fill(Color(.systemGray5))
                     .frame(width: 44, height: 44)
                 
-                Image(systemName: hasPhoto ? "checkmark.circle.fill" : "camera.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(hasPhoto ? .green : .gray)
+                if let firstImage = images.first {
+                    Image(uiImage: firstImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 44, height: 44)
+                        .clipShape(Circle())
+                } else {
+                    Image(systemName: hasPhoto ? "checkmark.circle.fill" : "camera.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(hasPhoto ? .green : .gray)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if images.count > 1 {
+                    Text("\(images.count)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(4)
+                        .background(
+                            Circle()
+                                .fill(Color.red)
+                        )
+                        .offset(x: 4, y: -4)
+                }
             }
         }
         .buttonStyle(.plain)
@@ -54,6 +76,7 @@ struct InspectionFieldItemView: View {
     InspectionFieldItemView(
         fieldName: "Tổng quan về thùng carton",
         hasPhoto: false,
+        images: [],
         onCameraTap: {}
     )
     .padding()
@@ -63,6 +86,7 @@ struct InspectionFieldItemView: View {
     InspectionFieldItemView(
         fieldName: "Thông tin in trên thùng carton",
         hasPhoto: true,
+        images: [],
         onCameraTap: {}
     )
     .padding()
@@ -72,6 +96,7 @@ struct InspectionFieldItemView: View {
     InspectionFieldItemView(
         fieldName: "Tổng quan chi tiết về thông tin in trên bề mặt thùng carton bên ngoài",
         hasPhoto: false,
+        images: [],
         onCameraTap: {}
     )
     .padding()

@@ -13,7 +13,7 @@ final class InspectionDetailViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var inspectionDetail: InspectionDetail?
     @Published var expandedSections: Set<String> = []
-    @Published var capturedPhotos: [String: UIImage] = [:] // fieldId: image
+    @Published var capturedPhotos: [String: [UIImage]] = [:] // fieldId: [images]
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var showCamera = false
@@ -65,7 +65,11 @@ final class InspectionDetailViewModel: ObservableObject {
     }
     
     func hasPhoto(for fieldId: String) -> Bool {
-        capturedPhotos[fieldId] != nil
+        !(capturedPhotos[fieldId]?.isEmpty ?? true)
+    }
+    
+    func getImages(for fieldId: String) -> [UIImage] {
+        return capturedPhotos[fieldId] ?? []
     }
     
     func openPhotoPicker(for fieldId: String) {
@@ -74,7 +78,10 @@ final class InspectionDetailViewModel: ObservableObject {
     }
     
     func savePhoto(_ image: UIImage, for fieldId: String) {
-        capturedPhotos[fieldId] = image
+        if capturedPhotos[fieldId] == nil {
+            capturedPhotos[fieldId] = []
+        }
+        capturedPhotos[fieldId]?.append(image)
     }
     
     func handlePhotoSelection(_ image: UIImage?) {

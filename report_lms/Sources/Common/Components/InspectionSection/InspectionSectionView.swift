@@ -91,6 +91,7 @@ struct InspectionSectionView: View {
             InspectionFieldItemView(
                 fieldName: "Tổng quan về thùng carton",
                 hasPhoto: false,
+                images: [],
                 onCameraTap: {}
             )
             
@@ -99,6 +100,7 @@ struct InspectionSectionView: View {
             InspectionFieldItemView(
                 fieldName: "Thông tin in trên thùng carton",
                 hasPhoto: false,
+                images: [],
                 onCameraTap: {}
             )
         }
@@ -117,6 +119,7 @@ struct InspectionSectionView: View {
             InspectionFieldItemView(
                 fieldName: "Tổng quan về thùng carton",
                 hasPhoto: false,
+                images: [],
                 onCameraTap: {}
             )
             
@@ -125,6 +128,7 @@ struct InspectionSectionView: View {
             InspectionFieldItemView(
                 fieldName: "Thông tin in trên thùng carton",
                 hasPhoto: true,
+                images: [],
                 onCameraTap: {}
             )
         }
@@ -145,6 +149,7 @@ struct InspectionSectionView: View {
                     InspectionFieldItemView(
                         fieldName: "Tổng quan về thùng carton",
                         hasPhoto: false,
+                        images: [],
                         onCameraTap: {}
                     )
                     
@@ -153,6 +158,7 @@ struct InspectionSectionView: View {
                     InspectionFieldItemView(
                         fieldName: "Thông tin in trên thùng carton",
                         hasPhoto: false,
+                        images: [],
                         onCameraTap: {}
                     )
                 }

@@ -66,26 +66,9 @@ struct CameraView: View {
             CameraPreviewRepresentable(cameraController: viewModel.cameraController)
             
             // Controls
-            HStack(alignment: .center) {
-                topControls
-                bottomControls
-            }
+            bottomControls
         }
     }
-    
-    private var topControls: some View {
-        LMSButton("Hủy bỏ", variant: .ghost, size: .small) {
-            dismiss()
-        }
-        .foregroundColor(.white)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.black.opacity(0.5))
-        .cornerRadius(20)
-        .padding(.horizontal, Layout.horizontalPadding)
-        .padding(.top, Layout.topBottomPadding)
-    }
-    
     private var bottomControls: some View {
         VStack(spacing: 24) {
             // Zoom Slider

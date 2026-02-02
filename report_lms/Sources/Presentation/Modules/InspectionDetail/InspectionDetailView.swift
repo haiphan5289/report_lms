@@ -53,7 +53,7 @@ struct InspectionDetailView: View {
         .task {
             await viewModel.loadInspectionDetail()
         }
-        .fullScreenCover(isPresented: $viewModel.showCamera) {
+        .navigationDestination(isPresented: $viewModel.showCamera) {
             CameraView { image in
                 viewModel.handlePhotoSelection(image)
             }
@@ -114,6 +114,7 @@ struct InspectionDetailView: View {
         InspectionFieldItemView(
             fieldName: field.label,
             hasPhoto: viewModel.hasPhoto(for: field.id),
+            images: viewModel.getImages(for: field.id),
             onCameraTap: { viewModel.openPhotoPicker(for: field.id) }
         )
     }

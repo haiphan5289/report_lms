@@ -12,7 +12,6 @@ import SwiftUI
 struct PlanLMSHomeView: View {
     // MARK: - Properties
     @StateObject private var viewModel: PlanLMSHomeViewModel
-    @State private var navigationPath = NavigationPath()
     let onQuickInspection: () -> Void
     
     // MARK: - Initialization
@@ -26,34 +25,16 @@ struct PlanLMSHomeView: View {
     
     // MARK: - Body
     var body: some View {
-        NavigationStack(path: $navigationPath) {
-            ZStack(alignment: .bottom) {
-                contentView
-                floatingButton
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationDestination(for: String.self) { destination in
-                if destination == "createInspection" {
-                    let createViewModel = CreateInspectionViewModel(
-                        createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!
-                    )
-                    CreateInspectionView(viewModel: createViewModel) { createdInspection in
-                        viewModel.addNewInspection(createdInspection)
-                    }
-                }
-            }
-            .navigationDestination(for: Inspection.self) { inspection in
-                InspectionDetailView(
-                    inspectionId: inspection.id,
-                    inspectionNumber: inspection.inspectionNumber
-                )
-            }
-            .task {
-                await viewModel.loadInspections()
-            }
-            .refreshable {
-                await viewModel.loadInspections()
-            }
+        ZStack(alignment: .bottom) {
+            contentView
+            floatingButton
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            await viewModel.loadInspections()
+        }
+        .refreshable {
+            await viewModel.loadInspections()
         }
     }
     
@@ -157,8 +138,8 @@ struct PlanLMSHomeView: View {
                 .foregroundColor(.secondary)
             
             LMSLabel(section.title, 
-                    style: .subheadline, 
-                    color: .secondary)
+                     style: .subheadline, 
+                     color: .secondary)
             
             Spacer()
         }
