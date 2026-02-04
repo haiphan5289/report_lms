@@ -26,37 +26,31 @@ struct CameraView: View {
     // MARK: - Properties
     @StateObject private var viewModel = CameraViewModel()
     @Environment(\.dismiss) private var dismiss
-    let onPhotoCaptured: (UIImage) -> Void
+    let onPhotoCaptured: ([UIImage]) -> Void
     
     // MARK: - Body
     var body: some View {
-        ZStack {
-            if viewModel.isShowingPreview, let image = viewModel.capturedImage {
-                previewView(image: image)
-            } else {
-                cameraView
+        cameraView
+            .ignoresSafeArea()
+            .task {
+                await viewModel.setupCamera()
             }
-        }
-        .ignoresSafeArea()
-        .task {
-            await viewModel.setupCamera()
-        }
-        .onDisappear {
-            viewModel.stopCamera()
-        }
-        .alert("Quyền truy cập camera", isPresented: $viewModel.showPermissionAlert) {
-            Button("Mở Cài đặt", action: viewModel.openSettings)
-            Button("Hủy", role: .cancel) { dismiss() }
-        } message: {
-            Text("Vui lòng cấp quyền truy cập camera trong Cài đặt để sử dụng tính năng này")
-        }
-        .alert("Lỗi", isPresented: .constant(viewModel.errorMessage != nil)) {
-            Button("OK") { viewModel.errorMessage = nil }
-        } message: {
-            if let error = viewModel.errorMessage {
-                Text(error)
+            .onDisappear {
+                viewModel.stopCamera()
             }
-        }
+            .alert("Quyền truy cập camera", isPresented: $viewModel.showPermissionAlert) {
+                Button("Mở Cài đặt", action: viewModel.openSettings)
+                Button("Hủy", role: .cancel) { dismiss() }
+            } message: {
+                Text("Vui lòng cấp quyền truy cập camera trong Cài đặt để sử dụng tính năng này")
+            }
+            .alert("Lỗi", isPresented: .constant(viewModel.errorMessage != nil)) {
+                Button("OK") { viewModel.errorMessage = nil }
+            } message: {
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                }
+            }
     }
     
     // MARK: - Private Views
@@ -67,34 +61,54 @@ struct CameraView: View {
             
             // Controls
             bottomControls
+            
+            // Image List
+            if !viewModel.capturedImages.isEmpty {
+                imageList
+            }
         }
     }
     private var bottomControls: some View {
         VStack(spacing: 24) {
-            // Zoom Slider
-            HStack(spacing: 16) {
-                Image(systemName: "minus.magnifyingglass")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                
-                Slider(value: $viewModel.zoomFactor, in: 1...5, step: 0.1)
-                    .frame(maxWidth: .infinity)
-                    .tint(.white)
-                    .onChange(of: viewModel.zoomFactor) { _, newValue in
-                        viewModel.updateZoom(newValue)
-                    }
-                
-                Image(systemName: "plus.magnifyingglass")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
+            // Zoom Controls
+            HStack {
+                HStack(alignment: .center, spacing: 16) {
+                    Image(systemName: "minus.magnifyingglass")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+
+                    Slider(value: $viewModel.zoomFactor, in: 1...5, step: 0.1)
+                        .frame(maxWidth: .infinity)
+                        .tint(.white)
+                        .onChange(of: viewModel.zoomFactor) { _, newValue in
+                            viewModel.updateZoom(newValue)
+                        }
+
+                    Image(systemName: "plus.magnifyingglass")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                }
+                .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, Layout.horizontalPadding + 10)
             
             // Camera Controls
             HStack(spacing: 0) {
                 // Flash Button (Left)
+                if !viewModel.capturedImages.isEmpty {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Text("Huỷ bỏ")
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(.white)
+                            .padding()
+                    }
+                    .buttonStyle(.plain)
+                }
+                
                 if viewModel.cameraController.isFlashAvailable {
                     LMSButton("", icon: viewModel.flashIcon, variant: .iconOnly) {
                         viewModel.toggleFlash()
@@ -134,67 +148,61 @@ struct CameraView: View {
                 .frame(width: Layout.buttonSize, height: Layout.buttonSize)
                 .background(Color.black.opacity(0.5))
                 .clipShape(Circle())
+                
+                if !viewModel.capturedImages.isEmpty {
+                    Button(action: {
+                        onPhotoCaptured(viewModel.capturedImages)
+                        dismiss()
+                    }) {
+                        Text("Hoàn thành")
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(.white)
+                            .padding()
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(.horizontal, Layout.horizontalPadding)
             .padding(.bottom, Layout.topBottomPadding)
         }
     }
     
-    private func previewView(image: UIImage) -> some View {
-        ZStack {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-            
-            VStack {
-                Spacer()
-                
-                HStack(spacing: 40) {
-                    // Retake Button
-                    Button(action: viewModel.retakePhoto) {
-                        VStack(spacing: 8) {
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.system(size: Layout.iconSize))
-                            Text("Chụp lại")
-                                .font(.system(size: 14, weight: .medium))
+    private var imageList: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(viewModel.capturedImages.indices, id: \.self) { index in
+                    ZStack(alignment: .topTrailing) {
+                        Image(uiImage: viewModel.capturedImages[index])
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 80, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        
+                        Button(action: {
+                            viewModel.deleteImage(at: index)
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.white)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(Circle())
                         }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.black.opacity(0.6))
-                        .cornerRadius(12)
+                        .padding(4)
                     }
-                    .buttonStyle(.plain)
-                    
-                    // Accept Button
-                    Button(action: {
-                        onPhotoCaptured(image)
-                        dismiss()
-                    }) {
-                        VStack(spacing: 8) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: Layout.iconSize))
-                            Text("Hoàn thành")
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.green.opacity(0.8))
-                        .cornerRadius(12)
-                    }
-                    .buttonStyle(.plain)
                 }
-                .padding(.bottom, 40)
             }
+            .padding(.horizontal, Layout.horizontalPadding)
+            .padding(.vertical, 8)
         }
+        .background(Color.black.opacity(0.8))
     }
 }
 
 // MARK: - Preview
 #Preview {
-    CameraView { image in
-        print("Captured image: \(image.size)")
+    CameraView { images in
+        print("Captured images count: \(images.count)")
+        if let firstImage = images.first {
+            print("First image size: \(firstImage.size)")
+        }
     }
 }

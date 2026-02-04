@@ -84,9 +84,11 @@ final class InspectionDetailViewModel: ObservableObject {
         capturedPhotos[fieldId]?.append(image)
     }
     
-    func handlePhotoSelection(_ image: UIImage?) {
-        guard let image = image, let fieldId = selectedFieldId else { return }
-        savePhoto(image, for: fieldId)
+    func handlePhotoSelection(_ images: [UIImage]) {
+        guard let fieldId = selectedFieldId else { return }
+        for image in images {
+            savePhoto(image, for: fieldId)
+        }
         selectedFieldId = nil
     }
     

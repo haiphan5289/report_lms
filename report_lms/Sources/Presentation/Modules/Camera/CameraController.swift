@@ -9,7 +9,13 @@
 import AVFoundation
 import UIKit
 
-// MARK: - Camera Controller
+/// Controls AVFoundation camera session, input/output, and photo capture
+///
+/// Responsibilities:
+/// - AVCaptureSession management
+/// - Device input configuration (front/back camera)
+/// - Photo output handling
+/// - Flash and zoom controls
 final class CameraController: NSObject {
     // MARK: - Properties
     private let captureSession = AVCaptureSession()
@@ -146,6 +152,9 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
         }
         
         captureCompletion?(.success(image))
+        
+        // Ensure session continues running after capture
+        startSession()
     }
 }
 

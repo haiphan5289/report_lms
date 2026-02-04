@@ -9,7 +9,7 @@
 import SwiftUI
 import AVFoundation
 
-// MARK: - Camera Preview Representable
+/// SwiftUI wrapper for AVCaptureVideoPreviewLayer to display camera feed
 struct CameraPreviewRepresentable: UIViewRepresentable {
     let cameraController: CameraController
     

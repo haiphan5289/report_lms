@@ -54,8 +54,8 @@ struct InspectionDetailView: View {
             await viewModel.loadInspectionDetail()
         }
         .navigationDestination(isPresented: $viewModel.showCamera) {
-            CameraView { image in
-                viewModel.handlePhotoSelection(image)
+            CameraView { images in
+                viewModel.handlePhotoSelection(images)
             }
         }
     }

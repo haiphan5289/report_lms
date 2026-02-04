@@ -9,14 +9,19 @@
 import SwiftUI
 import AVFoundation
 
-// MARK: - Camera View Model
+/// ViewModel for camera functionality with permission handling and capture controls
+///
+/// Manages:
+/// - Camera session lifecycle
+/// - Permission requests
+/// - Flash, zoom, and camera switching
+/// - Photo capture and preview
 @MainActor
 final class CameraViewModel: ObservableObject {
     // MARK: - Published Properties
-    @Published var capturedImage: UIImage?
+    @Published var capturedImages: [UIImage] = []
     @Published var flashMode: AVCaptureDevice.FlashMode = .off
     @Published var zoomFactor: CGFloat = 1.0
-    @Published var isShowingPreview = false
     @Published var errorMessage: String?
     @Published var showPermissionAlert = false
     @Published var cameraPermissionStatus: AVAuthorizationStatus = .notDetermined
@@ -84,8 +89,7 @@ final class CameraViewModel: ObservableObject {
             Task { @MainActor in
                 switch result {
                 case .success(let image):
-                    self?.capturedImage = image
-                    self?.isShowingPreview = true
+                    self?.capturedImages.append(image)
                 case .failure(let error):
                     self?.errorMessage = error.localizedDescription
                 }
@@ -93,9 +97,9 @@ final class CameraViewModel: ObservableObject {
         }
     }
     
-    func retakePhoto() {
-        capturedImage = nil
-        isShowingPreview = false
+    func deleteImage(at index: Int) {
+        guard index >= 0 && index < capturedImages.count else { return }
+        capturedImages.remove(at: index)
     }
     
     func switchCamera() {

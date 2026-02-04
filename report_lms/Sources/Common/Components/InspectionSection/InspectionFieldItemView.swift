@@ -9,6 +9,18 @@ import SwiftUI
 
 /// Field row with label and camera button for inspection forms
 struct InspectionFieldItemView: View {
+    // MARK: - Constants
+    private enum Layout {
+        static let horizontalPadding: CGFloat = 16
+        static let verticalPadding: CGFloat = 16
+        static let itemSpacing: CGFloat = 16
+        static let buttonSize: CGFloat = 44
+        static let iconSize: CGFloat = 20
+        static let badgeFontSize: CGFloat = 12
+        static let badgePadding: CGFloat = 4
+        static let badgeOffset: CGFloat = 4
+    }
+    
     // MARK: - Properties
     let fieldName: String
     let hasPhoto: Bool
@@ -17,7 +29,7 @@ struct InspectionFieldItemView: View {
     
     // MARK: - Body
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: Layout.itemSpacing) {
             LMSLabel(
                 fieldName,
                 style: .body,
@@ -28,8 +40,8 @@ struct InspectionFieldItemView: View {
             
             cameraButton
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 16)
+        .padding(.horizontal, Layout.horizontalPadding)
+        .padding(.vertical, Layout.verticalPadding)
         .background(Color(.systemBackground))
     }
     
@@ -39,35 +51,39 @@ struct InspectionFieldItemView: View {
             ZStack {
                 Circle()
                     .fill(Color(.systemGray5))
-                    .frame(width: 44, height: 44)
+                    .frame(width: Layout.buttonSize, height: Layout.buttonSize)
                 
                 if let firstImage = images.first {
                     Image(uiImage: firstImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 44, height: 44)
+                        .frame(width: Layout.buttonSize, height: Layout.buttonSize)
                         .clipShape(Circle())
                 } else {
                     Image(systemName: hasPhoto ? "checkmark.circle.fill" : "camera.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: Layout.iconSize))
                         .foregroundColor(hasPhoto ? .green : .gray)
                 }
             }
             .overlay(alignment: .topTrailing) {
                 if images.count > 1 {
-                    Text("\(images.count)")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(4)
-                        .background(
-                            Circle()
-                                .fill(Color.red)
-                        )
-                        .offset(x: 4, y: -4)
+                    badgeView
                 }
             }
         }
         .buttonStyle(.plain)
+    }
+    
+    private var badgeView: some View {
+        Text("\(images.count)")
+            .font(.system(size: Layout.badgeFontSize, weight: .bold))
+            .foregroundColor(.white)
+            .padding(Layout.badgePadding)
+            .background(
+                Circle()
+                    .fill(Color.red)
+            )
+            .offset(x: Layout.badgeOffset, y: -Layout.badgeOffset)
     }
 }
 

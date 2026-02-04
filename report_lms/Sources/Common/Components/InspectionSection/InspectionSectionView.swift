@@ -9,6 +9,17 @@ import SwiftUI
 
 /// Collapsible section for inspection forms with green chevron indicator
 struct InspectionSectionView: View {
+    // MARK: - Constants
+    private enum Layout {
+        static let horizontalPadding: CGFloat = 16
+        static let verticalPadding: CGFloat = 16
+        static let headerSpacing: CGFloat = 12
+        static let chevronSize: CGFloat = 14
+        static let animationDuration: CGFloat = 0.3
+        static let chevronCollapsedRotation: Double = -90
+        static let chevronExpandedRotation: Double = 0
+    }
+    
     // MARK: - Properties
     let title: String
     let itemCount: Int
@@ -46,16 +57,16 @@ struct InspectionSectionView: View {
     // MARK: - Private Views
     private var headerView: some View {
         Button(action: {
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(.easeInOut(duration: Layout.animationDuration)) {
                 onToggle()
             }
         }) {
-            HStack(spacing: 12) {
+            HStack(spacing: Layout.headerSpacing) {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: Layout.chevronSize, weight: .semibold))
                     .foregroundColor(.green)
-                    .rotationEffect(.degrees(isExpanded ? 0 : -90))
-                    .animation(.easeInOut(duration: 0.3), value: isExpanded)
+                    .rotationEffect(.degrees(isExpanded ? Layout.chevronExpandedRotation : Layout.chevronCollapsedRotation))
+                    .animation(.easeInOut(duration: Layout.animationDuration), value: isExpanded)
                 
                 LMSLabel(
                     "\(title) (\(itemCount))",
@@ -64,8 +75,8 @@ struct InspectionSectionView: View {
                 
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
+            .padding(.horizontal, Layout.horizontalPadding)
+            .padding(.vertical, Layout.verticalPadding)
             .background(Color(.systemGray6))
             .contentShape(Rectangle())
         }
