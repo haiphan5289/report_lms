@@ -56,6 +56,13 @@ struct CameraView: View {
     // MARK: - Private Views
     private var cameraView: some View {
         VStack {
+            // Title
+            Text("Photo Capture")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.top, 50)
+                .padding(.bottom, 10)
+            
             // Camera Preview
             CameraPreviewRepresentable(cameraController: viewModel.cameraController)
             
@@ -95,7 +102,7 @@ struct CameraView: View {
             .padding(.horizontal, Layout.horizontalPadding + 10)
             
             // Camera Controls
-            HStack(spacing: 0) {
+            HStack {
                 // Flash Button (Left)
                 if !viewModel.capturedImages.isEmpty {
                     Button(action: {
@@ -162,8 +169,6 @@ struct CameraView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, Layout.horizontalPadding)
-            .padding(.bottom, Layout.topBottomPadding)
         }
     }
     
