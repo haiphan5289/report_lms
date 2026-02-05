@@ -44,7 +44,7 @@ enum DefectType: String, CaseIterable {
 
 // MARK: - Photo Capture Review ViewModel
 @MainActor
-final class PhotoCaptureReviewViewModel: ObservableObject {
+final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var images: [UIImage] = []
     @Published var showCamera = false

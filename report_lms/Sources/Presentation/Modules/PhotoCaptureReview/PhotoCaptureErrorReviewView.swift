@@ -8,9 +8,9 @@
 
 import SwiftUI
 
-// MARK: - Photo Capture Review View
-struct PhotoCaptureReviewView: View {
-    @StateObject private var viewModel = PhotoCaptureReviewViewModel()
+// MARK: - Photo Capture Error Review View
+struct PhotoCaptureErrorReviewView: View {
+    @StateObject private var viewModel = PhotoCaptureErrorReviewViewModel()
     @Environment(\.dismiss) private var dismiss
     let initialImages: [UIImage]
     let onImagesUpdated: ([UIImage]) -> Void
@@ -39,6 +39,9 @@ struct PhotoCaptureReviewView: View {
 
                     // Comments Section
                     commentsSection
+                    
+                    // Action Buttons Section
+                    actionButtonsSection
                 }
                 .padding()
             }
@@ -86,33 +89,30 @@ struct PhotoCaptureReviewView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 40)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    VStack(alignment: .center, spacing: 12) {
-                        ForEach(viewModel.images.indices, id: \.self) { index in
-                            ZStack(alignment: .topTrailing) {
-                                Image(uiImage: viewModel.images[index])
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 100, height: 100)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(spacing: 12) {
+                ForEach(viewModel.images.indices, id: \.self) { index in
+                    ZStack(alignment: .topTrailing) {
+                        Image(uiImage: viewModel.images[index])
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 200, height: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                                Button(action: {
-                                    viewModel.deleteImage(at: index)
-                                    onImagesUpdated(viewModel.images)
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.white)
-                                        .background(Color.black.opacity(0.6))
-                                        .clipShape(Circle())
-                                        .padding(4)
-                                }
-                            }
+                        Button(action: {
+                            viewModel.deleteImage(at: index)
+                            onImagesUpdated(viewModel.images)
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.white)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(Circle())
+                                .padding(4)
                         }
                     }
-                    .padding(.horizontal, 4)
-                    .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
+            .frame(maxWidth: .infinity)
+        }
         }
         .padding()
         .background(Color.white)
@@ -203,14 +203,53 @@ struct PhotoCaptureReviewView: View {
 
     // MARK: - Defect Types Section
     private var defectTypesSection: some View {
-        ProductInfoInput(
-            title: "Các loại phân lỗi",
-            text: .constant(viewModel.selectedDefectType?.displayName ?? "Chọn loại phân lỗi"),
-            type: .dropdown,
-            onDropdownTap: {
-                showingDefectTypeList = true
+        VStack(alignment: .leading, spacing: 12) {
+            if viewModel.selectedDefectType == nil {
+                // No value selected - show clickable title with arrow
+                HStack {
+                    LMSLabel("Các loại phân lỗi", style: .title2)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.gray)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showingDefectTypeList = true
+                }
+            } else {
+                // Value selected - show title and selected value
+                VStack(alignment: .leading, spacing: 8) {
+                    LMSLabel("Các loại phân lỗi", style: .title2)
+                    LMSLabel(viewModel.selectedDefectType!.displayName, style: .body)
+                        .foregroundColor(.secondary)
+                }
             }
-        )
+
+            if viewModel.selectedDefectType != nil {
+                LMSButton("Nhấn để xoá phân loại lỗi", icon: "trash.fill", variant: .destructive) {
+                    viewModel.selectedDefectType = nil
+                }
+            }
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(8)
+        .shadow(radius: 2)
+    }
+
+    // MARK: - Action Buttons Section
+    private var actionButtonsSection: some View {
+        HStack(spacing: 16) {
+            LMSButton("Xoá", icon: "trash.fill", variant: .destructive) {
+                // Handle delete action
+                print("Delete action tapped")
+            }
+            
+            LMSButton("Thay đổi", icon: "pencil", variant: .primary) {
+                // Handle change action
+                print("Change action tapped")
+            }
+        }
         .padding()
         .background(Color.white)
         .cornerRadius(8)
@@ -263,7 +302,7 @@ private struct SampleListItem: ListItemProtocol {
 
 // MARK: - Preview
 #Preview("Empty State") {
-    PhotoCaptureReviewView(
+    PhotoCaptureErrorReviewView(
         initialImages: [],
         onImagesUpdated: { _ in }
     )
@@ -275,7 +314,7 @@ private struct SampleListItem: ListItemProtocol {
     let sampleImage2 = UIImage(systemName: "photo.fill") ?? UIImage()
     let sampleImage3 = UIImage(systemName: "camera") ?? UIImage()
     
-    return PhotoCaptureReviewView(
+    return PhotoCaptureErrorReviewView(
         initialImages: [sampleImage1, sampleImage2, sampleImage3],
         onImagesUpdated: { _ in }
     )
