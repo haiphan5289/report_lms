@@ -53,6 +53,8 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     @Published var selectedGeneralCondition: Int?
     @Published var selectedDefectType: DefectType?
     @Published var comments: String = ""
+    @Published var isLoading = false
+    @Published var errorMessage: String?
 
     // MARK: - Initialization
     init() {}
@@ -70,4 +72,72 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     func setInitialImages(_ initialImages: [UIImage]) {
         images = initialImages
     }
+    
+    func saveReview() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            // Validate review data
+            guard !images.isEmpty else {
+                errorMessage = "Vui lòng chụp ít nhất một ảnh"
+                return
+            }
+            
+            // TODO: Implement actual save logic with repository/use case
+            // try await saveReviewUseCase.execute(review: createReviewEntity())
+            
+            // Simulate async operation
+            try await Task.sleep(nanoseconds: 500_000_000)
+            
+        } catch {
+            errorMessage = "Không thể lưu đánh giá: \(error.localizedDescription)"
+        }
+    }
+    
+    func updateReview() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            // TODO: Implement actual update logic
+            // try await updateReviewUseCase.execute(review: createReviewEntity())
+            
+            // Simulate async operation
+            try await Task.sleep(nanoseconds: 500_000_000)
+            
+        } catch {
+            errorMessage = "Không thể cập nhật đánh giá: \(error.localizedDescription)"
+        }
+    }
+    
+    func deleteReview() {
+        // Reset all fields
+        images.removeAll()
+        selectedSeverity = .low
+        generalConditionEnabled = false
+        selectedGeneralCondition = nil
+        selectedDefectType = nil
+        comments = ""
+    }
+    
+    // MARK: - Private Methods
+    private func createReviewEntity() -> InspectionReviewData {
+        InspectionReviewData(
+            images: images,
+            severity: selectedSeverity,
+            generalCondition: generalConditionEnabled ? selectedGeneralCondition : nil,
+            defectType: selectedDefectType,
+            comments: comments
+        )
+    }
+}
+
+// MARK: - Inspection Review Data
+struct InspectionReviewData {
+    let images: [UIImage]
+    let severity: SeverityLevel
+    let generalCondition: Int?
+    let defectType: DefectType?
+    let comments: String
 }

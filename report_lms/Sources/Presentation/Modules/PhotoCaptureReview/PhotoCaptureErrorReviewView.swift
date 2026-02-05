@@ -52,8 +52,13 @@ struct PhotoCaptureErrorReviewView: View {
                     dismiss()
                 },
                 trailing: Button("Hoàn thành") {
-                    // Handle completion
-                    dismiss()
+                    Task {
+                        await viewModel.saveReview()
+                        if viewModel.errorMessage == nil {
+                            onImagesUpdated(viewModel.images)
+                            dismiss()
+                        }
+                    }
                 }
             )
             .sheet(isPresented: $viewModel.showCamera) {
@@ -73,6 +78,18 @@ struct PhotoCaptureErrorReviewView: View {
             }
             .onAppear {
                 viewModel.setInitialImages(initialImages)
+            }
+            .alert("Lỗi", isPresented: .constant(viewModel.errorMessage != nil)) {
+                Button("OK") {
+                    viewModel.errorMessage = nil
+                }
+            } message: {
+                Text(viewModel.errorMessage ?? "")
+            }
+            .overlay {
+                if viewModel.isLoading {
+                    LMSLoadingOverlay()
+                }
             }
         }
     }
@@ -204,7 +221,18 @@ struct PhotoCaptureErrorReviewView: View {
     // MARK: - Defect Types Section
     private var defectTypesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if viewModel.selectedDefectType == nil {
+            if let defectType = viewModel.selectedDefectType {
+                // Value selected - show title and selected value
+                VStack(alignment: .leading, spacing: 8) {
+                    LMSLabel("Các loại phân lỗi", style: .title2)
+                    LMSLabel(defectType.displayName, style: .body)
+                        .foregroundColor(.secondary)
+                }
+                
+                LMSButton("Nhấn để xoá phân loại lỗi", icon: "trash.fill", variant: .destructive) {
+                    viewModel.selectedDefectType = nil
+                }
+            } else {
                 // No value selected - show clickable title with arrow
                 HStack {
                     LMSLabel("Các loại phân lỗi", style: .title2)
@@ -215,19 +243,6 @@ struct PhotoCaptureErrorReviewView: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     showingDefectTypeList = true
-                }
-            } else {
-                // Value selected - show title and selected value
-                VStack(alignment: .leading, spacing: 8) {
-                    LMSLabel("Các loại phân lỗi", style: .title2)
-                    LMSLabel(viewModel.selectedDefectType!.displayName, style: .body)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            if viewModel.selectedDefectType != nil {
-                LMSButton("Nhấn để xoá phân loại lỗi", icon: "trash.fill", variant: .destructive) {
-                    viewModel.selectedDefectType = nil
                 }
             }
         }
@@ -241,13 +256,14 @@ struct PhotoCaptureErrorReviewView: View {
     private var actionButtonsSection: some View {
         HStack(spacing: 16) {
             LMSButton("Xoá", icon: "trash.fill", variant: .destructive) {
-                // Handle delete action
-                print("Delete action tapped")
+                viewModel.deleteReview()
+                dismiss()
             }
             
             LMSButton("Thay đổi", icon: "pencil", variant: .primary) {
-                // Handle change action
-                print("Change action tapped")
+                Task {
+                    await viewModel.updateReview()
+                }
             }
         }
         .padding()
