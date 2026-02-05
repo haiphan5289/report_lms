@@ -34,6 +34,10 @@ final class LMSHomeViewModel: ObservableObject {
         navigationPath.append(inspection)
     }
     
+    func navigateToPhotoCaptureErrorReview() {
+        navigationPath.append("photoCaptureErrorReview")
+    }
+    
     func handleNewInspectionCreated(_ inspection: Inspection) {
         // Handle the new inspection creation
         // You can add it to a list or trigger a refresh
@@ -70,7 +74,7 @@ extension LMSHomeViewModel {
         var title: String {
             switch self {
             case .plan: return "Kế hoạch"
-            case .inProgress: return "Trong tiến trình"
+            case .inProgress: return "Lỗi"
             case .report: return "Báo cáo"
             }
         }

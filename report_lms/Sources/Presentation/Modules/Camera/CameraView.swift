@@ -9,6 +9,35 @@
 import SwiftUI
 import AVFoundation
 
+// MARK: - Camera Source
+enum CameraSource {
+    case errorReport // Opened from ErrorHomeView report button
+    case inspection // Opened from inspection flow (future use)
+    case general // General photo capture (future use)
+    
+    var title: String {
+        switch self {
+        case .errorReport:
+            return "Báo cáo lỗi"
+        case .inspection:
+            return "Chụp ảnh kiểm tra"
+        case .general:
+            return "Chụp ảnh"
+        }
+    }
+    
+    var allowsMultiplePhotos: Bool {
+        switch self {
+        case .errorReport:
+            return true // Allow multiple photos for error reporting
+        case .inspection:
+            return false // Single photo for inspections
+        case .general:
+            return true // Allow multiple for general use
+        }
+    }
+}
+
 // MARK: - Camera View
 struct CameraView: View {
     // MARK: - Constants
@@ -26,6 +55,7 @@ struct CameraView: View {
     // MARK: - Properties
     @StateObject private var viewModel = CameraViewModel()
     @Environment(\.dismiss) private var dismiss
+    let source: CameraSource
     let onPhotoCaptured: ([UIImage]) -> Void
     
     // MARK: - Body
@@ -57,7 +87,7 @@ struct CameraView: View {
     private var cameraView: some View {
         VStack {
             // Title
-            Text("Photo Capture")
+            Text(source.title)
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
                 .padding(.top, 50)
@@ -203,8 +233,17 @@ struct CameraView: View {
 }
 
 // MARK: - Preview
-#Preview {
-    CameraView { images in
+#Preview("Error Report") {
+    CameraView(source: .errorReport) { images in
+        print("Captured images count: \(images.count)")
+        if let firstImage = images.first {
+            print("First image size: \(firstImage.size)")
+        }
+    }
+}
+
+#Preview("Inspection") {
+    CameraView(source: .inspection) { images in
         print("Captured images count: \(images.count)")
         if let firstImage = images.first {
             print("First image size: \(firstImage.size)")

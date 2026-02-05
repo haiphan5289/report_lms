@@ -57,6 +57,10 @@ struct LMSHomeView: View {
                     CreateInspectionView(viewModel: createViewModel) { createdInspection in
                         viewModel.handleNewInspectionCreated(createdInspection)
                     }
+                } else if destination == "photoCaptureErrorReview" {
+                    CameraView(source: .errorReport) { images in
+                        
+                    }
                 }
             }
             .navigationDestination(for: Inspection.self) { inspection in
@@ -173,7 +177,10 @@ struct LMSHomeView: View {
             case .plan:
                 PlanLMSHomeView(onQuickInspection: viewModel.navigateToCreateInspection)
             case .inProgress:
-                inProgressContent
+                ErrorHomeView(
+                    viewModel: ErrorHomeViewModel(),
+                    onNavigateToPhotoCaptureErrorReview: viewModel.navigateToPhotoCaptureErrorReview
+                )
             case .report:
                 reportContent
             }
@@ -181,16 +188,6 @@ struct LMSHomeView: View {
         .frame(maxWidth: .infinity, minHeight: Layout.minContentHeight)
         .background(Color(.systemGroupedBackground))
         .animation(.easeInOut, value: viewModel.selectedTab)
-    }
-    
-    private var inProgressContent: some View {
-        VStack {
-            LMSLabel(
-                "Nội dung Trong tiến trình",
-                style: .body,
-                alignment: .center
-            )
-        }
     }
     
     private var reportContent: some View {

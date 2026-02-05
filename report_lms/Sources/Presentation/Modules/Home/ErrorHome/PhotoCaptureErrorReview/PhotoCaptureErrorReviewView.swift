@@ -62,7 +62,7 @@ struct PhotoCaptureErrorReviewView: View {
                 }
             )
             .sheet(isPresented: $viewModel.showCamera) {
-                CameraView(onPhotoCaptured: { newImages in
+                CameraView(source: .errorReport, onPhotoCaptured: { newImages in
                     viewModel.addImages(newImages)
                     onImagesUpdated(viewModel.images)
                 })
