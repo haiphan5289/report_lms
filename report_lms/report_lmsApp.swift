@@ -16,14 +16,7 @@ struct report_lmsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            rootView
+            RootView()
         }
-    }
-
-    private var rootView: some View {
-        guard let viewModel = Container.shared.resolve(LoginViewModel.self) else {
-            fatalError("Failed to resolve LoginViewModel from dependency container")
-        }
-        return LoginView(viewModel: viewModel)
     }
 }

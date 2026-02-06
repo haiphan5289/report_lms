@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - LMSHomeView Constants
 
@@ -30,6 +31,8 @@ struct LMSHomeView: View {
     // MARK: - Properties
     @StateObject private var viewModel: LMSHomeViewModel
     @Namespace private var tabBarNamespace
+    @State private var capturedImages: [UIImage] = []
+    @State private var showPhotoCaptureErrorReview = false
     let onLogout: () -> Void
 
     // MARK: - Initialization
@@ -63,8 +66,9 @@ struct LMSHomeView: View {
                             viewModel.handleNewInspectionCreated(createdInspection)
                         }
                     } else if destination == "photoCaptureErrorReview" {
-                        CameraView(source: .errorReport) { _ in
-
+                        CameraView(source: .errorReport) { images in
+                            capturedImages = images
+                            showPhotoCaptureErrorReview = true
                         }
                     }
                 }
@@ -76,6 +80,14 @@ struct LMSHomeView: View {
                 }
                 .onChange(of: viewModel.navigationPath) { oldValue, newValue in
                     viewModel.handleNavigationBack(from: oldValue, to: newValue)
+                }
+                .sheet(isPresented: $showPhotoCaptureErrorReview) {
+                    PhotoCaptureErrorReviewView(
+                        initialImages: capturedImages,
+                        onImagesUpdated: { updatedImages in
+                            capturedImages = updatedImages
+                        }
+                    )
                 }
             }
 

@@ -132,7 +132,7 @@ struct PhotoCaptureErrorReviewView: View {
         }
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(radius: 2)
     }
@@ -147,7 +147,7 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(radius: 2)
     }
@@ -173,7 +173,7 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(radius: 2)
     }
@@ -222,7 +222,7 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(radius: 2)
     }
@@ -256,7 +256,7 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(radius: 2)
     }
@@ -276,7 +276,7 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(radius: 2)
     }
@@ -297,7 +297,7 @@ struct PhotoCaptureErrorReviewView: View {
                 )
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(8)
         .shadow(radius: 2)
     }
