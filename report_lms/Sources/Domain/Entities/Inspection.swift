@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Inspection: Identifiable, Equatable, Hashable {
+struct Inspection: Identifiable, Equatable, Hashable, Codable {
     let id: String
     let inspectionNumber: String
     let companyName: String
@@ -57,5 +57,23 @@ struct Inspection: Identifiable, Equatable, Hashable {
         formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "EEE, dd MMM yyyy"
         return formatter.string(from: createdAt)
+    }
+    
+    func toFirestoreData() throws -> [String: Any] {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(self)
+        let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return dict ?? [:]
+    }
+    
+    static func fromFirestore(_ data: [String: Any], id: String) throws -> Inspection {
+        var mutableData = data
+        mutableData["id"] = id
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let jsonData = try JSONSerialization.data(withJSONObject: mutableData)
+        return try decoder.decode(Inspection.self, from: jsonData)
     }
 }

@@ -41,11 +41,30 @@ final class Container {
     }
     
     private func registerDependencies() {
-        // Services - Singleton to maintain state
+        // Firebase Services - Singleton
+        let firebaseAuthService = AuthService()
+        registerSingleton(AuthServiceType.self, instance: firebaseAuthService)
+        
+        let firebaseStorageService = FirebaseStorageService()
+        registerSingleton(FirebaseStorageService.self, instance: firebaseStorageService)
+        
+        let firestoreService = FirestoreService()
+        registerSingleton(FirestoreService.self, instance: firestoreService)
+        
+        // Legacy Services - Singleton to maintain state
         let inspectionService = InspectionService()
         registerSingleton(InspectionServiceType.self, instance: inspectionService)
         
         // Repositories - Singleton to maintain publisher state
+        let authRepository = AuthRepository(service: firebaseAuthService)
+        registerSingleton(AuthRepositoryType.self, instance: authRepository)
+        
+        let storageRepository = FirebaseStorageRepository(service: firebaseStorageService)
+        registerSingleton(StorageRepositoryType.self, instance: storageRepository)
+        
+        let databaseRepository = FirestoreRepository(service: firestoreService)
+        registerSingleton(DatabaseRepositoryType.self, instance: databaseRepository)
+        
         let inspectionRepository = InspectionRepository(
             service: inspectionService
         )
@@ -66,6 +85,18 @@ final class Container {
         
         register(GroupInspectionsByWeekUseCase.self) {
             GroupInspectionsByWeekUseCase()
+        }
+        
+        register(LoginUseCase.self) {
+            LoginUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
+        }
+        
+        register(UploadInspectionMediaUseCase.self) {
+            UploadInspectionMediaUseCase(storageRepository: Container.shared.resolve(StorageRepositoryType.self)!)
+        }
+        
+        register(SyncInspectionsUseCase.self) {
+            SyncInspectionsUseCase(databaseRepository: Container.shared.resolve(DatabaseRepositoryType.self)!)
         }
         
         // ViewModels - Transient (new instance each time)
