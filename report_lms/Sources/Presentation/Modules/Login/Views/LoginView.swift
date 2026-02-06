@@ -19,36 +19,36 @@ struct LoginView: View {
         static let verticalPadding: CGFloat = 32
         static let forgotPasswordVerticalPadding: CGFloat = 4
     }
-    
+
     // MARK: - Properties
     @StateObject private var viewModel: LoginViewModel
-    
+
     // MARK: - Initialization
     init(viewModel: LoginViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
-    
+
     // MARK: - Body
     var body: some View {
         NavigationStack {
             contentView
         }
     }
-    
+
     private var contentView: some View {
         VStack(spacing: Layout.mainSpacing) {
             Spacer().frame(height: Layout.topSpacing)
-            
+
             titleSection
             formSection
             actionSection
-            
+
             Spacer()
         }
         .padding(.horizontal, Layout.horizontalPadding)
         .padding(.vertical, Layout.verticalPadding)
     }
-    
+
     private var titleSection: some View {
         VStack(spacing: Layout.formSpacing) {
             LMSLabel("IPSLMS", style: .largeTitle, alignment: .center)
@@ -60,7 +60,7 @@ struct LoginView: View {
             )
         }
     }
-    
+
     private var formSection: some View {
         VStack(spacing: Layout.formSpacing) {
             emailTextField
@@ -68,7 +68,7 @@ struct LoginView: View {
             forgotPasswordLink
         }
     }
-    
+
     private var emailTextField: some View {
         LMSTextField(
             "Email",
@@ -77,7 +77,7 @@ struct LoginView: View {
             keyboardType: .emailAddress
         )
     }
-    
+
     private var passwordTextField: some View {
         LMSTextField(
             "Mật khẩu",
@@ -86,7 +86,7 @@ struct LoginView: View {
             isSecure: true
         )
     }
-    
+
     private var forgotPasswordLink: some View {
         HStack {
             Spacer()
@@ -99,17 +99,17 @@ struct LoginView: View {
             .buttonStyle(PlainButtonStyle())
         }
     }
-    
+
     private var actionSection: some View {
         VStack(spacing: Layout.errorSpacing) {
             if let error = viewModel.errorMessage {
                 errorView(message: error)
             }
-            
+
             loginButton
         }
     }
-    
+
     private func errorView(message: String) -> some View {
         HStack(alignment: .center, spacing: Layout.errorIconSpacing) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -125,7 +125,7 @@ struct LoginView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 0)
     }
-    
+
     private var loginButton: some View {
         LMSButton(
             viewModel.isLoading ? "Đang đăng nhập..." : "Đăng nhập",
@@ -137,7 +137,7 @@ struct LoginView: View {
             Task { await viewModel.login() }
         }
     }
-    
+
     private var isLoginButtonDisabled: Bool {
         viewModel.isLoading || viewModel.username.isEmpty || viewModel.password.isEmpty
     }

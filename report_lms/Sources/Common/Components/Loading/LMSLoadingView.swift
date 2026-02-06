@@ -12,19 +12,19 @@ import SwiftUI
 struct LMSLoadingView: View {
     // MARK: - Properties
     let message: String
-    
+
     // MARK: - Initialization
     init(message: String = "Đang tải...") {
         self.message = message
     }
-    
+
     // MARK: - Body
     var body: some View {
         VStack(spacing: 16) {
             ProgressView()
                 .progressViewStyle(.circular)
                 .tint(.primary)
-            
+
             LMSLabel(
                 message,
                 style: .body,

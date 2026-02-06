@@ -13,7 +13,7 @@ enum LMSTextFieldValidationState {
     case normal
     case success
     case error
-    
+
     var borderColor: Color {
         switch self {
         case .normal:
@@ -24,7 +24,7 @@ enum LMSTextFieldValidationState {
             return .red
         }
     }
-    
+
     var iconName: String? {
         switch self {
         case .normal:
@@ -35,7 +35,7 @@ enum LMSTextFieldValidationState {
             return "exclamationmark.circle.fill"
         }
     }
-    
+
     var iconColor: Color {
         switch self {
         case .normal:
@@ -53,7 +53,7 @@ enum LMSTextFieldSize {
     case small
     case medium
     case large
-    
+
     var height: CGFloat {
         switch self {
         case .small:
@@ -64,7 +64,7 @@ enum LMSTextFieldSize {
             return 52
         }
     }
-    
+
     var fontSize: Font {
         switch self {
         case .small:
@@ -75,7 +75,7 @@ enum LMSTextFieldSize {
             return .body
         }
     }
-    
+
     var horizontalPadding: CGFloat {
         switch self {
         case .small:

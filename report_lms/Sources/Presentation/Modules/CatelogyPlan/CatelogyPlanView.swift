@@ -15,8 +15,8 @@ struct CatelogyPlanView: View {
     var onScanBarcode: () -> Void = {}
     var onStartInspection: () -> Void = {}
     var onQuickInspection: () -> Void = {}
-    
-    init(viewModel: CatelogyPlanViewModel, 
+
+    init(viewModel: CatelogyPlanViewModel,
          onCombineInspection: @escaping () -> Void = {},
          onScanBarcode: @escaping () -> Void = {},
          onStartInspection: @escaping () -> Void = {},
@@ -27,7 +27,7 @@ struct CatelogyPlanView: View {
         self.onStartInspection = onStartInspection
         self.onQuickInspection = onQuickInspection
     }
-    
+
     // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +39,7 @@ struct CatelogyPlanView: View {
         .background(Color(.systemBackground))
         .navigationBarHidden(true)
     }
-    
+
     // MARK: - Private Views
     private var contentView: some View {
         VStack(spacing: 0) {
@@ -49,11 +49,11 @@ struct CatelogyPlanView: View {
         }
         .background(Color(.systemBackground))
     }
-    
+
     private func optionRow(_ option: CatelogyPlanViewModel.InspectionOption) -> some View {
-        Button(action: {
+        Button {
             handleOptionTap(option)
-        }) {
+        } label: {
             HStack(spacing: 16) {
                 LMSLabel(option.title,
                          style: .body,
@@ -80,11 +80,11 @@ struct CatelogyPlanView: View {
         .padding(.top, option == viewModel.items.first ? 0 : 6)
         .padding(.bottom, 6)
     }
-    
+
     private var cancelButton: some View {
-        Button(action: {
+        Button {
             dismiss()
-        }) {
+        } label: {
             LMSLabel("HỦY BỎ",
                      style: .body,
                      color: .primary,
@@ -102,11 +102,11 @@ struct CatelogyPlanView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
     }
-    
+
     // MARK: - Private Methods
     private func handleOptionTap(_ option: CatelogyPlanViewModel.InspectionOption) {
         dismiss()
-        
+
         switch option {
         case .combine:
             onCombineInspection()
@@ -123,7 +123,7 @@ struct CatelogyPlanView: View {
 // MARK: - InspectionOption Enum
 
 extension CatelogyPlanView {
-    
+
 }
 
 // MARK: - Preview

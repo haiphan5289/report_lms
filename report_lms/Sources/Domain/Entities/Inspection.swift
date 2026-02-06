@@ -21,7 +21,7 @@ struct Inspection: Identifiable, Equatable, Hashable, Codable {
     let createdAt: Date
     let inspectorId: String?
     let status: InspectionStatus
-    
+
     init(
         id: String = UUID().uuidString,
         inspectionNumber: String = "",
@@ -51,14 +51,14 @@ struct Inspection: Identifiable, Equatable, Hashable, Codable {
         self.inspectorId = inspectorId
         self.status = status
     }
-    
+
     var formattedDate: String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "EEE, dd MMM yyyy"
         return formatter.string(from: createdAt)
     }
-    
+
     func toFirestoreData() throws -> [String: Any] {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -66,11 +66,11 @@ struct Inspection: Identifiable, Equatable, Hashable, Codable {
         let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         return dict ?? [:]
     }
-    
+
     static func fromFirestore(_ data: [String: Any], id: String) throws -> Inspection {
         var mutableData = data
         mutableData["id"] = id
-        
+
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let jsonData = try JSONSerialization.data(withJSONObject: mutableData)

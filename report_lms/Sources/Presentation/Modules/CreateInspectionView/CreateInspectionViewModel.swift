@@ -20,9 +20,15 @@ class InputField {
     let placeholder: String
     let type: ProductInfoInputType
     let text: Binding<String>
-    var onDropdownTap: (() -> Void)? = nil
-    
-    init(title: String, placeholder: String, type: ProductInfoInputType, text: Binding<String>, onDropdownTap: (() -> Void)? = nil) {
+    var onDropdownTap: (() -> Void)?
+
+    init(
+        title: String,
+        placeholder: String,
+        type: ProductInfoInputType,
+        text: Binding<String>,
+        onDropdownTap: (() -> Void)? = nil
+    ) {
         self.title = title
         self.placeholder = placeholder
         self.type = type
@@ -84,7 +90,7 @@ final class CreateInspectionViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var createdInspection: Inspection?
-    
+
     // MARK: - Field Error Messages
     @Published var productNameError: String?
     @Published var productCodeError: String?
@@ -95,10 +101,10 @@ final class CreateInspectionViewModel: ObservableObject {
     @Published var quantityError: String?
     @Published var factoryError: String?
     @Published var productionUnitError: String?
-    
+
     // MARK: - Private Properties
     private let createInspectionUseCase: CreateInspectionUseCase
-    
+
     // MARK: - Initialization
     init(createInspectionUseCase: CreateInspectionUseCase) {
         self.createInspectionUseCase = createInspectionUseCase
@@ -112,41 +118,51 @@ final class CreateInspectionViewModel: ObservableObject {
             )
         }
     }
-    
+
     // MARK: - Input Fields Configuration
     private(set) var inputFields: [InputField] = []
-    
+
     // MARK: - Field Errors Array (for dynamic access)
     var fieldErrors: [String?] {
-        [productNameError, productCodeError, orderCodeError, inspectionFormError, inspectionTypeError, samplingMethodError, quantityError, factoryError, productionUnitError]
+        [
+            productNameError,
+            productCodeError,
+            orderCodeError,
+            inspectionFormError,
+            inspectionTypeError,
+            samplingMethodError,
+            quantityError,
+            factoryError,
+            productionUnitError
+        ]
     }
-    
+
     // MARK: - Public Methods
     func createInspection() async {
         print("🟡 [CreateInspectionViewModel] createInspection() called")
         print("🟡 [CreateInspectionViewModel] Validating inputs...")
-        
+
         guard validateInputs() else {
             print("🔴 [CreateInspectionViewModel] Validation failed!")
             print("🔴 [CreateInspectionViewModel] Field errors: \(fieldErrors)")
             return
         }
-        
+
         print("🟡 [CreateInspectionViewModel] Validation passed")
         print("🟡 [CreateInspectionViewModel] Product: \(productName)")
         print("🟡 [CreateInspectionViewModel] Code: \(productCode)")
         print("🟡 [CreateInspectionViewModel] Order: \(orderCode)")
-        
+
         isLoading = true
         errorMessage = nil
-        defer { 
-            isLoading = false 
+        defer {
+            isLoading = false
             print("🟡 [CreateInspectionViewModel] isLoading set to false")
         }
-        
+
         do {
             print("🟡 [CreateInspectionViewModel] Calling createInspectionUseCase.execute()...")
-            let inspection = try await createInspectionUseCase.execute(
+            let parameters = InspectionCreationParameters(
                 productName: productName,
                 productCode: productCode,
                 orderCode: orderCode,
@@ -155,6 +171,7 @@ final class CreateInspectionViewModel: ObservableObject {
                 factory: factory,
                 productionUnit: productionUnit
             )
+            let inspection = try await createInspectionUseCase.execute(parameters: parameters)
             print("✅ [CreateInspectionViewModel] Inspection created successfully!")
             print("✅ [CreateInspectionViewModel] Inspection ID: \(inspection.id)")
             print("✅ [CreateInspectionViewModel] Setting createdInspection property...")
@@ -165,13 +182,13 @@ final class CreateInspectionViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     // MARK: - Private Methods
     private func validateInputs() -> Bool {
         // Check if any required fields have errors
         return fieldErrors.allSatisfy { $0 == nil }
     }
-    
+
     func resetForm() {
         productName = ""
         productCode = ""
@@ -212,7 +229,7 @@ extension InputFieldType {
         case .productionUnit: return "Đơn vị sản xuất"
         }
     }
-    
+
     var inputType: ProductInfoInputType {
         switch self {
         case .productName, .productCode, .orderCode: return .required
@@ -220,7 +237,7 @@ extension InputFieldType {
         case .quantity: return .quantity
         }
     }
-    
+
     @MainActor
     func binding(for viewModel: CreateInspectionViewModel) -> Binding<String> {
         switch self {
@@ -235,7 +252,7 @@ extension InputFieldType {
         case .productionUnit: return Binding(get: { viewModel.productionUnit }, set: { viewModel.productionUnit = $0 })
         }
     }
-    
+
     @MainActor
     func errorMessage(for viewModel: CreateInspectionViewModel) -> String? {
         switch self {

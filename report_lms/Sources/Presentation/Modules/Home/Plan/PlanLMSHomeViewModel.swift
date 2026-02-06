@@ -14,13 +14,13 @@ final class PlanLMSHomeViewModel: ObservableObject {
     @Published var weeklyInspections: [WeekSection] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
-    
+
     // MARK: - Private Properties
     private var fetchInspectionsUseCase: FetchInspectionsUseCase
     private var groupInspectionsByWeekUseCase: GroupInspectionsByWeekUseCase
     private var repository: InspectionRepositoryType
     private var cancellables = Set<AnyCancellable>()
-    
+
     // MARK: - Initialization
     nonisolated init(
         fetchInspectionsUseCase: FetchInspectionsUseCase,
@@ -30,19 +30,19 @@ final class PlanLMSHomeViewModel: ObservableObject {
         self.fetchInspectionsUseCase = fetchInspectionsUseCase
         self.groupInspectionsByWeekUseCase = groupInspectionsByWeekUseCase
         self.repository = repository
-        
+
         Task { @MainActor in
             self.setupSubscriptions()
         }
     }
-    
+
     // MARK: - Public Methods
     func loadInspections() async {
         isLoading = true
         errorMessage = nil
-        
+
         defer { isLoading = false }
-        
+
         do {
             let inspections = try await fetchInspectionsUseCase.execute()
             let sections = groupInspectionsByWeekUseCase.execute(inspections)
@@ -51,20 +51,20 @@ final class PlanLMSHomeViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func visibleInspections(for section: WeekSection) -> [Inspection] {
         section.inspections
     }
-    
+
     func addNewInspection(_ inspection: Inspection) {
         // The repository already updated the inspectionsSubject when createInspection was called
         // The setupSubscriptions() will receive this update automatically
     }
-    
+
     private func getAllInspections() -> [Inspection] {
         weeklyInspections.flatMap { $0.inspections }
     }
-    
+
     // MARK: - Private Methods
     private func setupSubscriptions() {
         repository.inspectionsPublisher

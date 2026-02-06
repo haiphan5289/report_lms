@@ -33,7 +33,7 @@ import SwiftUI
 /// ```
 struct LMSTextField: View {
     // MARK: - Properties
-    
+
     private let placeholder: String
     @Binding private var text: String
     private let icon: String?
@@ -45,12 +45,12 @@ struct LMSTextField: View {
     private let autocapitalization: TextInputAutocapitalization
     private let maxLength: Int?
     private let onCommit: (() -> Void)?
-    
+
     @State private var isSecureVisible: Bool = false
     @FocusState private var isFocused: Bool
-    
+
     // MARK: - Initialization
-    
+
     /// Creates a text field with specified configuration
     /// - Parameters:
     ///   - placeholder: Placeholder text
@@ -89,9 +89,9 @@ struct LMSTextField: View {
         self.maxLength = maxLength
         self.onCommit = onCommit
     }
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             // Text Field Container
@@ -103,10 +103,10 @@ struct LMSTextField: View {
                         .foregroundColor(.secondary)
                         .frame(width: 20)
                 }
-                
+
                 // Text Input
                 textFieldView
-                
+
                 // Trailing Icons (Validation + Secure Toggle)
                 HStack(spacing: 8) {
                     if let iconName = validationState.iconName {
@@ -114,15 +114,15 @@ struct LMSTextField: View {
                             .font(.body)
                             .foregroundColor(validationState.iconColor)
                     }
-                    
+
                     if isSecure {
                         Button(action: {
                             isSecureVisible.toggle()
-                        }) {
+                        }, label: {
                             Image(systemName: isSecureVisible ? "eye.slash.fill" : "eye.fill")
                                 .font(.body)
                                 .foregroundColor(.secondary)
-                        }
+                        })
                     }
                 }
             }
@@ -134,16 +134,16 @@ struct LMSTextField: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(isFocused ? Color.blue : validationState.borderColor, lineWidth: isFocused ? 2 : 1)
             )
-            
+
             // Helper Text / Error Message
             if let helperText = helperText {
                 HStack(spacing: 4) {
                     Text(helperText)
                         .font(.caption)
                         .foregroundColor(validationState == .error ? .red : .secondary)
-                    
+
                     Spacer()
-                    
+
                     // Character Counter
                     if let maxLength = maxLength {
                         Text("\(text.count)/\(maxLength)")
@@ -157,9 +157,9 @@ struct LMSTextField: View {
         .animation(.easeInOut(duration: 0.2), value: isFocused)
         .animation(.easeInOut(duration: 0.2), value: validationState)
     }
-    
+
     // MARK: - Private Views
-    
+
     @ViewBuilder
     private var textFieldView: some View {
         if isSecure && !isSecureVisible {
@@ -206,14 +206,14 @@ struct LMSTextField: View {
             icon: "envelope",
             keyboardType: .emailAddress
         )
-        
+
         LMSTextField(
             "Password",
             text: .constant("password123"),
             icon: "lock",
             isSecure: true
         )
-        
+
         LMSTextField(
             "Username",
             text: .constant("johndoe"),
@@ -221,7 +221,7 @@ struct LMSTextField: View {
             validationState: .success,
             helperText: "Username is available"
         )
-        
+
         LMSTextField(
             "Phone",
             text: .constant("123"),
@@ -240,13 +240,13 @@ struct LMSTextField: View {
             text: .constant("Text"),
             size: .small
         )
-        
+
         LMSTextField(
             "Medium Size",
             text: .constant("Text"),
             size: .medium
         )
-        
+
         LMSTextField(
             "Large Size",
             text: .constant("Text"),
@@ -263,7 +263,7 @@ struct LMSTextField: View {
             text: .constant(""),
             icon: "text.cursor"
         )
-        
+
         LMSTextField(
             "Success State",
             text: .constant("valid@email.com"),
@@ -271,7 +271,7 @@ struct LMSTextField: View {
             validationState: .success,
             helperText: "Email is valid"
         )
-        
+
         LMSTextField(
             "Error State",
             text: .constant("invalid"),
@@ -292,7 +292,7 @@ struct LMSTextField: View {
             helperText: "Username must be unique",
             maxLength: 20
         )
-        
+
         LMSTextField(
             "Bio",
             text: .constant("This is a long bio text"),
@@ -313,7 +313,7 @@ struct LMSTextField: View {
             icon: "lock",
             helperText: "At least 8 characters", isSecure: true
         )
-        
+
         LMSTextField(
             "Confirm Password",
             text: .constant("mypassword"),
@@ -331,14 +331,14 @@ struct LMSTextField: View {
             text: .constant("user@example.com"),
             icon: "envelope"
         )
-        
+
         LMSTextField(
             "Password",
             text: .constant("password"),
             icon: "lock",
             isSecure: true
         )
-        
+
         LMSTextField(
             "Error",
             text: .constant("invalid"),

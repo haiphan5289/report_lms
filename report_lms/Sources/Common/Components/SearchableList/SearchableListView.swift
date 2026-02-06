@@ -13,15 +13,15 @@ public struct SearchableListView: View {
     @StateObject private var viewModel: SearchableListViewModel
     @State private var searchText = ""
     @Environment(\.dismiss) private var dismiss
-    
+
     private let onItemSelected: (ListDataItem) -> Void
-    
+
     // MARK: - Initialization
     public init(viewModel: SearchableListViewModel, onItemSelected: @escaping (ListDataItem) -> Void) {
         _viewModel = StateObject(wrappedValue: viewModel)
         self.onItemSelected = onItemSelected
     }
-    
+
     // MARK: - Body
     public var body: some View {
         VStack(spacing: 0) {
@@ -33,7 +33,7 @@ public struct SearchableListView: View {
             viewModel.searchTextDidChange(newValue)
         }
     }
-    
+
     // MARK: - Private Views
     private var headerView: some View {
         HStack {
@@ -54,7 +54,7 @@ public struct SearchableListView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemBackground))
     }
-    
+
     private var searchBar: some View {
         LMSTextField(
             "Search...",
@@ -64,7 +64,7 @@ public struct SearchableListView: View {
         .padding(.horizontal)
         .padding(.bottom, 8)
     }
-    
+
     private var listView: some View {
         List {
             if let item = viewModel.filteredItems {
@@ -75,11 +75,11 @@ public struct SearchableListView: View {
         }
         .listStyle(.plain)
     }
-    
+
     private func sectionHeader(for item: ListItemProtocol) -> some View {
         LMSLabel(item.title ?? "Items", style: .subheadline, color: .secondary)
     }
-    
+
     private func dataItemRow(_ dataItem: ListDataItem) -> some View {
         HStack {
             LMSLabel(dataItem.name, style: .body)
@@ -104,9 +104,9 @@ public struct SearchableListView: View {
         ListDataItem(id: 2, name: "Banana"),
         ListDataItem(id: 3, name: "Orange")
     ])
-    
+
     let viewModel = SearchableListViewModel(items: sampleItem)
-    return SearchableListView(viewModel: viewModel) { selectedItem in
+    return SearchableListView(viewModel: viewModel) { _ in
         // Handle selection
     }
 }

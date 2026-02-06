@@ -26,18 +26,18 @@ struct Layout {
 // MARK: - LMSHomeView
 
 struct LMSHomeView: View {
-    
+
     // MARK: - Properties
     @StateObject private var viewModel: LMSHomeViewModel
     @Namespace private var tabBarNamespace
     let onLogout: () -> Void
-    
+
     // MARK: - Initialization
     init(viewModel: LMSHomeViewModel, onLogout: @escaping () -> Void) {
         _viewModel = StateObject(wrappedValue: viewModel)
         self.onLogout = onLogout
     }
-    
+
     // MARK: - Body
     var body: some View {
         ZStack {
@@ -56,13 +56,15 @@ struct LMSHomeView: View {
                 }
                 .navigationDestination(for: String.self) { destination in
                     if destination == "createInspection" {
-                        let createViewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
+                        let createViewModel = CreateInspectionViewModel(
+                            createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!
+                        )
                         CreateInspectionView(viewModel: createViewModel) { createdInspection in
                             viewModel.handleNewInspectionCreated(createdInspection)
                         }
                     } else if destination == "photoCaptureErrorReview" {
-                        CameraView(source: .errorReport) { images in
-                            
+                        CameraView(source: .errorReport) { _ in
+
                         }
                     }
                 }
@@ -76,7 +78,7 @@ struct LMSHomeView: View {
                     viewModel.handleNavigationBack(from: oldValue, to: newValue)
                 }
             }
-            
+
             // Side menu overlay
             if viewModel.showMenu {
                 Color.black.opacity(0.3)
@@ -86,7 +88,7 @@ struct LMSHomeView: View {
                             viewModel.showMenu = false
                         }
                     }
-                
+
                 HStack {
                     MenuView(onLogout: {
                         withAnimation(.easeInOut(duration: 0.3)) {
@@ -98,7 +100,7 @@ struct LMSHomeView: View {
                     .background(Color(.systemBackground))
                     .transition(.move(edge: .leading))
                     .zIndex(1)
-                    
+
                     Spacer()
                 }
                 .transition(.move(edge: .leading))
@@ -124,7 +126,7 @@ struct LMSHomeView: View {
             y: Layout.shadowY
         )
     }
-    
+
     var menuButton: some View {
         LMSButton(
             "",
@@ -134,7 +136,7 @@ struct LMSHomeView: View {
         )
         .frame(width: Layout.iconButtonSize, height: Layout.iconButtonSize)
     }
-    
+
     var cloudButton: some View {
         LMSButton(
             "",
@@ -144,7 +146,7 @@ struct LMSHomeView: View {
         )
         .frame(width: Layout.iconButtonSize, height: Layout.iconButtonSize)
     }
-    
+
     var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(LMSHomeViewModel.Tab.allCases, id: \.self) { tab in
@@ -155,26 +157,26 @@ struct LMSHomeView: View {
         .overlay(Divider(), alignment: .bottom)
         .padding(.bottom, Layout.tabBottomPadding)
     }
-    
+
     func tabButton(for tab: LMSHomeViewModel.Tab) -> some View {
         Button(action: {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 viewModel.selectedTab = tab
             }
-        }) {
+        }, label: {
             tabButtonContent(for: tab)
-        }
+        })
         .buttonStyle(.plain)
     }
-    
+
     func tabButtonContent(for tab: LMSHomeViewModel.Tab) -> some View {
         let isSelected = viewModel.selectedTab == tab
-        
+
         return VStack(spacing: Layout.tabSpacing) {
             Image(systemName: tab.icon)
                 .font(.system(size: Layout.tabIconSize, weight: .semibold))
                 .foregroundColor(isSelected ? .accentColor : .secondary)
-            
+
             LMSLabel(
                 tab.title,
                 style: .body,
@@ -182,13 +184,13 @@ struct LMSHomeView: View {
                 alignment: .center
             )
             .fontWeight(isSelected ? .semibold : .regular)
-            
+
             tabUnderline(isSelected: isSelected)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 0)
     }
-    
+
     func tabUnderline(isSelected: Bool) -> some View {
         ZStack {
             if isSelected {
@@ -201,7 +203,7 @@ struct LMSHomeView: View {
             }
         }
     }
-    
+
     var tabContent: some View {
         Group {
             switch viewModel.selectedTab {
@@ -220,7 +222,7 @@ struct LMSHomeView: View {
         .background(Color(.systemGroupedBackground))
         .animation(.easeInOut, value: viewModel.selectedTab)
     }
-    
+
     var reportContent: some View {
         VStack {
             LMSLabel(

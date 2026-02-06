@@ -9,11 +9,11 @@ import Foundation
 
 final class AuthRepository: AuthRepositoryType {
     private let service: AuthServiceType
-    
+
     init(service: AuthServiceType) {
         self.service = service
     }
-    
+
     func login(request: LoginRequest) async throws -> UserSession {
         let response = try await service.login(username: request.username, password: request.password)
         return response.toEntity()

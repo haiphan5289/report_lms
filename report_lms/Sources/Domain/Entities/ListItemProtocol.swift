@@ -12,7 +12,7 @@ import Foundation
 public protocol ListItemProtocol {
     /// Optional title for the item
     var title: String? { get }
-    
+
     /// Array of data items containing name and id
     var datas: [ListDataItem] { get }
 }
@@ -21,16 +21,16 @@ public protocol ListItemProtocol {
 public struct ListDataItem: Identifiable, Equatable, Hashable {
     public let id: Int
     public let name: String
-    
+
     public init(id: Int, name: String) {
         self.id = id
         self.name = name
     }
-    
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
-    
+
     public static func == (lhs: ListDataItem, rhs: ListDataItem) -> Bool {
         lhs.id == rhs.id
     }

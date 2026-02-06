@@ -15,17 +15,17 @@ final class LoginViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var userSession: UserSession?
     @Published var isLoginSuccessful: Bool = false
-    
+
     // MARK: - Private Properties
     private let loginUseCase: LoginUseCase
     private let userManager: UserManager
-    
+
     // MARK: - Initialization
     init(loginUseCase: LoginUseCase, userManager: UserManager) {
         self.loginUseCase = loginUseCase
         self.userManager = userManager
     }
-    
+
     // MARK: - Public Methods
     func login() async {
         await MainActor.run {
@@ -52,7 +52,7 @@ final class LoginViewModel: ObservableObject {
             }
         }
     }
-    
+
     /// Logs out the current user by clearing session data and removing stored token
     func logout() {
         userSession = nil
@@ -62,7 +62,7 @@ final class LoginViewModel: ObservableObject {
         password = ""
         errorMessage = nil
     }
-    
+
     /// Checks if user has a valid stored authentication token
     var isLoggedIn: Bool {
         return userManager.isLoggedIn

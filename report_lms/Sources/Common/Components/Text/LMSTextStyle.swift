@@ -21,7 +21,7 @@ enum LMSTextStyle {
     case footnote
     case caption
     case caption2
-    
+
     var font: Font {
         switch self {
         case .largeTitle:
@@ -48,7 +48,7 @@ enum LMSTextStyle {
             return .caption2
         }
     }
-    
+
     var weight: Font.Weight {
         switch self {
         case .largeTitle, .title, .title2, .title3, .headline:
@@ -70,7 +70,7 @@ enum LMSTextColor {
     case warning
     case error
     case custom(Color)
-    
+
     var color: Color {
         switch self {
         case .primary:

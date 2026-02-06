@@ -13,7 +13,7 @@ struct WeekSectionHeaderView: View {
     let isExpanded: Bool
     let showExpandButton: Bool
     let onToggle: () -> Void
-    
+
     // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
@@ -24,11 +24,11 @@ struct WeekSectionHeaderView: View {
                     .foregroundColor(.secondary)
                     .rotationEffect(.degrees(isExpanded ? 0 : -90))
                     .animation(.easeInOut(duration: 0.2), value: isExpanded)
-                
-                LMSLabel(section.title, 
-                        style: .subheadline, 
+
+                LMSLabel(section.title,
+                        style: .subheadline,
                         color: .secondary)
-                
+
                 Spacer()
             }
             .contentShape(Rectangle())
@@ -36,22 +36,22 @@ struct WeekSectionHeaderView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(Color(.systemGroupedBackground))
-            
+
             // Expand button at bottom of section
             if showExpandButton && isExpanded {
                 expandButton
             }
         }
     }
-    
+
     // MARK: - Private Views
     private var expandButton: some View {
         Button(action: onToggle) {
             HStack {
                 Spacer()
                 HStack(spacing: 4) {
-                    LMSLabel("HIỆN THỊ TẤT CẢ", 
-                            style: .caption, 
+                    LMSLabel("HIỆN THỊ TẤT CẢ",
+                            style: .caption,
                             color: .custom(Color.blue))
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 14))

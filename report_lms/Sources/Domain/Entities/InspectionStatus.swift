@@ -12,7 +12,7 @@ enum InspectionStatus: String, Codable {
     case inProgress = "Đang kiểm tra"
     case completed = "Hoàn thành"
     case cancelled = "Đã hủy"
-    
+
     var displayName: String {
         self.rawValue
     }

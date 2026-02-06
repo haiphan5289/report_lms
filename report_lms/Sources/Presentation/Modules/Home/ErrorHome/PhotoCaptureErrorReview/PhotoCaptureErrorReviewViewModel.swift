@@ -10,9 +10,9 @@ import SwiftUI
 
 // MARK: - Severity Level
 enum SeverityLevel: String, CaseIterable {
-    case low = "low"
-    case medium = "medium"
-    case high = "high"
+    case low
+    case medium
+    case high
 
     var displayName: String {
         switch self {
@@ -25,11 +25,11 @@ enum SeverityLevel: String, CaseIterable {
 
 // MARK: - Defect Type
 enum DefectType: String, CaseIterable {
-    case crack = "crack"
-    case stain = "stain"
-    case hole = "hole"
-    case colorMismatch = "colorMismatch"
-    case sizeIssue = "sizeIssue"
+    case crack
+    case stain
+    case hole
+    case colorMismatch
+    case sizeIssue
 
     var displayName: String {
         switch self {
@@ -72,45 +72,45 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     func setInitialImages(_ initialImages: [UIImage]) {
         images = initialImages
     }
-    
+
     func saveReview() async {
         isLoading = true
         defer { isLoading = false }
-        
+
         do {
             // Validate review data
             guard !images.isEmpty else {
                 errorMessage = "Vui lòng chụp ít nhất một ảnh"
                 return
             }
-            
-            // TODO: Implement actual save logic with repository/use case
+
+            // Placeholder: Implement actual save logic with repository/use case
             // try await saveReviewUseCase.execute(review: createReviewEntity())
-            
+
             // Simulate async operation
             try await Task.sleep(nanoseconds: 500_000_000)
-            
+
         } catch {
             errorMessage = "Không thể lưu đánh giá: \(error.localizedDescription)"
         }
     }
-    
+
     func updateReview() async {
         isLoading = true
         defer { isLoading = false }
-        
+
         do {
-            // TODO: Implement actual update logic
+            // Placeholder: Implement actual update logic
             // try await updateReviewUseCase.execute(review: createReviewEntity())
-            
+
             // Simulate async operation
             try await Task.sleep(nanoseconds: 500_000_000)
-            
+
         } catch {
             errorMessage = "Không thể cập nhật đánh giá: \(error.localizedDescription)"
         }
     }
-    
+
     func deleteReview() {
         // Reset all fields
         images.removeAll()
@@ -120,7 +120,7 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
         selectedDefectType = nil
         comments = ""
     }
-    
+
     // MARK: - Private Methods
     private func createReviewEntity() -> InspectionReviewData {
         InspectionReviewData(

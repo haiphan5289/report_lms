@@ -26,7 +26,7 @@ import SwiftUI
 /// ```
 struct LMSButton: View {
     // MARK: - Properties
-    
+
     private let title: String
     private let icon: String?
     private let variant: LMSButtonVariant
@@ -35,9 +35,9 @@ struct LMSButton: View {
     @Binding private var isLoading: Bool
     private let isDisabled: Bool
     private let action: () -> Void
-    
+
     // MARK: - Initialization
-    
+
     /// Creates a button with specified style and action
     /// - Parameters:
     ///   - title: The button label text
@@ -67,17 +67,17 @@ struct LMSButton: View {
         self.isDisabled = isDisabled
         self.action = action
     }
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         if variant == .iconOnly {
             Button(action: {
                 guard !isLoading && !isDisabled else { return }
                 action()
-            }) {
+            }, label: {
                 contentView
-            }
+            })
             .buttonStyle(IconOnlyButtonStyle(variant: variant, isDisabled: isDisabled || isLoading))
             .disabled(isDisabled || isLoading)
             .opacity((isDisabled || isLoading) ? 0.5 : 1.0)
@@ -88,12 +88,12 @@ struct LMSButton: View {
             Button(action: {
                 guard !isLoading && !isDisabled else { return }
                 action()
-            }) {
+            }, label: {
                 contentView
                     .frame(maxWidth: .infinity)
                     .frame(height: size.height)
                     .contentShape(Rectangle())
-            }
+            })
             .buttonStyle(.plain)
             .background(variant.backgroundColor)
             .cornerRadius(8)
@@ -132,9 +132,9 @@ private struct IconOnlyButtonStyle: ButtonStyle {
             .opacity(isDisabled ? 0.5 : 1.0)
     }
 }
-    
+
     // MARK: - Private Views
-    
+
     private var contentView: some View {
         Group {
             if variant == .iconOnly {
@@ -184,7 +184,7 @@ enum LMSButtonVariant {
     case destructive
     case ghost
     case iconOnly
-    
+
     var backgroundColor: Color {
         switch self {
         case .primary:
@@ -201,7 +201,7 @@ enum LMSButtonVariant {
             return Color.clear
         }
     }
-    
+
     var foregroundColor: Color {
         switch self {
         case .primary:
@@ -218,7 +218,7 @@ enum LMSButtonVariant {
             return Color.primary
         }
     }
-    
+
     var borderColor: Color? {
         switch self {
         case .tertiary:
@@ -235,7 +235,7 @@ enum LMSButtonSize {
     case small
     case medium
     case large
-    
+
     var height: CGFloat {
         switch self {
         case .small:
@@ -246,7 +246,7 @@ enum LMSButtonSize {
             return 56
         }
     }
-    
+
     var horizontalPadding: CGFloat {
         switch self {
         case .small:
@@ -257,7 +257,7 @@ enum LMSButtonSize {
             return 24
         }
     }
-    
+
     var fontSize: Font {
         switch self {
         case .small:
@@ -277,19 +277,19 @@ enum LMSButtonSize {
         LMSButton("Primary Button", variant: .primary) {
             print("Primary tapped")
         }
-        
+
         LMSButton("Secondary Button", variant: .secondary) {
             print("Secondary tapped")
         }
-        
+
         LMSButton("Tertiary Button", variant: .tertiary) {
             print("Tertiary tapped")
         }
-        
+
         LMSButton("Destructive Button", variant: .destructive) {
             print("Destructive tapped")
         }
-        
+
         LMSButton("Ghost Button", variant: .ghost) {
             print("Ghost tapped")
         }
@@ -302,11 +302,11 @@ enum LMSButtonSize {
         LMSButton("Small Button", size: .small) {
             print("Small tapped")
         }
-        
+
         LMSButton("Medium Button", size: .medium) {
             print("Medium tapped")
         }
-        
+
         LMSButton("Large Button", size: .large) {
             print("Large tapped")
         }
@@ -319,11 +319,11 @@ enum LMSButtonSize {
         LMSButton("Add Item", icon: "plus", variant: .primary) {
             print("Add tapped")
         }
-        
+
         LMSButton("Delete", icon: "trash", variant: .destructive) {
             print("Delete tapped")
         }
-        
+
         LMSButton("Settings", icon: "gear", variant: .secondary) {
             print("Settings tapped")
         }
@@ -336,7 +336,7 @@ enum LMSButtonSize {
         LMSButton("Normal Button", variant: .primary) {
             print("Normal tapped")
         }
-        
+
         LMSButton(
             "Loading Button",
             variant: .primary,
@@ -344,7 +344,7 @@ enum LMSButtonSize {
         ) {
             print("Loading tapped")
         }
-        
+
         LMSButton(
             "Disabled Button",
             variant: .primary,
@@ -361,11 +361,11 @@ enum LMSButtonSize {
         LMSButton("Full Width Primary", variant: .primary, isFullWidth: true) {
             print("Full width tapped")
         }
-        
+
         LMSButton("Full Width Secondary", variant: .secondary, isFullWidth: true) {
             print("Full width tapped")
         }
-        
+
         LMSButton(
             "Full Width Loading",
             variant: .primary,
@@ -383,11 +383,11 @@ enum LMSButtonSize {
         LMSButton("Primary", variant: .primary) {
             print("Primary tapped")
         }
-        
+
         LMSButton("Secondary", variant: .secondary) {
             print("Secondary tapped")
         }
-        
+
         LMSButton("Ghost", variant: .ghost) {
             print("Ghost tapped")
         }

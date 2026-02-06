@@ -18,7 +18,7 @@ struct InspectionSection: Identifiable {
     let title: String
     let fields: [InspectionField]
     let order: Int
-    
+
     var itemCount: Int {
         fields.count
     }
@@ -30,7 +30,7 @@ struct InspectionField: Identifiable {
     let type: FieldType
     var photoURL: String?
     let isRequired: Bool
-    
+
     enum FieldType: String, Codable {
         case text
         case photo

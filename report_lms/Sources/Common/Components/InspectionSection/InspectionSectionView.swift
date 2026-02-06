@@ -19,14 +19,14 @@ struct InspectionSectionView: View {
         static let chevronCollapsedRotation: Double = -90
         static let chevronExpandedRotation: Double = 0
     }
-    
+
     // MARK: - Properties
     let title: String
     let itemCount: Int
     let isExpanded: Bool
     let onToggle: () -> Void
     let content: () -> AnyView
-    
+
     // MARK: - Initialization
     init(
         title: String,
@@ -41,38 +41,40 @@ struct InspectionSectionView: View {
         self.onToggle = onToggle
         self.content = { AnyView(content()) }
     }
-    
+
     // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
             headerView
-            
+
             if isExpanded {
                 contentView
             }
         }
         .background(Color(.systemBackground))
     }
-    
+
     // MARK: - Private Views
     private var headerView: some View {
-        Button(action: {
+        Button {
             withAnimation(.easeInOut(duration: Layout.animationDuration)) {
                 onToggle()
             }
-        }) {
+        } label: {
             HStack(spacing: Layout.headerSpacing) {
                 Image(systemName: "chevron.down")
                     .font(.system(size: Layout.chevronSize, weight: .semibold))
                     .foregroundColor(.green)
-                    .rotationEffect(.degrees(isExpanded ? Layout.chevronExpandedRotation : Layout.chevronCollapsedRotation))
+                    .rotationEffect(.degrees(
+                        isExpanded ? Layout.chevronExpandedRotation : Layout.chevronCollapsedRotation
+                    ))
                     .animation(.easeInOut(duration: Layout.animationDuration), value: isExpanded)
-                
+
                 LMSLabel(
                     "\(title) (\(itemCount))",
                     style: .body
                 )
-                
+
                 Spacer()
             }
             .padding(.horizontal, Layout.horizontalPadding)
@@ -82,7 +84,7 @@ struct InspectionSectionView: View {
         }
         .buttonStyle(.plain)
     }
-    
+
     private var contentView: some View {
         VStack(spacing: 0) {
             content()
@@ -96,26 +98,27 @@ struct InspectionSectionView: View {
         title: "Ngoài thùng carton",
         itemCount: 2,
         isExpanded: false,
-        onToggle: {}
-    ) {
-        VStack(spacing: 1) {
-            InspectionFieldItemView(
-                fieldName: "Tổng quan về thùng carton",
-                hasPhoto: false,
-                images: [],
-                onCameraTap: {}
-            )
-            
-            Divider()
-            
-            InspectionFieldItemView(
-                fieldName: "Thông tin in trên thùng carton",
-                hasPhoto: false,
-                images: [],
-                onCameraTap: {}
-            )
+        onToggle: {},
+        content: {
+            VStack(spacing: 1) {
+                InspectionFieldItemView(
+                    fieldName: "Tổng quan về thùng carton",
+                    hasPhoto: false,
+                    images: [],
+                    onCameraTap: {}
+                )
+
+                Divider()
+
+                InspectionFieldItemView(
+                    fieldName: "Thông tin in trên thùng carton",
+                    hasPhoto: false,
+                    images: [],
+                    onCameraTap: {}
+                )
+            }
         }
-    }
+    )
     .padding()
 }
 
@@ -124,26 +127,27 @@ struct InspectionSectionView: View {
         title: "Ngoài thùng carton",
         itemCount: 2,
         isExpanded: true,
-        onToggle: {}
-    ) {
-        VStack(spacing: 1) {
-            InspectionFieldItemView(
-                fieldName: "Tổng quan về thùng carton",
-                hasPhoto: false,
-                images: [],
-                onCameraTap: {}
-            )
-            
-            Divider()
-            
-            InspectionFieldItemView(
-                fieldName: "Thông tin in trên thùng carton",
-                hasPhoto: true,
-                images: [],
-                onCameraTap: {}
-            )
+        onToggle: {},
+        content: {
+            VStack(spacing: 1) {
+                InspectionFieldItemView(
+                    fieldName: "Tổng quan về thùng carton",
+                    hasPhoto: false,
+                    images: [],
+                    onCameraTap: {}
+                )
+
+                Divider()
+
+                InspectionFieldItemView(
+                    fieldName: "Thông tin in trên thùng carton",
+                    hasPhoto: true,
+                    images: [],
+                    onCameraTap: {}
+                )
+            }
         }
-    }
+    )
     .padding()
 }
 
@@ -154,44 +158,47 @@ struct InspectionSectionView: View {
                 title: "Ngoài thùng carton",
                 itemCount: 2,
                 isExpanded: true,
-                onToggle: {}
-            ) {
-                VStack(spacing: 1) {
-                    InspectionFieldItemView(
-                        fieldName: "Tổng quan về thùng carton",
-                        hasPhoto: false,
-                        images: [],
-                        onCameraTap: {}
-                    )
-                    
-                    Divider()
-                    
-                    InspectionFieldItemView(
-                        fieldName: "Thông tin in trên thùng carton",
-                        hasPhoto: false,
-                        images: [],
-                        onCameraTap: {}
-                    )
+                onToggle: {},
+                content: {
+                    VStack(spacing: 1) {
+                        InspectionFieldItemView(
+                            fieldName: "Tổng quan về thùng carton",
+                            hasPhoto: false,
+                            images: [],
+                            onCameraTap: {}
+                        )
+
+                        Divider()
+
+                        InspectionFieldItemView(
+                            fieldName: "Thông tin in trên thùng carton",
+                            hasPhoto: false,
+                            images: [],
+                            onCameraTap: {}
+                        )
+                    }
                 }
-            }
-            
+            )
+
             InspectionSectionView(
                 title: "Trong thùng carton",
                 itemCount: 2,
                 isExpanded: false,
-                onToggle: {}
-            ) {
-                EmptyView()
-            }
-            
+                onToggle: {},
+                content: {
+                    EmptyView()
+                }
+            )
+
             InspectionSectionView(
                 title: "Tổng quan về sản phẩm",
                 itemCount: 8,
                 isExpanded: false,
-                onToggle: {}
-            ) {
-                EmptyView()
-            }
+                onToggle: {},
+                content: {
+                    EmptyView()
+                }
+            )
         }
         .padding()
     }

@@ -25,11 +25,11 @@ final class CameraViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showPermissionAlert = false
     @Published var cameraPermissionStatus: AVAuthorizationStatus = .notDetermined
-    
+
     // MARK: - Private Properties
     let cameraController = CameraController()
     private var isSessionSetup = false
-    
+
     // MARK: - Computed Properties
     var flashIcon: String {
         switch flashMode {
@@ -43,18 +43,18 @@ final class CameraViewModel: ObservableObject {
             return "bolt.slash.fill"
         }
     }
-    
+
     // MARK: - Lifecycle
     func setupCamera() async {
         await checkCameraPermission()
-        
+
         guard cameraPermissionStatus == .authorized else {
             showPermissionAlert = true
             return
         }
-        
+
         guard !isSessionSetup else { return }
-        
+
         do {
             try await cameraController.setupSession()
             isSessionSetup = true
@@ -63,26 +63,26 @@ final class CameraViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func stopCamera() {
         cameraController.stopSession()
     }
-    
+
     // MARK: - Permission Handling
     private func checkCameraPermission() async {
         cameraPermissionStatus = AVCaptureDevice.authorizationStatus(for: .video)
-        
+
         if cameraPermissionStatus == .notDetermined {
             cameraPermissionStatus = await AVCaptureDevice.requestAccess(for: .video) ? .authorized : .denied
         }
     }
-    
+
     func openSettings() {
         if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(settingsURL)
         }
     }
-    
+
     // MARK: - Camera Actions
     func capturePhoto() {
         cameraController.capturePhoto { [weak self] result in
@@ -96,12 +96,12 @@ final class CameraViewModel: ObservableObject {
             }
         }
     }
-    
+
     func deleteImage(at index: Int) {
         guard index >= 0 && index < capturedImages.count else { return }
         capturedImages.remove(at: index)
     }
-    
+
     func switchCamera() {
         Task {
             do {
@@ -111,7 +111,7 @@ final class CameraViewModel: ObservableObject {
             }
         }
     }
-    
+
     func toggleFlash() {
         let nextMode: AVCaptureDevice.FlashMode
         switch flashMode {
@@ -124,7 +124,7 @@ final class CameraViewModel: ObservableObject {
         @unknown default:
             nextMode = .off
         }
-        
+
         do {
             try cameraController.setFlashMode(nextMode)
             flashMode = nextMode
@@ -132,7 +132,7 @@ final class CameraViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     func updateZoom(_ factor: CGFloat) {
         zoomFactor = factor
         do {

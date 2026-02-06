@@ -19,11 +19,11 @@ struct InspectionDetailView: View {
         static let retryButtonHeight: CGFloat = 44
         static let toolbarIconSize: CGFloat = 24
     }
-    
+
     // MARK: - Properties
     @StateObject private var viewModel: InspectionDetailViewModel
     @Environment(\.dismiss) private var dismiss
-    
+
     // MARK: - Initialization
     init(inspectionId: String, inspectionNumber: String) {
         _viewModel = StateObject(
@@ -33,12 +33,12 @@ struct InspectionDetailView: View {
             )
         )
     }
-    
+
     // MARK: - Body
     var body: some View {
         ZStack {
             contentView
-            
+
             if viewModel.isLoading {
                 LMSLoadingOverlay()
             }
@@ -59,7 +59,7 @@ struct InspectionDetailView: View {
             }
         }
     }
-    
+
     // MARK: - Private Views
     private var contentView: some View {
         Group {
@@ -72,7 +72,7 @@ struct InspectionDetailView: View {
             }
         }
     }
-    
+
     private func sectionListView(detail: InspectionDetail) -> some View {
         ScrollView {
             LazyVStack(spacing: Layout.sectionSpacing) {
@@ -85,23 +85,24 @@ struct InspectionDetailView: View {
         }
         .background(Color(.systemGroupedBackground))
     }
-    
+
     private func sectionView(for section: InspectionSection) -> some View {
         InspectionSectionView(
             title: section.title,
             itemCount: section.itemCount,
             isExpanded: viewModel.isExpanded(section.id),
-            onToggle: { viewModel.toggleSection(section.id) }
-        ) {
-            fieldListView(for: section.fields)
-        }
+            onToggle: { viewModel.toggleSection(section.id) },
+            content: {
+                fieldListView(for: section.fields)
+            }
+        )
     }
-    
+
     private func fieldListView(for fields: [InspectionField]) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(fields.enumerated()), id: \.element.id) { index, field in
                 fieldItemView(for: field)
-                
+
                 if index < fields.count - 1 {
                     Divider()
                         .padding(.leading, Layout.horizontalPadding)
@@ -109,7 +110,7 @@ struct InspectionDetailView: View {
             }
         }
     }
-    
+
     private func fieldItemView(for field: InspectionField) -> some View {
         InspectionFieldItemView(
             fieldName: field.label,
@@ -118,38 +119,38 @@ struct InspectionDetailView: View {
             onCameraTap: { viewModel.openPhotoPicker(for: field.id) }
         )
     }
-    
+
     private func errorView(message: String) -> some View {
         VStack(spacing: Layout.errorSpacing) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: Layout.errorIconSize))
                 .foregroundColor(.red)
-            
+
             LMSLabel(message, style: .body, alignment: .center)
-            
+
             retryButton
         }
         .padding()
     }
-    
+
     private var submitButton: some View {
         Button(action: {
             Task {
                 await viewModel.submitInspection()
             }
-        }) {
+        }, label: {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.green)
                 .font(.system(size: Layout.toolbarIconSize))
-        }
+        })
     }
-    
+
     private var retryButton: some View {
-        LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary) {
+        LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary, action: {
             Task {
                 await viewModel.loadInspectionDetail()
             }
-        }
+        })
         .frame(maxWidth: Layout.retryButtonMaxWidth)
         .frame(height: Layout.retryButtonHeight)
     }

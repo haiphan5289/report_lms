@@ -10,13 +10,13 @@ import SwiftUI
 
 @MainActor
 final class CatelogyPlanViewModel: ObservableObject {
-    
+
     enum InspectionOption: CaseIterable {
         case combine
         case scanBarcode
         case startInspection
         case quickInspection
-        
+
         var title: String {
             switch self {
             case .combine:
@@ -29,7 +29,7 @@ final class CatelogyPlanViewModel: ObservableObject {
                 return "KIỂM HÀNG NHANH"
             }
         }
-        
+
         var icon: String {
             switch self {
             case .combine:
@@ -43,35 +43,35 @@ final class CatelogyPlanViewModel: ObservableObject {
             }
         }
     }
-    
+
     // MARK: - Published Properties
     @Published var isLoading = false
     @Published var errorMessage: String?
     var items = InspectionOption.allCases
-    
+
     // MARK: - Initialization
     init() {
         // Initialize with dependencies if needed
     }
-    
+
     // MARK: - Public Methods
     func handleCombineInspection() {
-        // TODO: Implement combine inspection logic
+        // Placeholder: Implement combine inspection logic
         print("Combine inspection tapped")
     }
-    
+
     func handleScanBarcode() {
-        // TODO: Implement scan barcode logic
+        // Placeholder: Implement scan barcode logic
         print("Scan barcode tapped")
     }
-    
+
     func handleStartInspection() {
-        // TODO: Implement start inspection logic
+        // Placeholder: Implement start inspection logic
         print("Start inspection tapped")
     }
-    
+
     func handleQuickInspection() {
-        // TODO: Implement quick inspection logic
+        // Placeholder: Implement quick inspection logic
         print("Quick inspection tapped")
     }
 }

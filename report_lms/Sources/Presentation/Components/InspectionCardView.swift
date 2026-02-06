@@ -12,7 +12,7 @@ struct InspectionCardView: View {
     let inspection: Inspection
     let isLastIndex: Bool
     let onTap: (() -> Void)?
-    
+
     init(
         inspection: Inspection,
         isLastIndex: Bool = false,
@@ -22,19 +22,19 @@ struct InspectionCardView: View {
         self.isLastIndex = isLastIndex
         self.onTap = onTap
     }
-    
+
     // MARK: - Body
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header with inspection number
             headerView
-            
+
             Divider()
                 .padding(.horizontal, 16)
-            
+
             // Company and date info
             companyInfoView
-            
+
             // Product info section
             productInfoView
         }
@@ -45,23 +45,23 @@ struct InspectionCardView: View {
             view.onTapGesture(perform: onTap!)
         }
     }
-    
+
     // MARK: - Private Views
     private var headerView: some View {
         HStack {
-            LMSLabel(inspection.inspectionNumber.isEmpty ? "---" : inspection.inspectionNumber, 
+            LMSLabel(inspection.inspectionNumber.isEmpty ? "---" : inspection.inspectionNumber,
                     style: .headline)
             Spacer()
         }
         .padding(16)
     }
-    
+
     private var companyInfoView: some View {
         HStack(alignment: .top) {
-            LMSLabel(inspection.companyName.isEmpty ? "---" : inspection.companyName, 
+            LMSLabel(inspection.companyName.isEmpty ? "---" : inspection.companyName,
                     style: .body)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            
+
             LMSLabel(inspection.formattedDate,
                     style: .caption,
                     color: .secondary)
@@ -69,7 +69,7 @@ struct InspectionCardView: View {
         .padding(.horizontal, 16)
         .padding(.top, 12)
     }
-    
+
     private var productInfoView: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
@@ -80,10 +80,10 @@ struct InspectionCardView: View {
                     .frame(width: 80, height: 80)
                     .background(Color.gray.opacity(0.1))
                     .cornerRadius(8)
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     LMSLabel(inspection.productName, style: .body)
-                    
+
                     HStack(spacing: 8) {
                         // Product code badge
                         HStack(spacing: 4) {
@@ -91,35 +91,35 @@ struct InspectionCardView: View {
                                 Rectangle()
                                     .fill(Color.blue)
                                     .frame(width: 24, height: 24)
-                                
+
                                 LMSLabel("SA", style: .caption, color: .primary)
                                     .font(.system(size: 10, weight: .bold))
                             }
-                            
-                            LMSLabel(inspection.productCode, 
+
+                            LMSLabel(inspection.productCode,
                                     style: .body)
                         }
-                        
+
                         Spacer()
-                        
+
                         // Status
                         VStack(spacing: 16) {
                             // Three dots menu
                             Button(action: {
-                                // TODO: Implement menu action
-                            }) {
+                                // Menu action to be implemented (edit, delete, etc.)
+                            }, label: {
                                 Image(systemName: "ellipsis")
                                     .font(.system(size: 20))
                                     .foregroundColor(.primary)
                                     .rotationEffect(.degrees(90))
-                            }
+                            })
                             LMSLabel(inspection.status.displayName,
                                      style: .caption,
                                      color: .secondary)
                         }
                     }
                 }
-                
+
             }
         }
         .padding(.horizontal, 16)

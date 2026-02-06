@@ -13,41 +13,41 @@ import Foundation
 final class InspectionStore {
     // MARK: - Singleton
     static let shared = InspectionStore()
-    
+
     // MARK: - Properties
     private(set) var inspections: [InspectionModel] = []
-    
+
     // MARK: - Initialization
     private init() {
         loadDefaultMockData()
     }
-    
+
     // MARK: - Public Methods
-    
+
     /// Add new inspection to the store
     func addInspection(_ inspection: InspectionModel) {
         inspections.insert(inspection, at: 0)
         print("✅ [InspectionStore] Added inspection: \(inspection.id), total: \(inspections.count)")
     }
-    
+
     /// Get all inspections from the store
     func getAllInspections() -> [InspectionModel] {
         return inspections
     }
-    
+
     /// Get specific inspection by ID
     func getInspection(id: String) -> InspectionModel? {
         return inspections.first(where: { $0.id == id })
     }
-    
+
     /// Clear all inspections (useful for testing)
     func clearAll() {
         inspections.removeAll()
         print("🗑️ [InspectionStore] Cleared all inspections")
     }
-    
+
     // MARK: - Private Methods
-    
+
     /// Load default mock data for development/demo
     private func loadDefaultMockData() {
         let mockInspections = [
@@ -142,7 +142,7 @@ final class InspectionStore {
                 status: InspectionStatus.plan.rawValue
             )
         ]
-        
+
         inspections = mockInspections
         print("📦 [InspectionStore] Loaded \(inspections.count) default mock inspections")
     }

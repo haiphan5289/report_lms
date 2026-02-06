@@ -21,8 +21,8 @@ struct ProductInfoInput: View {
     @Binding var text: String
     let type: ProductInfoInputType
     var dropdownOptions: [String] = []
-    var onDropdownTap: (() -> Void)? = nil
-    var errorMessage: String? = nil
+    var onDropdownTap: (() -> Void)?
+    var errorMessage: String?
 
     // MARK: - Body
     var body: some View {
@@ -35,7 +35,7 @@ struct ProductInfoInput: View {
             }
         }
     }
-    
+
     // MARK: - Computed Properties
     private var errorToShow: String? {
         return errorMessage
@@ -45,7 +45,7 @@ struct ProductInfoInput: View {
     private var inputField: some View {
         let baseTextField = TextField("", text: $text)
             .textFieldStyle(.roundedBorder)
-        
+
         switch type {
         case .normal:
             baseTextField
@@ -76,11 +76,11 @@ struct ProductInfoInput: View {
 // MARK: - Preview
 #Preview {
     @Previewable @State var requiredText = ""
-    
+
     return VStack(spacing: 24) {
         ProductInfoInput(
             title: "Normal Input",
-            text: .constant("") ,
+            text: .constant(""),
             type: .normal
         )
         ProductInfoInput(
@@ -91,7 +91,7 @@ struct ProductInfoInput: View {
         )
         ProductInfoInput(
             title: "Required Input with Text (no error shown)",
-            text: .constant("Some text") ,
+            text: .constant("Some text"),
             type: .required
         )
         ProductInfoInput(
@@ -104,5 +104,3 @@ struct ProductInfoInput: View {
     }
     .padding()
 }
-
-

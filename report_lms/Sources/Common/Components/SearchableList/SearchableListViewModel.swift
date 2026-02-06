@@ -14,22 +14,22 @@ public final class SearchableListViewModel: ObservableObject {
     @Published public var searchText = ""
     @Published public var filteredItems: ListItemProtocol?
     @Published public var selectedDataItems: Set<ListDataItem> = []
-    
+
     // MARK: - Private Properties
     private var allItems: ListItemProtocol?
-    
+
     // MARK: - Initialization
     public init(items: ListItemProtocol? = nil) {
         self.allItems = items
         filterItems()
     }
-    
+
     // MARK: - Public Methods
     public func updateItems(_ items: ListItemProtocol?) {
         allItems = items
         filterItems()
     }
-    
+
     public func toggleSelection(for dataItem: ListDataItem) {
         if selectedDataItems.contains(dataItem) {
             selectedDataItems.remove(dataItem)
@@ -37,15 +37,15 @@ public final class SearchableListViewModel: ObservableObject {
             selectedDataItems.insert(dataItem)
         }
     }
-    
+
     public func isSelected(_ dataItem: ListDataItem) -> Bool {
         selectedDataItems.contains(dataItem)
     }
-    
+
     public func clearSelection() {
         selectedDataItems.removeAll()
     }
-    
+
     // MARK: - Private Methods
     private func filterItems() {
         if searchText.isEmpty {
@@ -72,7 +72,7 @@ public final class SearchableListViewModel: ObservableObject {
             }
         }
     }
-    
+
     // MARK: - Search Text Observer
     public func searchTextDidChange(_ newValue: String) {
         searchText = newValue
@@ -84,7 +84,7 @@ public final class SearchableListViewModel: ObservableObject {
 private struct FilteredListItem: ListItemProtocol {
     let title: String?
     let datas: [ListDataItem]
-    
+
     init(originalItem: ListItemProtocol, filteredDatas: [ListDataItem]) {
         self.title = originalItem.title
         self.datas = filteredDatas

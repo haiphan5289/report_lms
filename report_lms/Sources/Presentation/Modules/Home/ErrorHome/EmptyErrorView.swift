@@ -18,34 +18,34 @@ struct EmptyErrorView: View {
         static let subtitleTopPadding: CGFloat = 12
         static let subtitleHorizontalPadding: CGFloat = 32
     }
-    
+
     // MARK: - Body
     var body: some View {
         VStack(spacing: Layout.spacing) {
             Spacer()
-            
+
             contentView
-            
+
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
     }
-    
+
     // MARK: - Private Views
     private var contentView: some View {
         VStack(spacing: 0) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: Layout.iconSize))
                 .foregroundColor(.green)
-            
+
             LMSLabel(
                 "Không có Lỗi.",
                 style: .title,
                 alignment: .center
             )
             .padding(.top, Layout.titleTopPadding)
-            
+
             LMSLabel(
                 "Không có lỗi nào được báo cáo. Để báo cáo lỗi, hãy ấn nút màu đỏ dưới màn hình",
                 style: .body,

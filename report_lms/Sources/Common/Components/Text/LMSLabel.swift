@@ -18,16 +18,16 @@ import SwiftUI
 /// ```
 struct LMSLabel: View {
     // MARK: - Properties
-    
+
     private let text: String
     private let style: LMSTextStyle
     private let color: LMSTextColor
     private let alignment: TextAlignment
     private let lineLimit: Int?
     private let accessibilityLabel: String?
-    
+
     // MARK: - Initialization
-    
+
     /// Creates a text label with specified style and color
     /// - Parameters:
     ///   - text: The text content to display
@@ -51,9 +51,9 @@ struct LMSLabel: View {
         self.lineLimit = lineLimit
         self.accessibilityLabel = accessibilityLabel
     }
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         Text(text)
             .font(style.font)
@@ -125,17 +125,18 @@ extension LMSLabel {
 #Preview("Multiline Text") {
     VStack(alignment: .leading, spacing: 16) {
         LMSLabel(
-            "This is a very long text that will wrap to multiple lines to demonstrate the multiline text alignment and line limit features.",
+            "This is a very long text that will wrap to multiple lines to demonstrate " +
+            "the multiline text alignment and line limit features.",
             style: .body,
             lineLimit: 2
         )
-        
+
         LMSLabel(
             "Center aligned multiline text that demonstrates the alignment property working correctly.",
             style: .body,
             alignment: .center
         )
-        
+
         LMSLabel(
             "Trailing aligned text",
             style: .caption,

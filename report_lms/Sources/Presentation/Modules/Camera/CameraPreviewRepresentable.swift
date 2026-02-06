@@ -12,13 +12,13 @@ import AVFoundation
 /// SwiftUI wrapper for AVCaptureVideoPreviewLayer to display camera feed
 struct CameraPreviewRepresentable: UIViewRepresentable {
     let cameraController: CameraController
-    
+
     func makeUIView(context: Context) -> CameraPreviewView {
         let view = CameraPreviewView()
         view.previewLayer = cameraController.previewLayer
         return view
     }
-    
+
     func updateUIView(_ uiView: CameraPreviewView, context: Context) {
         // No updates needed
     }
@@ -34,7 +34,7 @@ final class CameraPreviewView: UIView {
             }
         }
     }
-    
+
     override func layoutSubviews() {
         super.layoutSubviews()
         previewLayer?.frame = bounds

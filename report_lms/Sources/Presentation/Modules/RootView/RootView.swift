@@ -34,7 +34,7 @@ struct RootView: View {
             } else {
                 // User needs to login
                 LoginView(viewModel: loginViewModel)
-                    .onChange(of: loginViewModel.isLoginSuccessful) { oldValue, newValue in
+                    .onChange(of: loginViewModel.isLoginSuccessful) { _, newValue in
                         if newValue {
                             shouldLogout = false
                         }

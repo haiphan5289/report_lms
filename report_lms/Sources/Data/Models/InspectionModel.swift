@@ -21,7 +21,7 @@ struct InspectionModel: Codable {
     let createdAt: String
     let inspectorId: String?
     let status: String?
-    
+
     func toEntity() -> Inspection {
         Inspection(
             id: id,
@@ -39,7 +39,7 @@ struct InspectionModel: Codable {
             status: InspectionStatus(rawValue: status ?? "") ?? .plan
         )
     }
-    
+
     static func fromEntity(_ entity: Inspection) -> InspectionModel {
         InspectionModel(
             id: entity.id,
@@ -64,7 +64,7 @@ extension InspectionModel: ListItemProtocol {
     var title: String? {
         productName
     }
-    
+
     var datas: [ListDataItem] {
         [
             ListDataItem(id: 1, name: "Mã sản phẩm: \(productCode)"),

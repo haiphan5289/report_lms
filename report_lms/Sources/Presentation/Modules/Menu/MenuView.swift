@@ -19,25 +19,25 @@ struct MenuView: View {
                     Button(action: {
                         // Profile action - could navigate to profile screen
                         dismiss()
-                    }) {
+                    }, label: {
                         HStack {
                             Image(systemName: "person.circle")
                                 .foregroundColor(.blue)
                             LMSLabel("Profile", style: .body, color: .primary)
                         }
-                    }
+                    })
                     .buttonStyle(.plain)
 
                     Button(action: {
                         // Settings action - could navigate to settings screen
                         dismiss()
-                    }) {
+                    }, label: {
                         HStack {
                             Image(systemName: "gear")
                                 .foregroundColor(.gray)
                             LMSLabel("Settings", style: .body, color: .primary)
                         }
-                    }
+                    })
                     .buttonStyle(.plain)
                 }
 
@@ -45,13 +45,13 @@ struct MenuView: View {
                     Button(action: {
                         onLogout()
                         dismiss()
-                    }) {
+                    }, label: {
                         HStack {
                             Image(systemName: "arrow.right.square")
                                 .foregroundColor(.red)
                             LMSLabel("Logout", style: .body, color: .error)
                         }
-                    }
+                    })
                     .buttonStyle(.plain)
                 }
             }

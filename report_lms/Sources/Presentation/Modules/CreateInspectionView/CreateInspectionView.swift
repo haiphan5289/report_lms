@@ -20,16 +20,18 @@ struct CreateInspectionView: View {
     @StateObject private var viewModel: CreateInspectionViewModel
     @State private var showingSearchableList = false
     @State private var currentDropdownField: InputFieldType?
-    
+
     var onInspectionCreated: ((Inspection) -> Void)?
-    
+
     // MARK: - Initialization
     init(viewModel: CreateInspectionViewModel? = nil, onInspectionCreated: ((Inspection) -> Void)? = nil) {
-        let vm = viewModel ?? CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
-        _viewModel = StateObject(wrappedValue: vm)
+        let viewModel = viewModel ?? CreateInspectionViewModel(
+            createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!
+        )
+        _viewModel = StateObject(wrappedValue: viewModel)
         self.onInspectionCreated = onInspectionCreated
     }
-    
+
     // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
@@ -47,7 +49,7 @@ struct CreateInspectionView: View {
             if let fieldType = currentDropdownField {
                 let searchableData = createSearchableData(for: fieldType)
                 let searchableViewModel = SearchableListViewModel(items: searchableData)
-                
+
                 SearchableListView(viewModel: searchableViewModel) { selectedItem in
                     handleDropdownSelection(selectedItem, for: fieldType)
                     showingSearchableList = false // Close the sheet after selection
@@ -63,7 +65,7 @@ struct CreateInspectionView: View {
             }
         }
     }
-    
+
     // MARK: - Private Views
     private var inputFieldsSection: some View {
         ForEach(viewModel.inputFields.indices, id: \.self) { index in
@@ -88,7 +90,7 @@ struct CreateInspectionView: View {
             }
         }
     }
-    
+
     private var createButtonSection: some View {
         VStack {
             LMSButton(
@@ -106,7 +108,7 @@ struct CreateInspectionView: View {
         }
         .background(Color(.systemBackground))
     }
-    
+
     // MARK: - Private Methods
     private func getFieldType(for title: String) -> InputFieldType {
         switch title {
@@ -124,61 +126,82 @@ struct CreateInspectionView: View {
             return .inspectionType // fallback
         }
     }
-    
+
     private func createSearchableData(for fieldType: InputFieldType) -> ListItemProtocol {
         switch fieldType {
         case .inspectionType:
-            return SampleListItem(
-                title: "Loại kiểm tra",
-                datas: [
-                    ListDataItem(id: 1, name: "Kiểm tra chất lượng"),
-                    ListDataItem(id: 2, name: "Kiểm tra an toàn"),
-                    ListDataItem(id: 3, name: "Kiểm tra định kỳ"),
-                    ListDataItem(id: 4, name: "Kiểm tra đột xuất")
-                ]
-            )
+            return createInspectionTypeData()
         case .inspectionForm:
-            return SampleListItem(
-                title: "Biểu mẫu kiểm hàng",
-                datas: [
-                    ListDataItem(id: 1, name: "Biểu mẫu A"),
-                    ListDataItem(id: 2, name: "Biểu mẫu B"),
-                    ListDataItem(id: 3, name: "Biểu mẫu C"),
-                    ListDataItem(id: 4, name: "Biểu mẫu D")
-                ]
-            )
+            return createInspectionFormData()
         case .samplingMethod:
-            return SampleListItem(
-                title: "Phương pháp lấy mẫu",
-                datas: [
-                    ListDataItem(id: 1, name: "Lấy mẫu ngẫu nhiên"),
-                    ListDataItem(id: 2, name: "Lấy mẫu theo lô"),
-                    ListDataItem(id: 3, name: "Lấy mẫu theo tỷ lệ")
-                ]
-            )
+            return createSamplingMethodData()
         case .factory:
-            return SampleListItem(
-                title: "Nhà máy",
-                datas: [
-                    ListDataItem(id: 1, name: "Nhà máy Hà Nội"),
-                    ListDataItem(id: 2, name: "Nhà máy Hồ Chí Minh"),
-                    ListDataItem(id: 3, name: "Nhà máy Đà Nẵng")
-                ]
-            )
+            return createFactoryData()
         case .productionUnit:
-            return SampleListItem(
-                title: "Đơn vị sản xuất",
-                datas: [
-                    ListDataItem(id: 1, name: "Đơn vị A"),
-                    ListDataItem(id: 2, name: "Đơn vị B"),
-                    ListDataItem(id: 3, name: "Đơn vị C")
-                ]
-            )
+            return createProductionUnitData()
         default:
-            return SampleListItem(title: "Options", datas: [])
+            // These fields don't have dropdown data
+            return SampleListItem(title: "", datas: [])
         }
     }
-    
+
+    private func createInspectionTypeData() -> ListItemProtocol {
+        return SampleListItem(
+            title: "Loại kiểm tra",
+            datas: [
+                ListDataItem(id: 1, name: "Kiểm tra chất lượng"),
+                ListDataItem(id: 2, name: "Kiểm tra an toàn"),
+                ListDataItem(id: 3, name: "Kiểm tra định kỳ"),
+                ListDataItem(id: 4, name: "Kiểm tra đột xuất")
+            ]
+        )
+    }
+
+    private func createInspectionFormData() -> ListItemProtocol {
+        return SampleListItem(
+            title: "Biểu mẫu kiểm hàng",
+            datas: [
+                ListDataItem(id: 1, name: "Biểu mẫu A"),
+                ListDataItem(id: 2, name: "Biểu mẫu B"),
+                ListDataItem(id: 3, name: "Biểu mẫu C"),
+                ListDataItem(id: 4, name: "Biểu mẫu D")
+            ]
+        )
+    }
+
+    private func createSamplingMethodData() -> ListItemProtocol {
+        return SampleListItem(
+            title: "Phương pháp lấy mẫu",
+            datas: [
+                ListDataItem(id: 1, name: "Lấy mẫu ngẫu nhiên"),
+                ListDataItem(id: 2, name: "Lấy mẫu theo lô"),
+                ListDataItem(id: 3, name: "Lấy mẫu theo tỷ lệ")
+            ]
+        )
+    }
+
+    private func createFactoryData() -> ListItemProtocol {
+        return SampleListItem(
+            title: "Nhà máy",
+            datas: [
+                ListDataItem(id: 1, name: "Nhà máy Hà Nội"),
+                ListDataItem(id: 2, name: "Nhà máy Hồ Chí Minh"),
+                ListDataItem(id: 3, name: "Nhà máy Đà Nẵng")
+            ]
+        )
+    }
+
+    private func createProductionUnitData() -> ListItemProtocol {
+        return SampleListItem(
+            title: "Đơn vị sản xuất",
+            datas: [
+                ListDataItem(id: 1, name: "Đơn vị A"),
+                ListDataItem(id: 2, name: "Đơn vị B"),
+                ListDataItem(id: 3, name: "Đơn vị C")
+            ]
+        )
+    }
+
     private func handleDropdownSelection(_ selectedItem: ListDataItem, for fieldType: InputFieldType) {
         switch fieldType {
         case .inspectionType:

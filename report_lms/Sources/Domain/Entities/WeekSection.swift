@@ -12,11 +12,11 @@ struct WeekSection: Identifiable, Equatable {
     let title: String
     let weekStartDate: Date
     let inspections: [Inspection]
-    
+
     var itemCount: Int {
         inspections.count
     }
-    
+
     init(id: String, title: String, weekStartDate: Date, inspections: [Inspection]) {
         self.id = id
         self.title = title

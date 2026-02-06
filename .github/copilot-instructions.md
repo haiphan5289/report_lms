@@ -6,10 +6,10 @@ SwiftUI-based iOS application for learning management system (LMS) reporting usi
 
 ## Quick Links
 
-- **Architecture**: See [instructions/architecture.md](instructions/architecture.md)
-- **Code Standards**: See [instructions/code-standards.md](instructions/code-standards.md)
-- **Code Style**: See [instructions/code-style.md](instructions/code-style.md)
-- **Testing**: See [instructions/testing.md](instructions/testing.md)
+- **Architecture**: See [instructions/architecture.instructions.md](instructions/architecture.instructions.md)
+- **Code Standards**: See [instructions/code-standards.instructions.md](instructions/code-standards.instructions.md)
+- **Code Style**: See [instructions/code-style.instructions.md](instructions/code-style.instructions.md)
+- **AI Performance Tips**: See [instructions/ai-tip-performance.instructions.md](instructions/ai-tip-performance.instructions.md)
 
 ## Project Structure
 

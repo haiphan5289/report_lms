@@ -14,7 +14,7 @@ struct LMSLoadingOverlay: View {
     let message: String
     let backgroundColor: Color
     let foregroundColor: Color
-    
+
     // MARK: - Initialization
     init(
         message: String = "Đang tải...",
@@ -25,18 +25,18 @@ struct LMSLoadingOverlay: View {
         self.backgroundColor = backgroundColor
         self.foregroundColor = foregroundColor
     }
-    
+
     // MARK: - Body
     var body: some View {
         ZStack {
             Color.black.opacity(0.3)
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 16) {
                 ProgressView()
                     .progressViewStyle(.circular)
                     .tint(foregroundColor)
-                
+
                 LMSLabel(
                     message,
                     style: .body,
@@ -58,7 +58,7 @@ struct LMSLoadingOverlay: View {
     ZStack {
         Color(.systemBackground)
             .ignoresSafeArea()
-        
+
         LMSLoadingOverlay()
     }
 }
@@ -67,7 +67,7 @@ struct LMSLoadingOverlay: View {
     ZStack {
         Color(.systemBackground)
             .ignoresSafeArea()
-        
+
         LMSLoadingOverlay(message: "Đang gửi dữ liệu...")
     }
 }
@@ -76,7 +76,7 @@ struct LMSLoadingOverlay: View {
     ZStack {
         Color(.systemBackground)
             .ignoresSafeArea()
-        
+
         LMSLoadingOverlay(
             message: "Đang xử lý...",
             backgroundColor: .blue,
@@ -89,7 +89,7 @@ struct LMSLoadingOverlay: View {
     ZStack {
         Color(.systemBackground)
             .ignoresSafeArea()
-        
+
         LMSLoadingOverlay()
     }
     .preferredColorScheme(.dark)

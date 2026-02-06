@@ -20,13 +20,13 @@ struct InspectionFieldItemView: View {
         static let badgePadding: CGFloat = 4
         static let badgeOffset: CGFloat = 4
     }
-    
+
     // MARK: - Properties
     let fieldName: String
     let hasPhoto: Bool
     let images: [UIImage]
     let onCameraTap: () -> Void
-    
+
     // MARK: - Body
     var body: some View {
         HStack(spacing: Layout.itemSpacing) {
@@ -35,16 +35,16 @@ struct InspectionFieldItemView: View {
                 style: .body,
                 color: .primary
             )
-            
+
             Spacer()
-            
+
             cameraButton
         }
         .padding(.horizontal, Layout.horizontalPadding)
         .padding(.vertical, Layout.verticalPadding)
         .background(Color(.systemBackground))
     }
-    
+
     // MARK: - Private Views
     private var cameraButton: some View {
         Button(action: onCameraTap) {
@@ -52,7 +52,7 @@ struct InspectionFieldItemView: View {
                 Circle()
                     .fill(Color(.systemGray5))
                     .frame(width: Layout.buttonSize, height: Layout.buttonSize)
-                
+
                 if let firstImage = images.first {
                     Image(uiImage: firstImage)
                         .resizable()
@@ -73,7 +73,7 @@ struct InspectionFieldItemView: View {
         }
         .buttonStyle(.plain)
     }
-    
+
     private var badgeView: some View {
         Text("\(images.count)")
             .font(.system(size: Layout.badgeFontSize, weight: .bold))

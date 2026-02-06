@@ -18,7 +18,11 @@ final class AuthService: AuthServiceType {
                 token: try await result.user.getIDToken()
             )
         } catch {
-            throw NSError(domain: "FirebaseAuth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Invalid credentials"])
+            throw NSError(
+                domain: "FirebaseAuth",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid credentials"]
+            )
         }
     }
 }

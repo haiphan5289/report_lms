@@ -14,7 +14,7 @@ struct PhotoCaptureErrorReviewView: View {
     @Environment(\.dismiss) private var dismiss
     let initialImages: [UIImage]
     let onImagesUpdated: ([UIImage]) -> Void
-    
+
     @State private var showingDefectTypeList = false
 
     // MARK: - Body
@@ -39,7 +39,7 @@ struct PhotoCaptureErrorReviewView: View {
 
                     // Comments Section
                     commentsSection
-                    
+
                     // Action Buttons Section
                     actionButtonsSection
                 }
@@ -70,7 +70,7 @@ struct PhotoCaptureErrorReviewView: View {
             .sheet(isPresented: $showingDefectTypeList) {
                 let defectData = createDefectTypeSearchableData()
                 let searchableViewModel = SearchableListViewModel(items: defectData)
-                
+
                 SearchableListView(viewModel: searchableViewModel) { selectedItem in
                     handleDefectTypeSelection(selectedItem)
                     showingDefectTypeList = false
@@ -118,13 +118,13 @@ struct PhotoCaptureErrorReviewView: View {
                         Button(action: {
                             viewModel.deleteImage(at: index)
                             onImagesUpdated(viewModel.images)
-                        }) {
+                        }, label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(.white)
                                 .background(Color.black.opacity(0.6))
                                 .clipShape(Circle())
                                 .padding(4)
-                        }
+                        })
                     }
                 }
             }
@@ -197,11 +197,20 @@ struct PhotoCaptureErrorReviewView: View {
                                 .padding(.vertical, 8)
                                 .background(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(viewModel.selectedGeneralCondition == number ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1))
+                                        .fill(
+                                            viewModel.selectedGeneralCondition == number
+                                                ? Color.blue.opacity(0.1)
+                                                : Color.gray.opacity(0.1)
+                                        )
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .stroke(viewModel.selectedGeneralCondition == number ? Color.blue : Color.gray, lineWidth: 1)
+                                        .stroke(
+                                            viewModel.selectedGeneralCondition == number
+                                                ? Color.blue
+                                                : Color.gray,
+                                            lineWidth: 1
+                                        )
                                 )
                                 .onTapGesture {
                                     viewModel.selectedGeneralCondition = number
@@ -228,7 +237,7 @@ struct PhotoCaptureErrorReviewView: View {
                     LMSLabel(defectType.displayName, style: .body)
                         .foregroundColor(.secondary)
                 }
-                
+
                 LMSButton("Nhấn để xoá phân loại lỗi", icon: "trash.fill", variant: .destructive) {
                     viewModel.selectedDefectType = nil
                 }
@@ -259,7 +268,7 @@ struct PhotoCaptureErrorReviewView: View {
                 viewModel.deleteReview()
                 dismiss()
             }
-            
+
             LMSButton("Thay đổi", icon: "pencil", variant: .primary) {
                 Task {
                     await viewModel.updateReview()
@@ -292,7 +301,7 @@ struct PhotoCaptureErrorReviewView: View {
         .cornerRadius(8)
         .shadow(radius: 2)
     }
-    
+
     // MARK: - Private Methods
     private func createDefectTypeSearchableData() -> ListItemProtocol {
         SampleListItem(
@@ -302,7 +311,7 @@ struct PhotoCaptureErrorReviewView: View {
             }
         )
     }
-    
+
     private func handleDefectTypeSelection(_ selectedItem: ListDataItem) {
         if let defectType = DefectType.allCases.first(where: { $0.displayName == selectedItem.name }) {
             viewModel.selectedDefectType = defectType
@@ -329,7 +338,7 @@ private struct SampleListItem: ListItemProtocol {
     let sampleImage1 = UIImage(systemName: "photo") ?? UIImage()
     let sampleImage2 = UIImage(systemName: "photo.fill") ?? UIImage()
     let sampleImage3 = UIImage(systemName: "camera") ?? UIImage()
-    
+
     return PhotoCaptureErrorReviewView(
         initialImages: [sampleImage1, sampleImage2, sampleImage3],
         onImagesUpdated: { _ in }
