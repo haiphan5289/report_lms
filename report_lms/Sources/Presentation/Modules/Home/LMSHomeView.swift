@@ -7,76 +7,107 @@
 
 import SwiftUI
 
+// MARK: - LMSHomeView Constants
+
+struct Layout {
+    static let headerHorizontalPadding: CGFloat = 8
+    static let headerVerticalPadding: CGFloat = 4
+    static let iconButtonSize: CGFloat = 44
+    static let shadowOpacity: CGFloat = 0.04
+    static let shadowRadius: CGFloat = 2
+    static let shadowY: CGFloat = 1
+    static let tabIconSize: CGFloat = 18
+    static let tabSpacing: CGFloat = 4
+    static let tabUnderlineHeight: CGFloat = 3
+    static let tabBottomPadding: CGFloat = 2
+    static let minContentHeight: CGFloat = 120
+}
+
 // MARK: - LMSHomeView
 
 struct LMSHomeView: View {
-    // MARK: - Constants
-    private enum Layout {
-        static let headerHorizontalPadding: CGFloat = 8
-        static let headerVerticalPadding: CGFloat = 4
-        static let iconButtonSize: CGFloat = 44
-        static let shadowOpacity: CGFloat = 0.04
-        static let shadowRadius: CGFloat = 2
-        static let shadowY: CGFloat = 1
-        static let tabIconSize: CGFloat = 18
-        static let tabSpacing: CGFloat = 4
-        static let tabUnderlineHeight: CGFloat = 3
-        static let tabBottomPadding: CGFloat = 2
-        static let minContentHeight: CGFloat = 120
-    }
     
     // MARK: - Properties
     @StateObject private var viewModel: LMSHomeViewModel
     @Namespace private var tabBarNamespace
+    let onLogout: () -> Void
     
     // MARK: - Initialization
-    init(viewModel: LMSHomeViewModel) {
+    init(viewModel: LMSHomeViewModel, onLogout: @escaping () -> Void) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.onLogout = onLogout
     }
     
     // MARK: - Body
     var body: some View {
-        NavigationStack(path: $viewModel.navigationPath) {
-            VStack(spacing: 0) {
-                header
-                tabBar
-                tabContent
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGroupedBackground))
-            .ignoresSafeArea(.container, edges: .bottom)
-            .sheet(isPresented: $viewModel.showMenu) {
-                menuSheet
-            }
-            .alert("Cloud action triggered!", isPresented: $viewModel.showCloudAction) {
-                Button("OK", role: .cancel) {}
-            }
-            .navigationDestination(for: String.self) { destination in
-                if destination == "createInspection" {
-                    let createViewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
-                    CreateInspectionView(viewModel: createViewModel) { createdInspection in
-                        viewModel.handleNewInspectionCreated(createdInspection)
-                    }
-                } else if destination == "photoCaptureErrorReview" {
-                    CameraView(source: .errorReport) { images in
-                        
+        ZStack {
+            // Main content
+            NavigationStack(path: $viewModel.navigationPath) {
+                VStack(spacing: 0) {
+                    header
+                    tabBar
+                    tabContent
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGroupedBackground))
+                .ignoresSafeArea(.container, edges: .bottom)
+                .alert("Cloud action triggered!", isPresented: $viewModel.showCloudAction) {
+                    Button("OK", role: .cancel) {}
+                }
+                .navigationDestination(for: String.self) { destination in
+                    if destination == "createInspection" {
+                        let createViewModel = CreateInspectionViewModel(createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!)
+                        CreateInspectionView(viewModel: createViewModel) { createdInspection in
+                            viewModel.handleNewInspectionCreated(createdInspection)
+                        }
+                    } else if destination == "photoCaptureErrorReview" {
+                        CameraView(source: .errorReport) { images in
+                            
+                        }
                     }
                 }
+                .navigationDestination(for: Inspection.self) { inspection in
+                    InspectionDetailView(
+                        inspectionId: inspection.id,
+                        inspectionNumber: inspection.inspectionNumber
+                    )
+                }
+                .onChange(of: viewModel.navigationPath) { oldValue, newValue in
+                    viewModel.handleNavigationBack(from: oldValue, to: newValue)
+                }
             }
-            .navigationDestination(for: Inspection.self) { inspection in
-                InspectionDetailView(
-                    inspectionId: inspection.id,
-                    inspectionNumber: inspection.inspectionNumber
-                )
-            }
-            .onChange(of: viewModel.navigationPath) { oldValue, newValue in
-                viewModel.handleNavigationBack(from: oldValue, to: newValue)
+            
+            // Side menu overlay
+            if viewModel.showMenu {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            viewModel.showMenu = false
+                        }
+                    }
+                
+                HStack {
+                    MenuView(onLogout: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            viewModel.showMenu = false
+                        }
+                        onLogout()
+                    })
+                    .frame(width: 300)
+                    .background(Color(.systemBackground))
+                    .transition(.move(edge: .leading))
+                    .zIndex(1)
+                    
+                    Spacer()
+                }
+                .transition(.move(edge: .leading))
+                .zIndex(2)
             }
         }
     }
-    
     // MARK: - Private Views
-    private var header: some View {
+    var header: some View {
         HStack {
             menuButton
             Spacer()
@@ -94,7 +125,7 @@ struct LMSHomeView: View {
         )
     }
     
-    private var menuButton: some View {
+    var menuButton: some View {
         LMSButton(
             "",
             icon: "line.3.horizontal",
@@ -104,7 +135,7 @@ struct LMSHomeView: View {
         .frame(width: Layout.iconButtonSize, height: Layout.iconButtonSize)
     }
     
-    private var cloudButton: some View {
+    var cloudButton: some View {
         LMSButton(
             "",
             icon: "cloud",
@@ -114,7 +145,7 @@ struct LMSHomeView: View {
         .frame(width: Layout.iconButtonSize, height: Layout.iconButtonSize)
     }
     
-    private var tabBar: some View {
+    var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(LMSHomeViewModel.Tab.allCases, id: \.self) { tab in
                 tabButton(for: tab)
@@ -125,7 +156,7 @@ struct LMSHomeView: View {
         .padding(.bottom, Layout.tabBottomPadding)
     }
     
-    private func tabButton(for tab: LMSHomeViewModel.Tab) -> some View {
+    func tabButton(for tab: LMSHomeViewModel.Tab) -> some View {
         Button(action: {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 viewModel.selectedTab = tab
@@ -136,7 +167,7 @@ struct LMSHomeView: View {
         .buttonStyle(.plain)
     }
     
-    private func tabButtonContent(for tab: LMSHomeViewModel.Tab) -> some View {
+    func tabButtonContent(for tab: LMSHomeViewModel.Tab) -> some View {
         let isSelected = viewModel.selectedTab == tab
         
         return VStack(spacing: Layout.tabSpacing) {
@@ -158,7 +189,7 @@ struct LMSHomeView: View {
         .padding(.vertical, 0)
     }
     
-    private func tabUnderline(isSelected: Bool) -> some View {
+    func tabUnderline(isSelected: Bool) -> some View {
         ZStack {
             if isSelected {
                 Capsule()
@@ -171,17 +202,17 @@ struct LMSHomeView: View {
         }
     }
     
-    private var tabContent: some View {
+    var tabContent: some View {
         Group {
             switch viewModel.selectedTab {
-            case .plan:
+            case LMSHomeViewModel.Tab.plan:
                 PlanLMSHomeView(onQuickInspection: viewModel.navigateToCreateInspection)
-            case .inProgress:
+            case LMSHomeViewModel.Tab.inProgress:
                 ErrorHomeView(
                     viewModel: ErrorHomeViewModel(),
                     onNavigateToPhotoCaptureErrorReview: viewModel.navigateToPhotoCaptureErrorReview
                 )
-            case .report:
+            case LMSHomeViewModel.Tab.report:
                 reportContent
             }
         }
@@ -190,7 +221,7 @@ struct LMSHomeView: View {
         .animation(.easeInOut, value: viewModel.selectedTab)
     }
     
-    private var reportContent: some View {
+    var reportContent: some View {
         VStack {
             LMSLabel(
                 "Nội dung Báo cáo",
@@ -199,22 +230,10 @@ struct LMSHomeView: View {
             )
         }
     }
-    
-    private var menuSheet: some View {
-        VStack {
-            LMSLabel(
-                "Menu action triggered!",
-                style: .title,
-                alignment: .center
-            )
-            Spacer()
-        }
-        .padding()
-    }
 }
 
 // MARK: - Preview
 
 #Preview {
-    LMSHomeView(viewModel: LMSHomeViewModel())
+    LMSHomeView(viewModel: LMSHomeViewModel(), onLogout: {})
 }

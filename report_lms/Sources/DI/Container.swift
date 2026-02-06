@@ -99,7 +99,20 @@ final class Container {
             SyncInspectionsUseCase(databaseRepository: Container.shared.resolve(DatabaseRepositoryType.self)!)
         }
         
+        // UserManager - Singleton for shared state management
+        let userManager = UserManager()
+        registerSingleton(UserManager.self, instance: userManager)
+        
         // ViewModels - Transient (new instance each time)
+        register(LoginViewModel.self) {
+            LoginViewModel(
+                loginUseCase: Container.shared.resolve(LoginUseCase.self)!,
+                userManager: Container.shared.resolve(UserManager.self)!
+            )
+        }
+        register(LMSHomeViewModel.self) {
+            LMSHomeViewModel()
+        }
         register(PlanLMSHomeViewModel.self) {
             PlanLMSHomeViewModel(
                 fetchInspectionsUseCase: Container.shared.resolve(FetchInspectionsUseCase.self)!,

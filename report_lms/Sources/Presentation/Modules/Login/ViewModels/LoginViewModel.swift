@@ -7,7 +7,6 @@
 
 import Foundation
 
-@MainActor
 final class LoginViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var username: String = ""
@@ -19,25 +18,53 @@ final class LoginViewModel: ObservableObject {
     
     // MARK: - Private Properties
     private let loginUseCase: LoginUseCase
+    private let userManager: UserManager
     
     // MARK: - Initialization
-    init(loginUseCase: LoginUseCase) {
+    init(loginUseCase: LoginUseCase, userManager: UserManager) {
         self.loginUseCase = loginUseCase
+        self.userManager = userManager
     }
     
     // MARK: - Public Methods
     func login() async {
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+            errorMessage = nil
+        }
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         do {
             let request = LoginRequest(username: username, password: password)
             let session = try await loginUseCase.execute(request: request)
-            userSession = session
-            isLoginSuccessful = true
+            await MainActor.run {
+                userSession = session
+                userManager.login(user: session)
+                isLoginSuccessful = true
+            }
         } catch {
-            errorMessage = error.localizedDescription
-            isLoginSuccessful = false
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                isLoginSuccessful = false
+            }
         }
+    }
+    
+    /// Logs out the current user by clearing session data and removing stored token
+    func logout() {
+        userSession = nil
+        userManager.logout()
+        isLoginSuccessful = false
+        username = ""
+        password = ""
+        errorMessage = nil
+    }
+    
+    /// Checks if user has a valid stored authentication token
+    var isLoggedIn: Bool {
+        return userManager.isLoggedIn
     }
 }

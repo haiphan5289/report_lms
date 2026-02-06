@@ -13,14 +13,17 @@ struct PlanLMSHomeView: View {
     // MARK: - Properties
     @StateObject private var viewModel: PlanLMSHomeViewModel
     let onQuickInspection: () -> Void
+    let onLogout: () -> Void
     
     // MARK: - Initialization
     init(
         viewModel: PlanLMSHomeViewModel? = nil,
-        onQuickInspection: @escaping () -> Void = {}
+        onQuickInspection: @escaping () -> Void = {},
+        onLogout: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(wrappedValue: viewModel ?? Container.shared.resolve(PlanLMSHomeViewModel.self)!)
         self.onQuickInspection = onQuickInspection
+        self.onLogout = onLogout
     }
     
     // MARK: - Body

@@ -30,17 +30,6 @@ struct LoginView: View {
     
     // MARK: - Body
     var body: some View {
-        Group {
-            if viewModel.isLoginSuccessful {
-                LMSHomeView(viewModel: LMSHomeViewModel())
-            } else {
-                loginContentView
-            }
-        }
-    }
-    
-    // MARK: - Private Views
-    private var loginContentView: some View {
         NavigationStack {
             contentView
         }
@@ -160,7 +149,8 @@ struct LoginView: View {
     let service = AuthService()
     let repository = AuthRepository(service: service)
     let useCase = LoginUseCase(repository: repository)
-    let viewModel = LoginViewModel(loginUseCase: useCase)
+    let userManager = Container.shared.resolve(UserManager.self)!
+    let viewModel = LoginViewModel(loginUseCase: useCase, userManager: userManager)
     NavigationStack {
         LoginView(viewModel: viewModel)
     }

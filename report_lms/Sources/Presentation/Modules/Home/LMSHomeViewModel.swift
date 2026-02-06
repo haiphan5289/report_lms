@@ -9,7 +9,6 @@ import SwiftUI
 
 // MARK: - LMSHomeViewModel
 
-@MainActor
 final class LMSHomeViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var showMenu = false
