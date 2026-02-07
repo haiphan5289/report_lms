@@ -23,20 +23,29 @@ struct InspectionSectionView: View {
     // MARK: - Properties
     let title: String
     let itemCount: Int
+    let completedCount: Int
     let isExpanded: Bool
     let onToggle: () -> Void
     let content: () -> AnyView
+
+    // MARK: - Computed Properties
+    private var progress: Double {
+        guard itemCount > 0 else { return 0 }
+        return Double(completedCount) / Double(itemCount)
+    }
 
     // MARK: - Initialization
     init(
         title: String,
         itemCount: Int,
+        completedCount: Int = 0,
         isExpanded: Bool,
         onToggle: @escaping () -> Void,
         @ViewBuilder content: @escaping () -> some View
     ) {
         self.title = title
         self.itemCount = itemCount
+        self.completedCount = completedCount
         self.isExpanded = isExpanded
         self.onToggle = onToggle
         self.content = { AnyView(content()) }
@@ -76,6 +85,11 @@ struct InspectionSectionView: View {
                 )
 
                 Spacer()
+
+                // Progress Slider
+                ProgressView(value: progress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: progressColor))
+                    .frame(width: 50, height: 4)
             }
             .padding(.horizontal, Layout.horizontalPadding)
             .padding(.vertical, Layout.verticalPadding)
@@ -83,6 +97,16 @@ struct InspectionSectionView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private var progressColor: Color {
+        switch progress {
+        case 0: return .gray
+        case 0..<0.5: return .orange
+        case 0.5..<1.0: return .blue
+        case 1.0: return .green
+        default: return .gray
+        }
     }
 
     private var contentView: some View {
@@ -97,6 +121,7 @@ struct InspectionSectionView: View {
     InspectionSectionView(
         title: "Ngoài thùng carton",
         itemCount: 2,
+        completedCount: 0,
         isExpanded: false,
         onToggle: {},
         content: {
@@ -126,6 +151,7 @@ struct InspectionSectionView: View {
     InspectionSectionView(
         title: "Ngoài thùng carton",
         itemCount: 2,
+        completedCount: 1,
         isExpanded: true,
         onToggle: {},
         content: {
@@ -157,6 +183,7 @@ struct InspectionSectionView: View {
             InspectionSectionView(
                 title: "Ngoài thùng carton",
                 itemCount: 2,
+                completedCount: 2,
                 isExpanded: true,
                 onToggle: {},
                 content: {
@@ -183,6 +210,7 @@ struct InspectionSectionView: View {
             InspectionSectionView(
                 title: "Trong thùng carton",
                 itemCount: 2,
+                completedCount: 0,
                 isExpanded: false,
                 onToggle: {},
                 content: {
@@ -193,6 +221,7 @@ struct InspectionSectionView: View {
             InspectionSectionView(
                 title: "Tổng quan về sản phẩm",
                 itemCount: 8,
+                completedCount: 5,
                 isExpanded: false,
                 onToggle: {},
                 content: {
@@ -203,4 +232,46 @@ struct InspectionSectionView: View {
         .padding()
     }
     .background(Color(.systemGroupedBackground))
+}
+
+#Preview("Progress - Not Started") {
+    InspectionSectionView(
+        title: "Kiểm tra chất lượng",
+        itemCount: 5,
+        completedCount: 0,
+        isExpanded: false,
+        onToggle: {},
+        content: {
+            EmptyView()
+        }
+    )
+    .padding()
+}
+
+#Preview("Progress - In Progress") {
+    InspectionSectionView(
+        title: "Kiểm tra chất lượng",
+        itemCount: 5,
+        completedCount: 3,
+        isExpanded: false,
+        onToggle: {},
+        content: {
+            EmptyView()
+        }
+    )
+    .padding()
+}
+
+#Preview("Progress - Completed") {
+    InspectionSectionView(
+        title: "Kiểm tra chất lượng",
+        itemCount: 5,
+        completedCount: 5,
+        isExpanded: false,
+        onToggle: {},
+        content: {
+            EmptyView()
+        }
+    )
+    .padding()
 }
