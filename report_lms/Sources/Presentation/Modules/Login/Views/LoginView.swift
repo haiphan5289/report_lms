@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import LocalAuthentication
 
 struct LoginView: View {
     // MARK: - Constants
@@ -107,6 +108,7 @@ struct LoginView: View {
             }
 
             loginButton
+            biometricButton
         }
     }
 
@@ -128,18 +130,82 @@ struct LoginView: View {
 
     private var loginButton: some View {
         LMSButton(
-            viewModel.isLoading ? "Đang đăng nhập..." : "Đăng nhập",
+            viewModel.isLoginLoading ? "Đang đăng nhập..." : "Đăng nhập",
             variant: .primary,
             isFullWidth: true,
-            isLoading: .constant(viewModel.isLoading),
+            isLoading: .constant(viewModel.isLoginLoading),
             isDisabled: isLoginButtonDisabled
         ) {
             Task { await viewModel.login() }
         }
     }
 
+    private var biometricButton: some View {
+        Group {
+            if viewModel.isBiometricAvailable {
+                VStack(spacing: 8) {
+                    Text("hoặc")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Button(action: {
+                        Task { await viewModel.biometricLogin() }
+                    }) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.1))
+                                .frame(width: 80, height: 80)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                                )
+                            
+                            if viewModel.isBiometricLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                            } else {
+                                Image(systemName: biometricIconName)
+                                    .font(.system(size: 32))
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                    .disabled(viewModel.isBiometricLoading)
+                    .opacity(viewModel.isBiometricLoading ? 0.6 : 1.0)
+                    
+                    Text(biometricButtonTitle)
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .multilineTextAlignment(.center)
+                }
+            }
+        }
+    }
+
+    private var biometricButtonTitle: String {
+        switch viewModel.biometricType {
+        case .faceID:
+            return "Đăng nhập bằng Face ID"
+        case .touchID:
+            return "Đăng nhập bằng Touch ID"
+        default:
+            return "Đăng nhập sinh trắc học"
+        }
+    }
+
+    private var biometricIconName: String {
+        switch viewModel.biometricType {
+        case .faceID:
+            return "faceid"
+        case .touchID:
+            return "touchid"
+        default:
+            return "person.fill"
+        }
+    }
+
     private var isLoginButtonDisabled: Bool {
-        viewModel.isLoading || viewModel.username.isEmpty || viewModel.password.isEmpty
+        viewModel.isLoginLoading || viewModel.username.isEmpty || viewModel.password.isEmpty
     }
 }
 
@@ -151,7 +217,11 @@ struct LoginView: View {
     let useCase = LoginUseCase(repository: repository)
     let userManager = Container.shared.resolve(UserManager.self)!
     let viewModel = LoginViewModel(loginUseCase: useCase, userManager: userManager)
-    NavigationStack {
+    // Simulate biometric availability for preview
+    viewModel.isBiometricAvailable = true
+    viewModel.biometricType = .faceID
+    
+    return NavigationStack {
         LoginView(viewModel: viewModel)
     }
 }

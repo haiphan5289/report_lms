@@ -317,6 +317,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Ứng dụng cần truy cập camera để chụp ảnh sản phẩm trong quá trình kiểm tra";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Ứng dụng sử dụng Face ID để xác thực sinh trắc học, cho phép đăng nhập nhanh và bảo mật";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -347,6 +348,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Ứng dụng cần truy cập camera để chụp ảnh sản phẩm trong quá trình kiểm tra";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Ứng dụng sử dụng Face ID để xác thực sinh trắc học, cho phép đăng nhập nhanh và bảo mật";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
