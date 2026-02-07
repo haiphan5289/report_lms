@@ -122,6 +122,17 @@ struct PlanLMSHomeView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .padding(.horizontal, 16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color(.systemBackground))
+                                        .shadow(color: Color(.label).opacity(0.1), radius: 4, x: 0, y: 2)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                        )
+                                )
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 4)
                             }
                         }
                         .padding(.vertical, 12)

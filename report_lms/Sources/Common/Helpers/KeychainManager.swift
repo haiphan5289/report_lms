@@ -12,6 +12,8 @@ import Security
 final class KeychainManager {
     // MARK: - Constants
     private static let authTokenKey = "authToken"
+    private static let usernameKey = "username"
+    private static let passwordKey = "password"
     private static let serviceName = "com.reportlms.auth"
 
     // MARK: - Public Methods
@@ -19,7 +21,10 @@ final class KeychainManager {
     /// Saves the authentication token to Keychain after successful login
     /// - Parameter token: The authentication token to store
     static func saveAuthToken(_ token: String) {
-        let data = token.data(using: .utf8)!
+        guard let data = token.data(using: .utf8) else {
+            print("Error: Failed to convert token to UTF-8 data")
+            return
+        }
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -80,5 +85,129 @@ final class KeychainManager {
     /// - Returns: True if token exists, false otherwise
     static func hasAuthToken() -> Bool {
         return getAuthToken() != nil
+    }
+
+    // MARK: - Credentials Management
+
+    /// Saves the login credentials (username and password) to Keychain
+    /// - Parameters:
+    ///   - username: The username to store
+    ///   - password: The password to store
+    static func saveCredentials(username: String, password: String) {
+        guard let usernameData = username.data(using: .utf8),
+              let passwordData = password.data(using: .utf8) else {
+            print("Error: Failed to convert credentials to UTF-8 data")
+            return
+        }
+
+        // Save username
+        let usernameQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: usernameKey,
+            kSecValueData as String: usernameData,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
+        ]
+
+        // Save password
+        let passwordQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: passwordKey,
+            kSecValueData as String: passwordData,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
+        ]
+
+        // Delete existing credentials first
+        SecItemDelete(usernameQuery as CFDictionary)
+        SecItemDelete(passwordQuery as CFDictionary)
+
+        // Add new credentials
+        let usernameStatus = SecItemAdd(usernameQuery as CFDictionary, nil)
+        let passwordStatus = SecItemAdd(passwordQuery as CFDictionary, nil)
+
+        if usernameStatus != errSecSuccess {
+            print("Error saving username to Keychain: \(usernameStatus)")
+        }
+        if passwordStatus != errSecSuccess {
+            print("Error saving password to Keychain: \(passwordStatus)")
+        }
+    }
+
+    /// Retrieves the stored username from Keychain
+    /// - Returns: The stored username, or nil if not found
+    static func getStoredUsername() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: usernameKey,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        if status == errSecSuccess,
+           let data = result as? Data,
+           let username = String(data: data, encoding: .utf8) {
+            return username
+        }
+
+        return nil
+    }
+
+    /// Retrieves the stored password from Keychain
+    /// - Returns: The stored password, or nil if not found
+    static func getStoredPassword() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: passwordKey,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        if status == errSecSuccess,
+           let data = result as? Data,
+           let password = String(data: data, encoding: .utf8) {
+            return password
+        }
+
+        return nil
+    }
+
+    /// Removes the stored credentials from Keychain
+    static func deleteCredentials() {
+        let usernameQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: usernameKey
+        ]
+
+        let passwordQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: passwordKey
+        ]
+
+        let usernameStatus = SecItemDelete(usernameQuery as CFDictionary)
+        let passwordStatus = SecItemDelete(passwordQuery as CFDictionary)
+
+        if usernameStatus != errSecSuccess && usernameStatus != errSecItemNotFound {
+            print("Error deleting username from Keychain: \(usernameStatus)")
+        }
+        if passwordStatus != errSecSuccess && passwordStatus != errSecItemNotFound {
+            print("Error deleting password from Keychain: \(passwordStatus)")
+        }
+    }
+
+    /// Checks if login credentials exist in Keychain
+    /// - Returns: True if both username and password exist, false otherwise
+    static func hasStoredCredentials() -> Bool {
+        return getStoredUsername() != nil && getStoredPassword() != nil
     }
 }

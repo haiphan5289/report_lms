@@ -110,8 +110,8 @@ final class LoginViewModel: ObservableObject {
 
     private func performLoginWithStoredCredentials() async {
         // Retrieve stored credentials
-        guard let storedUsername = UserDefaults.standard.string(forKey: "storedUsername"),
-              let storedPassword = UserDefaults.standard.string(forKey: "storedPassword") else {
+        guard let storedUsername = KeychainManager.getStoredUsername(),
+              let storedPassword = KeychainManager.getStoredPassword() else {
             await MainActor.run {
                 errorMessage = "Không tìm thấy thông tin đăng nhập đã lưu"
             }
@@ -137,14 +137,13 @@ final class LoginViewModel: ObservableObject {
     }
 
     private func loadStoredCredentials() {
-        if let storedUsername = UserDefaults.standard.string(forKey: "storedUsername") {
+        if let storedUsername = KeychainManager.getStoredUsername() {
             username = storedUsername
         }
     }
 
     private func storeCredentials() {
-        UserDefaults.standard.set(username, forKey: "storedUsername")
-        UserDefaults.standard.set(password, forKey: "storedPassword")
+        KeychainManager.saveCredentials(username: username, password: password)
     }
 
     /// Logs out the current user by clearing session data and removing stored token
@@ -155,6 +154,8 @@ final class LoginViewModel: ObservableObject {
         username = ""
         password = ""
         errorMessage = nil
+        // Clear stored credentials from Keychain for security
+        KeychainManager.deleteCredentials()
     }
 
     /// Checks if user has a valid stored authentication token

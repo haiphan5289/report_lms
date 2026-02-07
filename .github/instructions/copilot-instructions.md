@@ -10,7 +10,6 @@ The main instruction file contains:
   - **Architecture**: [architecture.md](architecture.md) - Clean Architecture + SwiftUI patterns
   - **Code Standards**: [code-standards.md](code-standards.md) - Naming conventions and organization
   - **Code Style**: [code-style.md](code-style.md) - SwiftUI best practices
-  - **Testing**: [testing.md](testing.md) - Unit testing strategies
 
 ---
 

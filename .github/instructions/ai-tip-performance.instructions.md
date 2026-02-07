@@ -50,3 +50,48 @@ Do not exfiltrate secrets or make network calls unless explicitly required.
 
 - Prefer local actions first
 - Avoid harmful, hateful, racist, sexist, lewd, or violent content
+
+### ⚠️ FORCE UNWRAP (!) USAGE - CRITICAL WARNING ⚠️
+
+**ABSOLUTELY NEVER USE FORCE UNWRAP (!) IN PRODUCTION CODE**
+
+Force unwrap (`!`) is EXTREMELY DANGEROUS and will cause RUNTIME CRASHES if the optional is `nil`. 
+
+**❌ NEVER DO THIS:**
+```swift
+let value = optionalValue!  // 🚨 WILL CRASH IF NIL
+let result = functionThatReturnsOptional()!  // 🚨 WILL CRASH IF NIL
+```
+
+**✅ ALWAYS DO THIS INSTEAD:**
+```swift
+// Use optional binding
+if let value = optionalValue {
+    // Safe to use value
+}
+
+// Or provide default values
+let value = optionalValue ?? "default"
+
+// Or use guard statements
+guard let value = optionalValue else {
+    // Handle nil case
+    return
+}
+
+// Or use optional chaining
+let result = optionalValue?.property?.method()
+```
+
+**WHEN FORCE UNWRAP IS ACCEPTABLE:**
+- ✅ **ONLY in unit tests** where you control the test data
+- ✅ **ONLY when you have 100% certainty** the value cannot be nil
+- ✅ **ONLY with clear documentation** explaining why it's safe
+
+**CONSEQUENCES OF MISUSE:**
+- 🚨 App crashes in production
+- 🚨 Poor user experience
+- 🚨 Emergency hotfixes required
+- 🚨 Loss of user trust
+
+**REMEMBER:** If you're tempted to use `!`, you're doing something wrong. There is ALWAYS a safer way to handle optionals in Swift.

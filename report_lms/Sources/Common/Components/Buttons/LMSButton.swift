@@ -32,6 +32,7 @@ struct LMSButton: View {
     private let variant: LMSButtonVariant
     private let size: LMSButtonSize
     private let isFullWidth: Bool
+    private let contentAlignment: Alignment
     @Binding private var isLoading: Bool
     private let isDisabled: Bool
     private let action: () -> Void
@@ -45,6 +46,7 @@ struct LMSButton: View {
     ///   - variant: The button style variant (default: .primary)
     ///   - size: The button size (default: .medium)
     ///   - isFullWidth: Whether button should expand to fill available width (default: false)
+    ///   - contentAlignment: Alignment of content within the button (default: .center)
     ///   - isLoading: Binding to control loading state (default: false)
     ///   - isDisabled: Whether button is disabled (default: false)
     ///   - action: Action to perform when button is tapped
@@ -54,6 +56,7 @@ struct LMSButton: View {
         variant: LMSButtonVariant = .primary,
         size: LMSButtonSize = .medium,
         isFullWidth: Bool = false,
+        contentAlignment: Alignment = .center,
         isLoading: Binding<Bool> = .constant(false),
         isDisabled: Bool = false,
         action: @escaping () -> Void
@@ -63,6 +66,7 @@ struct LMSButton: View {
         self.variant = variant
         self.size = size
         self.isFullWidth = isFullWidth
+        self.contentAlignment = contentAlignment
         self._isLoading = isLoading
         self.isDisabled = isDisabled
         self.action = action
@@ -89,10 +93,16 @@ struct LMSButton: View {
                 guard !isLoading && !isDisabled else { return }
                 action()
             }, label: {
-                contentView
-                    .frame(maxWidth: .infinity)
-                    .frame(height: size.height)
-                    .contentShape(Rectangle())
+                if isFullWidth {
+                    contentView
+                        .frame(maxWidth: .infinity, alignment: contentAlignment)
+                        .frame(height: size.height)
+                        .contentShape(Rectangle())
+                } else {
+                    contentView
+                        .frame(height: size.height)
+                        .contentShape(Rectangle())
+                }
             })
             .buttonStyle(.plain)
             .background(variant.backgroundColor)

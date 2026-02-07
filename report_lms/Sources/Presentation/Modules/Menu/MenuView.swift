@@ -16,49 +16,26 @@ struct MenuView: View {
         NavigationView {
             List {
                 Section {
-                    Button(action: {
+                    LMSButton("Profile", icon: "person.circle", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
                         // Profile action - could navigate to profile screen
                         dismiss()
-                    }, label: {
-                        HStack {
-                            Image(systemName: "person.circle")
-                                .foregroundColor(.blue)
-                            LMSLabel("Profile", style: .body, color: .primary)
-                        }
-                    })
-                    .buttonStyle(.plain)
+                    }
 
-                    Button(action: {
+                    LMSButton("Settings", icon: "gear", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
                         // Settings action - could navigate to settings screen
                         dismiss()
-                    }, label: {
-                        HStack {
-                            Image(systemName: "gear")
-                                .foregroundColor(.gray)
-                            LMSLabel("Settings", style: .body, color: .primary)
-                        }
-                    })
-                    .buttonStyle(.plain)
+                    }
                 }
 
                 Section {
-                    Button(action: {
+                    LMSButton("Logout", icon: "arrow.right.square", variant: .destructive, isFullWidth: true, contentAlignment: .leading) {
                         onLogout()
                         dismiss()
-                    }, label: {
-                        HStack {
-                            Image(systemName: "arrow.right.square")
-                                .foregroundColor(.red)
-                            LMSLabel("Logout", style: .body, color: .error)
-                        }
-                    })
-                    .buttonStyle(.plain)
+                    }
                 }
             }
             .navigationTitle("Menu")
-            .navigationBarItems(trailing: LMSButton("Done", variant: .ghost, size: .small, action: {
-                dismiss()
-            }))
+            .shadow(color: Color.primary.opacity(0.08), radius: 2, y: 1)
         }
     }
 }
