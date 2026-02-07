@@ -82,6 +82,7 @@
 				3E9343882F1A3FC700B6427F /* Sources */,
 				3E9343892F1A3FC700B6427F /* Frameworks */,
 				3E93438A2F1A3FC700B6427F /* Resources */,
+				3EE63A342F375B0A0077CEF4 /* Firebase Crashlytics */,
 			);
 			buildRules = (
 			);
@@ -151,6 +152,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		3EE63A342F375B0A0077CEF4 /* Firebase Crashlytics */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Firebase Crashlytics";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+			shellPath = /bin/sh;
+			shellScript = "\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols\" -gsp \"${SRCROOT}/report_lms/Resources/Firebase/GoogleService-Info.plist\" -p ios -d \"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		3E9343882F1A3FC700B6427F /* Sources */ = {
@@ -288,7 +311,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202602022107;
+				CURRENT_PROJECT_VERSION = 202602071820;
 				DEVELOPMENT_ASSET_PATHS = "\"report_lms/Preview Content\"";
 				DEVELOPMENT_TEAM = 3TYP89QWY5;
 				ENABLE_PREVIEWS = YES;
@@ -318,7 +341,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202602022107;
+				CURRENT_PROJECT_VERSION = 202602071820;
 				DEVELOPMENT_ASSET_PATHS = "\"report_lms/Preview Content\"";
 				DEVELOPMENT_TEAM = 3TYP89QWY5;
 				ENABLE_PREVIEWS = YES;
