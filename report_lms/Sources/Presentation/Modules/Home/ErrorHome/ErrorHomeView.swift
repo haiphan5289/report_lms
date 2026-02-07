@@ -6,16 +6,19 @@
 //
 
 import SwiftUI
+import UIKit
+
+// MARK: - Layout Constants
+private enum ErrorHomeLayout {
+    static let buttonSize: CGFloat = 56
+    static let buttonBottomPadding: CGFloat = 32
+    static let buttonTrailingPadding: CGFloat = 20
+    static let buttonIconSize: CGFloat = 24
+}
 
 // MARK: - ErrorHomeView
 
 struct ErrorHomeView: View {
-    private enum Layout {
-        static let buttonSize: CGFloat = 56
-        static let buttonBottomPadding: CGFloat = 32
-        static let buttonTrailingPadding: CGFloat = 20
-        static let buttonIconSize: CGFloat = 24
-    }
 
     // MARK: - Properties
     @StateObject private var viewModel: ErrorHomeViewModel
@@ -31,13 +34,11 @@ struct ErrorHomeView: View {
     var body: some View {
         ZStack {
             if viewModel.isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                LMSLoadingView(message: "Đang tải danh sách lỗi...")
             } else if viewModel.errors.isEmpty {
                 EmptyErrorView()
             } else {
-                // TODO: Implement error list view when errors are available
-                EmptyErrorView()
+                errorListView
             }
             containerButton
         }
@@ -52,11 +53,22 @@ struct ErrorHomeView: View {
             HStack {
                 Spacer()
                 reportButton
-                    .padding(.trailing, Layout.buttonTrailingPadding)
+                    .padding(.trailing, ErrorHomeLayout.buttonTrailingPadding)
             }
             .padding()
         }
-        .padding(.bottom, Layout.buttonBottomPadding)
+        .padding(.bottom, ErrorHomeLayout.buttonBottomPadding)
+    }
+    
+    private var errorListView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                ForEach(viewModel.errors) { error in
+                    ErrorListItemView(error: error)
+                }
+            }
+            .padding()
+        }
     }
     
     private var reportButton: some View {
@@ -64,24 +76,21 @@ struct ErrorHomeView: View {
             ZStack {
                 Circle()
                     .fill(Color.red)
-                    .frame(width: Layout.buttonSize, height: Layout.buttonSize)
+                    .frame(width: ErrorHomeLayout.buttonSize, height: ErrorHomeLayout.buttonSize)
                     .shadow(color: Color.red.opacity(0.3), radius: 8, y: 4)
                 
                 Image(systemName: "exclamationmark")
-                    .font(.system(size: Layout.buttonIconSize, weight: .bold))
+                    .font(.system(size: ErrorHomeLayout.buttonIconSize, weight: .bold))
                     .foregroundColor(.white)
             }
         }
         .buttonStyle(.plain)
     }
     
-    // MARK: - Private Methods
     private func handleReportError() {
         onNavigateToPhotoCaptureErrorReview()
     }
-
 }
-
 // MARK: - Preview
 
 #Preview("Error Home View") {

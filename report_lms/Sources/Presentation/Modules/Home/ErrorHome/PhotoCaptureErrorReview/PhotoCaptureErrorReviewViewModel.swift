@@ -8,40 +8,6 @@
 
 import SwiftUI
 
-// MARK: - Severity Level
-enum SeverityLevel: String, CaseIterable {
-    case low
-    case medium
-    case high
-
-    var displayName: String {
-        switch self {
-        case .low: return "Nhẹ"
-        case .medium: return "Trung bình"
-        case .high: return "Nặng"
-        }
-    }
-}
-
-// MARK: - Defect Type
-enum DefectType: String, CaseIterable {
-    case crack
-    case stain
-    case hole
-    case colorMismatch
-    case sizeIssue
-
-    var displayName: String {
-        switch self {
-        case .crack: return "Nứt"
-        case .stain: return "Lốm đốm"
-        case .hole: return "Lỗ"
-        case .colorMismatch: return "Sai màu"
-        case .sizeIssue: return "Sai kích thước"
-        }
-    }
-}
-
 // MARK: - Photo Capture Review ViewModel
 @MainActor
 final class PhotoCaptureErrorReviewViewModel: ObservableObject {
