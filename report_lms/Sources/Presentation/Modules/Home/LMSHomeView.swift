@@ -236,13 +236,7 @@ struct LMSHomeView: View {
     }
 
     var reportContent: some View {
-        VStack {
-            LMSLabel(
-                "Nội dung Báo cáo",
-                style: .body,
-                alignment: .center
-            )
-        }
+        InformationPurchaseView()
     }
 }
 
