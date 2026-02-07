@@ -26,7 +26,7 @@ struct ErrorListItemView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            .stroke(LMSColor.secondaryBorder, lineWidth: 1)
                     )
                 
                 // Information VStack
@@ -50,7 +50,7 @@ struct ErrorListItemView: View {
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(8)
-        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+        .shadow(color: LMSColor.Shadow.subtle, radius: 4, x: 0, y: 2)
     }
 }
 

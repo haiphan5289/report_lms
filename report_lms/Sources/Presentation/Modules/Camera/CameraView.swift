@@ -152,7 +152,7 @@ struct CameraView: View {
                     })
                     .foregroundColor(.white)
                     .frame(width: Layout.buttonSize, height: Layout.buttonSize)
-                    .background(Color.black.opacity(0.5))
+                    .background(LMSColor.black.opacity(0.5))
                     .clipShape(Circle())
                 } else {
                     Spacer()
@@ -183,7 +183,7 @@ struct CameraView: View {
                 }
                 .foregroundColor(.white)
                 .frame(width: Layout.buttonSize, height: Layout.buttonSize)
-                .background(Color.black.opacity(0.5))
+                .background(LMSColor.black.opacity(0.5))
                 .clipShape(Circle())
 
                 if !viewModel.capturedImages.isEmpty {
@@ -218,7 +218,7 @@ struct CameraView: View {
                         }, label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(.white)
-                                .background(Color.black.opacity(0.6))
+                                .background(LMSColor.black.opacity(0.6))
                                 .clipShape(Circle())
                         })
                         .padding(4)
@@ -228,7 +228,7 @@ struct CameraView: View {
             .padding(.horizontal, Layout.horizontalPadding)
             .padding(.vertical, 8)
         }
-        .background(Color.black.opacity(0.8))
+        .background(LMSColor.black.opacity(0.8))
     }
 }
 

@@ -153,11 +153,11 @@ struct LoginView: View {
                     }) {
                         ZStack {
                             Circle()
-                                .fill(Color.blue.opacity(0.1))
+                                .fill(LMSColor.primaryLight)
                                 .frame(width: 80, height: 80)
                                 .overlay(
                                     Circle()
-                                        .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                                        .stroke(LMSColor.primaryBorder, lineWidth: 2)
                                 )
                             
                             if viewModel.isBiometricLoading {

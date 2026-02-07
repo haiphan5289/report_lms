@@ -35,7 +35,7 @@ struct MenuView: View {
                 }
             }
             .navigationTitle("Menu")
-            .shadow(color: Color.primary.opacity(0.08), radius: 2, y: 1)
+            .shadow(color: LMSColor.Shadow.subtle, radius: 2, y: 1)
         }
     }
 }

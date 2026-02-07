@@ -198,41 +198,41 @@ enum LMSButtonVariant {
     var backgroundColor: Color {
         switch self {
         case .primary:
-            return Color.blue
+            return LMSColor.Button.primaryBackground
         case .secondary:
-            return Color(.systemGray4)
+            return LMSColor.Button.secondaryBackground
         case .tertiary:
-            return Color(.systemGray5)
+            return LMSColor.Button.tertiaryBackground
         case .destructive:
-            return Color.red
+            return LMSColor.Button.destructiveBackground
         case .ghost:
-            return Color.clear
+            return LMSColor.Button.ghostBackground
         case .iconOnly:
-            return Color.clear
+            return LMSColor.Button.ghostBackground
         }
     }
 
     var foregroundColor: Color {
         switch self {
         case .primary:
-            return Color.white
+            return LMSColor.Button.primaryForeground
         case .secondary:
-            return Color.primary
+            return LMSColor.Button.secondaryForeground
         case .tertiary:
-            return Color.primary
+            return LMSColor.Button.tertiaryForeground
         case .destructive:
-            return Color.white
+            return LMSColor.Button.destructiveForeground
         case .ghost:
-            return Color.blue
+            return LMSColor.Button.ghostForeground
         case .iconOnly:
-            return Color.primary
+            return LMSColor.Button.iconOnlyForeground
         }
     }
 
     var borderColor: Color? {
         switch self {
         case .tertiary:
-            return Color(.systemGray4)
+            return LMSColor.Button.tertiaryBorder
         default:
             return nil
         }
