@@ -82,7 +82,7 @@
 				3E9343882F1A3FC700B6427F /* Sources */,
 				3E9343892F1A3FC700B6427F /* Frameworks */,
 				3E93438A2F1A3FC700B6427F /* Resources */,
-				3EE63A342F375B0A0077CEF4 /* Firebase Crashlytics */,
+				3EE63A122F34B0000077CEF4 /* Strip Firebase dSYM */,
 			);
 			buildRules = (
 			);
@@ -154,9 +154,8 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		3EE63A342F375B0A0077CEF4 /* Firebase Crashlytics */ = {
+		3EE63A122F34B0000077CEF4 /* Strip Firebase dSYM */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -164,14 +163,15 @@
 			);
 			inputPaths = (
 			);
-			name = "Firebase Crashlytics";
+			name = "Strip Firebase dSYM";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
-			runOnlyForDeploymentPostprocessing = 1;
+			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols\" -gsp \"${SRCROOT}/report_lms/Resources/Firebase/GoogleService-Info.plist\" -p ios -d \"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\"\n";
+			shellScript = "# Strip Firebase framework dSYMs to prevent upload errors\n# These frameworks are distributed without debug symbols\nif [ \"${CONFIGURATION}\" = \"Release\" ]; then\n    echo \"Stripping Firebase dSYMs from archive...\"\n    \n    # Remove problematic Firebase dSYMs if they exist\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/FirebaseAnalytics.framework.dSYM\" 2>/dev/null || true\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/FirebaseFirestoreInternal.framework.dSYM\" 2>/dev/null || true\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/GoogleAdsOnDeviceConversion.framework.dSYM\" 2>/dev/null || true\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/GoogleAppMeasurement.framework.dSYM\" 2>/dev/null || true\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/GoogleAppMeasurementIdentitySupport.framework.dSYM\" 2>/dev/null || true\n    \n    echo \"Firebase dSYM cleanup complete\"\nfi\n";
+			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -286,7 +286,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -311,7 +311,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202602071820;
+				CURRENT_PROJECT_VERSION = 202602162200;
 				DEVELOPMENT_ASSET_PATHS = "\"report_lms/Preview Content\"";
 				DEVELOPMENT_TEAM = 3TYP89QWY5;
 				ENABLE_PREVIEWS = YES;
@@ -342,7 +342,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202602071820;
+				CURRENT_PROJECT_VERSION = 202602162200;
 				DEVELOPMENT_ASSET_PATHS = "\"report_lms/Preview Content\"";
 				DEVELOPMENT_TEAM = 3TYP89QWY5;
 				ENABLE_PREVIEWS = YES;
