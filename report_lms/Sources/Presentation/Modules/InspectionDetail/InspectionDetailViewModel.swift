@@ -19,6 +19,8 @@ final class InspectionDetailViewModel: ObservableObject {
     @Published var showCamera = false
     @Published var selectedFieldId: String?
     @Published var isSubmitted = false
+    @Published var showValidation = false
+    @Published var selectedValidationField: (id: String, label: String)?
 
     // MARK: - Private Properties
     private let inspectionId: String
@@ -74,8 +76,35 @@ final class InspectionDetailViewModel: ObservableObject {
     }
 
     func openPhotoPicker(for fieldId: String) {
-        selectedFieldId = fieldId
-        showCamera = true
+        // Find field label from inspection detail
+        let fieldLabel = findFieldLabel(for: fieldId)
+        
+        // If field has images, navigate to validation view
+        if hasPhoto(for: fieldId) {
+            selectedValidationField = (id: fieldId, label: fieldLabel)
+            showValidation = true
+        } else {
+            // Otherwise, open camera
+            selectedFieldId = fieldId
+            showCamera = true
+        }
+    }
+    
+    func handleValidationSave(_ validation: FieldValidation) {
+        // Update captured photos with validated images
+        capturedPhotos[validation.id] = validation.images
+    }
+    
+    private func findFieldLabel(for fieldId: String) -> String {
+        guard let detail = inspectionDetail else { return "Field" }
+        
+        for section in detail.sections {
+            if let field = section.fields.first(where: { $0.id == fieldId }) {
+                return field.label
+            }
+        }
+        
+        return "Field"
     }
 
     func savePhoto(_ image: UIImage, for fieldId: String) {

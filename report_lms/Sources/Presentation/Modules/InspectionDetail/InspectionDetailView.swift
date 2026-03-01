@@ -58,6 +58,17 @@ struct InspectionDetailView: View {
                 viewModel.handlePhotoSelection(images)
             }
         }
+        .navigationDestination(isPresented: $viewModel.showValidation) {
+            if let field = viewModel.selectedValidationField {
+                InspectionValidationView(
+                    fieldId: field.id,
+                    fieldLabel: field.label,
+                    initialImages: viewModel.getImages(for: field.id)
+                ) { validation in
+                    viewModel.handleValidationSave(validation)
+                }
+            }
+        }
     }
 
     // MARK: - Private Views
