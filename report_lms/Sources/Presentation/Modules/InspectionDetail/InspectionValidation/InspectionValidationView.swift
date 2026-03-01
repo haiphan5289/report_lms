@@ -86,15 +86,15 @@ struct InspectionValidationView: View {
                 viewModel.openCamera()
             }
         }
-        .alert("Xóa ảnh", isPresented: $viewModel.showDeleteConfirmation) {
-            Button("Hủy", role: .cancel) {
-                viewModel.cancelDeleteImage()
-            }
-            Button("Xóa", role: .destructive) {
+        .fullScreenCover(isPresented: $viewModel.showDeleteConfirmation) {
+            DeleteConfirmationView(
+                title: "Xóa ảnh",
+                message: "Bạn có chắc chắn muốn xóa ảnh này không?",
+                confirmTitle: "Xóa"
+            ) {
                 viewModel.confirmDeleteImage()
             }
-        } message: {
-            Text("Bạn có chắc chắn muốn xóa ảnh này không?")
+            .background(ClearBackgroundView())
         }
     }
     
@@ -337,6 +337,21 @@ struct InspectionValidationView: View {
             return .gray
         }
     }
+}
+
+// MARK: - Helper Views
+
+/// Clear background view for fullScreenCover
+struct ClearBackgroundView: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        DispatchQueue.main.async {
+            view.superview?.superview?.backgroundColor = .clear
+        }
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }
 
 // MARK: - Preview
