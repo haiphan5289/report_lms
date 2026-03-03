@@ -10,26 +10,26 @@ import SwiftUI
 struct InspectionDetailView: View {
     // MARK: - Constants
     private enum Layout {
-        static let sectionSpacing: CGFloat = 12
-        static let horizontalPadding: CGFloat = 16
-        static let verticalPadding: CGFloat = 16
-        static let errorIconSize: CGFloat = 48
-        static let errorSpacing: CGFloat = 16
-        static let retryButtonMaxWidth: CGFloat = 200
-        static let retryButtonHeight: CGFloat = 44
         static let toolbarIconSize: CGFloat = 24
+        static let tabIconSize: CGFloat = 18
+        static let tabSpacing: CGFloat = 4
+        static let tabUnderlineHeight: CGFloat = 3
+        static let tabBottomPadding: CGFloat = 2
+        static let minContentHeight: CGFloat = 120
     }
 
     // MARK: - Properties
     @StateObject private var viewModel: InspectionDetailViewModel
     @Environment(\.dismiss) private var dismiss
+    @Namespace private var tabBarNamespace
 
     // MARK: - Initialization
-    init(inspectionId: String, inspectionNumber: String) {
+    init(inspectionId: String, inspectionNumber: String, homeViewModel: LMSHomeViewModel? = nil) {
         _viewModel = StateObject(
             wrappedValue: InspectionDetailViewModel(
                 inspectionId: inspectionId,
-                inspectionNumber: inspectionNumber
+                inspectionNumber: inspectionNumber,
+                homeViewModel: homeViewModel
             )
         )
     }
@@ -37,7 +37,10 @@ struct InspectionDetailView: View {
     // MARK: - Body
     var body: some View {
         ZStack {
-            contentView
+            VStack(spacing: 0) {
+                tabBar
+                tabContent
+            }
 
             if viewModel.isLoading {
                 LMSLoadingOverlay()
@@ -72,76 +75,94 @@ struct InspectionDetailView: View {
     }
 
     // MARK: - Private Views
-    private var contentView: some View {
-        Group {
-            if let detail = viewModel.inspectionDetail {
-                sectionListView(detail: detail)
-            } else if let errorMessage = viewModel.errorMessage {
-                errorView(message: errorMessage)
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(InspectionDetailViewModel.Tab.allCases, id: \.self) { tab in
+                tabButton(for: tab)
+            }
+        }
+        .background(Color(.systemBackground))
+        .overlay(Divider(), alignment: .bottom)
+        .padding(.bottom, Layout.tabBottomPadding)
+    }
+    
+    private func tabButton(for tab: InspectionDetailViewModel.Tab) -> some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                viewModel.selectedTab = tab
+            }
+        }, label: {
+            tabButtonContent(for: tab)
+        })
+        .buttonStyle(.plain)
+    }
+    
+    private func tabButtonContent(for tab: InspectionDetailViewModel.Tab) -> some View {
+        let isSelected = viewModel.selectedTab == tab
+
+        return VStack(spacing: Layout.tabSpacing) {
+            Image(systemName: tab.icon)
+                .font(.system(size: Layout.tabIconSize, weight: .semibold))
+                .foregroundColor(isSelected ? .accentColor : .secondary)
+
+            LMSLabel(
+                tab.title,
+                style: .body,
+                color: isSelected ? .custom(Color.accentColor) : .secondary,
+                alignment: .center
+            )
+            .fontWeight(isSelected ? .semibold : .regular)
+
+            tabUnderline(isSelected: isSelected)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 0)
+    }
+    
+    private func tabUnderline(isSelected: Bool) -> some View {
+        ZStack {
+            if isSelected {
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(height: Layout.tabUnderlineHeight)
+                    .matchedGeometryEffect(id: "tabUnderline", in: tabBarNamespace)
             } else {
-                EmptyView()
+                Color.clear.frame(height: Layout.tabUnderlineHeight)
             }
         }
     }
-
-    private func sectionListView(detail: InspectionDetail) -> some View {
-        ScrollView {
-            LazyVStack(spacing: Layout.sectionSpacing) {
-                ForEach(detail.sections.sorted(by: { $0.order < $1.order })) { section in
-                    sectionView(for: section)
-                }
+    
+    private var tabContent: some View {
+        Group {
+            switch viewModel.selectedTab {
+            case .inspectionDetail:
+                InspectionDetailContentView(
+                    contentViewModel: viewModel.contentViewModel,
+                    onRetry: { await viewModel.loadInspectionDetail() },
+                    errorMessage: viewModel.errorMessage
+                )
+            case .error:
+                errorTabContent
+            case .orderInformation:
+                orderInformationContent
             }
-            .padding(.horizontal, Layout.horizontalPadding)
-            .padding(.vertical, Layout.verticalPadding)
         }
+        .frame(maxWidth: .infinity, minHeight: Layout.minContentHeight)
         .background(Color(.systemGroupedBackground))
+        .animation(.easeInOut, value: viewModel.selectedTab)
     }
-
-    private func sectionView(for section: InspectionSection) -> some View {
-        InspectionSectionView(
-            title: section.title,
-            itemCount: section.itemCount,
-            isExpanded: viewModel.isExpanded(section.id),
-            onToggle: { viewModel.toggleSection(section.id) },
-            content: {
-                fieldListView(for: section.fields)
+    
+    private var errorTabContent: some View {
+        ErrorHomeView(
+            viewModel: ErrorHomeViewModel(),
+            onNavigateToPhotoCaptureErrorReview: {
+                // Handle navigation if needed
             }
         )
     }
-
-    private func fieldListView(for fields: [InspectionField]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(fields.enumerated()), id: \.element.id) { index, field in
-                fieldItemView(for: field)
-
-                if index < fields.count - 1 {
-                    Divider()
-                        .padding(.leading, Layout.horizontalPadding)
-                }
-            }
-        }
-    }
-
-    private func fieldItemView(for field: InspectionField) -> some View {
-        InspectionFieldItemView(
-            fieldName: field.label,
-            hasPhoto: viewModel.hasPhoto(for: field.id),
-            images: viewModel.getImages(for: field.id),
-            onCameraTap: { viewModel.openPhotoPicker(for: field.id) }
-        )
-    }
-
-    private func errorView(message: String) -> some View {
-        VStack(spacing: Layout.errorSpacing) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: Layout.errorIconSize))
-                .foregroundColor(.red)
-
-            LMSLabel(message, style: .body, alignment: .center)
-
-            retryButton
-        }
-        .padding()
+    
+    private var orderInformationContent: some View {
+        InformationPurchaseView()
     }
 
     private var submitButton: some View {
@@ -154,16 +175,6 @@ struct InspectionDetailView: View {
                 .foregroundColor(.green)
                 .font(.system(size: Layout.toolbarIconSize))
         })
-    }
-
-    private var retryButton: some View {
-        LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary, action: {
-            Task {
-                await viewModel.loadInspectionDetail()
-            }
-        })
-        .frame(maxWidth: Layout.retryButtonMaxWidth)
-        .frame(height: Layout.retryButtonHeight)
     }
 }
 

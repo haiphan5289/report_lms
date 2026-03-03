@@ -75,7 +75,8 @@ struct LMSHomeView: View {
                 .navigationDestination(for: Inspection.self) { inspection in
                     InspectionDetailView(
                         inspectionId: inspection.id,
-                        inspectionNumber: inspection.inspectionNumber
+                        inspectionNumber: inspection.inspectionNumber,
+                        homeViewModel: viewModel
                     )
                 }
                 .onChange(of: viewModel.navigationPath) { oldValue, newValue in

@@ -12,7 +12,6 @@ import SwiftUI
 final class InspectionDetailViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var inspectionDetail: InspectionDetail?
-    @Published var expandedSections: Set<String> = []
     @Published var capturedPhotos: [String: [UIImage]] = [:] // fieldId: [images]
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -21,15 +20,28 @@ final class InspectionDetailViewModel: ObservableObject {
     @Published var isSubmitted = false
     @Published var showValidation = false
     @Published var selectedValidationField: (id: String, label: String)?
+    @Published var selectedTab: Tab = .inspectionDetail
+
+    // MARK: - Child ViewModels
+    private(set) lazy var contentViewModel: InspectionDetailContentViewModel = {
+        InspectionDetailContentViewModel(
+            parentViewModel: self,
+            onPhotoPickerOpen: { [weak self] fieldId in
+                self?.openPhotoPicker(for: fieldId)
+            }
+        )
+    }()
 
     // MARK: - Private Properties
     private let inspectionId: String
     private let inspectionNumber: String
+    private weak var homeViewModel: LMSHomeViewModel?
 
     // MARK: - Initialization
-    init(inspectionId: String, inspectionNumber: String) {
+    init(inspectionId: String, inspectionNumber: String, homeViewModel: LMSHomeViewModel? = nil) {
         self.inspectionId = inspectionId
         self.inspectionNumber = inspectionNumber
+        self.homeViewModel = homeViewModel
     }
 
     // MARK: - Public Methods
@@ -49,33 +61,19 @@ final class InspectionDetailViewModel: ObservableObject {
             inspectionNumber: inspectionNumber
         )
 
-        // Auto-expand first section
-        if let firstSection = inspectionDetail?.sections.first {
-            expandedSections.insert(firstSection.id)
-        }
-    }
-
-    func toggleSection(_ sectionId: String) {
-        if expandedSections.contains(sectionId) {
-            expandedSections.remove(sectionId)
-        } else {
-            expandedSections.insert(sectionId)
-        }
-    }
-
-    func isExpanded(_ sectionId: String) -> Bool {
-        expandedSections.contains(sectionId)
-    }
-
-    func hasPhoto(for fieldId: String) -> Bool {
-        !(capturedPhotos[fieldId]?.isEmpty ?? true)
+        // Auto-expand first section in content view
+        contentViewModel.autoExpandFirstSection()
     }
 
     func getImages(for fieldId: String) -> [UIImage] {
         return capturedPhotos[fieldId] ?? []
     }
 
-    func openPhotoPicker(for fieldId: String) {
+    private func hasPhoto(for fieldId: String) -> Bool {
+        !(capturedPhotos[fieldId]?.isEmpty ?? true)
+    }
+
+    private func openPhotoPicker(for fieldId: String) {
         // Find field label from inspection detail
         let fieldLabel = findFieldLabel(for: fieldId)
         
@@ -93,6 +91,16 @@ final class InspectionDetailViewModel: ObservableObject {
     func handleValidationSave(_ validation: FieldValidation) {
         // Update captured photos with validated images
         capturedPhotos[validation.id] = validation.images
+        
+        // Close validation view first
+        showValidation = false
+        selectedValidationField = nil
+        
+        // Switch to order information tab
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+            selectedTab = .orderInformation
+        }
     }
     
     private func findFieldLabel(for fieldId: String) -> String {
@@ -140,6 +148,29 @@ final class InspectionDetailViewModel: ObservableObject {
     }
 }
 
+// MARK: - Tab Enum
+extension InspectionDetailViewModel {
+    enum Tab: Int, CaseIterable {
+        case inspectionDetail, error, orderInformation
+
+        var title: String {
+            switch self {
+            case .inspectionDetail: return "Kiểm tra"
+            case .error: return "Lỗi"
+            case .orderInformation: return "Thông tin đơn hàng"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .inspectionDetail: return "doc.text.magnifyingglass"
+            case .error: return "exclamationmark.triangle"
+            case .orderInformation: return "info.circle"
+            }
+        }
+    }
+}
+
 // MARK: - Preview Helpers
 extension InspectionDetailViewModel {
     static func preview() -> InspectionDetailViewModel {
@@ -150,6 +181,29 @@ extension InspectionDetailViewModel {
         Task { @MainActor in
             await viewModel.loadInspectionDetail()
         }
+        return viewModel
+    }
+    
+    static func previewWithData() -> InspectionDetailViewModel {
+        let viewModel = InspectionDetailViewModel(
+            inspectionId: "1",
+            inspectionNumber: "001"
+        )
+        // Set mock data directly for immediate preview rendering
+        viewModel.inspectionDetail = InspectionDetail.mock(
+            inspectionId: "1",
+            inspectionNumber: "001"
+        )
+        viewModel.contentViewModel.autoExpandFirstSection()
+        return viewModel
+    }
+    
+    static func previewWithError() -> InspectionDetailViewModel {
+        let viewModel = InspectionDetailViewModel(
+            inspectionId: "1",
+            inspectionNumber: "001"
+        )
+        viewModel.errorMessage = "Không thể tải dữ liệu. Vui lòng kiểm tra kết nối mạng."
         return viewModel
     }
 }

@@ -41,6 +41,14 @@ final class LMSHomeViewModel: ObservableObject {
         // Handle the new inspection creation
         // You can add it to a list or trigger a refresh
     }
+    
+    func navigateToReportTab() {
+        // Pop back to home by clearing navigation path
+        navigationPath = NavigationPath()
+        
+        // Switch to report tab (which shows InformationPurchaseView)
+        selectedTab = .report
+    }
 
     func handleNavigationBack(from oldValue: NavigationPath, to newValue: NavigationPath) {
         // Handle navigation back event
@@ -73,7 +81,7 @@ extension LMSHomeViewModel {
         var title: String {
             switch self {
             case .plan: return "Kế hoạch"
-            case .inProgress: return "Lỗi"
+            case .inProgress: return "Trong tiến trình"
             case .report: return "Báo cáo"
             }
         }
