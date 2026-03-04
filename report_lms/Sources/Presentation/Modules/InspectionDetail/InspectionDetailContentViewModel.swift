@@ -54,7 +54,15 @@ final class InspectionDetailContentViewModel: ObservableObject {
     ) {
         self.parentViewModel = parentViewModel
         self.onPhotoPickerOpen = onPhotoPickerOpen
-        self.generatePDFUseCase = generatePDFUseCase ?? Container.shared.resolve(GenerateHTMLPDFReportUseCase.self)!
+        
+        if let useCase = generatePDFUseCase {
+            self.generatePDFUseCase = useCase
+        } else {
+            guard let resolvedUseCase = Container.shared.resolve(GenerateHTMLPDFReportUseCase.self) else {
+                fatalError("GenerateHTMLPDFReportUseCase must be registered in DI container")
+            }
+            self.generatePDFUseCase = resolvedUseCase
+        }
     }
     
     // MARK: - Public Methods

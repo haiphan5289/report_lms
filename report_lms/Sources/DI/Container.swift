@@ -105,9 +105,10 @@ final class Container {
         }
         
         register(GenerateHTMLPDFReportUseCase.self) {
-            GenerateHTMLPDFReportUseCase(
-                pdfGenerator: Container.shared.resolve(PDFGeneratorType.self)!
-            )
+            guard let pdfGenerator = Container.shared.resolve(PDFGeneratorType.self) else {
+                fatalError("PDFGeneratorType must be registered before GenerateHTMLPDFReportUseCase")
+            }
+            return GenerateHTMLPDFReportUseCase(pdfGenerator: pdfGenerator)
         }
 
         // UserManager - Singleton for shared state management
