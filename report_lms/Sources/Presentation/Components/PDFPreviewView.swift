@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PDFKit
+import OSLog
 
 /// SwiftUI wrapper for PDFView to preview PDF documents
 struct PDFPreviewView: View {
@@ -15,8 +16,11 @@ struct PDFPreviewView: View {
     
     @Environment(\.dismiss) private var dismiss
     @State private var showShareSheet = false
-    @State private var showSaveAlert = false
+    @State private var activeAlert: AlertType?
     @State private var savedURL: URL?
+    @State private var errorMessage: String?
+    
+    private let logger = Logger(subsystem: "com.reportlms.pdf", category: "preview")
     
     var body: some View {
         NavigationView {
@@ -35,6 +39,8 @@ struct PDFPreviewView: View {
                             .foregroundColor(.white)
                             .cornerRadius(12)
                     }
+                    .accessibilityLabel("Lưu báo cáo PDF vào Files")
+                    .accessibilityHint("Lưu file PDF vào thư mục Documents trên thiết bị")
                     
                     // Share button
                     Button(action: { showShareSheet = true }) {
@@ -45,6 +51,8 @@ struct PDFPreviewView: View {
                             .foregroundColor(.white)
                             .cornerRadius(12)
                     }
+                    .accessibilityLabel("Chia sẻ báo cáo PDF")
+                    .accessibilityHint("Gửi PDF qua AirDrop, Messages, hoặc các ứng dụng khác")
                 }
                 .padding()
             }
@@ -62,29 +70,49 @@ struct PDFPreviewView: View {
                     ShareSheet(items: [url])
                 }
             }
-            .alert("PDF đã được lưu", isPresented: $showSaveAlert) {
-                Button("Mở Files") {
-                    if let url = savedURL {
-                        UIApplication.shared.open(url)
-                    }
+            .alert(item: $activeAlert) { alertType in
+                switch alertType {
+                case .success:
+                    return Alert(
+                        title: Text("PDF đã được lưu"),
+                        message: Text("File đã được lưu vào thư mục Documents"),
+                        primaryButton: .default(Text("Mở Files")) {
+                            if let url = savedURL {
+                                UIApplication.shared.open(url)
+                            }
+                        },
+                        secondaryButton: .cancel(Text("OK"))
+                    )
+                case .error:
+                    return Alert(
+                        title: Text("Lỗi"),
+                        message: Text(errorMessage ?? "Đã xảy ra lỗi không xác định"),
+                        dismissButton: .default(Text("OK"))
+                    )
                 }
-                Button("OK") { }
-            } message: {
-                Text("File đã được lưu vào thư mục Documents")
             }
         }
     }
     
     private func saveToFiles() {
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            logger.error("Cannot access Documents directory")
+            errorMessage = "Không thể truy cập thư mục Documents"
+            activeAlert = .error
+            return
+        }
+        
         let fileURL = documentsPath.appendingPathComponent(fileName)
         
         do {
             try pdfData.write(to: fileURL)
             savedURL = documentsPath
-            showSaveAlert = true
+            activeAlert = .success
+            logger.log("PDF saved successfully to: \(fileURL.path)")
         } catch {
-            print("Error saving PDF: \(error.localizedDescription)")
+            logger.error("Failed to save PDF: \(error.localizedDescription)")
+            errorMessage = "Không thể lưu file: \(error.localizedDescription)"
+            activeAlert = .error
         }
     }
     
@@ -92,9 +120,26 @@ struct PDFPreviewView: View {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         do {
             try pdfData.write(to: tempURL)
+            logger.log("Temp PDF saved for sharing: \(tempURL.path)")
             return tempURL
         } catch {
+            logger.error("Failed to save temp PDF: \(error.localizedDescription)")
+            errorMessage = "Không thể chia sẻ file: \(error.localizedDescription)"
+            activeAlert = .error
             return nil
+        }
+    }
+}
+
+// MARK: - Alert Type
+private enum AlertType: Identifiable {
+    case success
+    case error
+    
+    var id: Int {
+        switch self {
+        case .success: return 0
+        case .error: return 1
         }
     }
 }
