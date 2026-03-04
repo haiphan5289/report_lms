@@ -7,15 +7,26 @@
 
 import Foundation
 import SwiftUI
+import OSLog
 
 @MainActor
 final class InspectionDetailContentViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var expandedSections: Set<String> = []
     
+    // PDF Generation Properties
+    @Published var isGeneratingPDF = false
+    @Published var isShowingMailComposer = false
+    @Published var isShowingPDFPreview = false
+    @Published var pdfData: Data?
+    @Published var pdfError: String?
+    @Published var showMailUnavailableAlert = false
+    
     // MARK: - Private Properties
     private let onPhotoPickerOpen: (String) -> Void
     private weak var parentViewModel: InspectionDetailViewModel?
+    private let generatePDFUseCase: GenerateHTMLPDFReportUseCase
+    private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "inspection")
     
     // MARK: - Computed Properties
     var inspectionDetail: InspectionDetail? {
@@ -36,9 +47,14 @@ final class InspectionDetailContentViewModel: ObservableObject {
     }
     
     // MARK: - Initialization
-    init(parentViewModel: InspectionDetailViewModel, onPhotoPickerOpen: @escaping (String) -> Void) {
+    init(
+        parentViewModel: InspectionDetailViewModel,
+        onPhotoPickerOpen: @escaping (String) -> Void,
+        generatePDFUseCase: GenerateHTMLPDFReportUseCase? = nil
+    ) {
         self.parentViewModel = parentViewModel
         self.onPhotoPickerOpen = onPhotoPickerOpen
+        self.generatePDFUseCase = generatePDFUseCase ?? Container.shared.resolve(GenerateHTMLPDFReportUseCase.self)!
     }
     
     // MARK: - Public Methods
@@ -73,6 +89,86 @@ final class InspectionDetailContentViewModel: ObservableObject {
     }
     
     /// Auto-expand first section when data loads
+    
+    // MARK: - PDF Generation
+    
+    /// Generate PDF and show preview
+    func generateAndPreviewPDF() async {
+        guard let detail = inspectionDetail else {
+            logger.error("Cannot generate PDF: No inspection detail available")
+            pdfError = "Không có dữ liệu kiểm tra"
+            return
+        }
+        
+        isGeneratingPDF = true
+        pdfError = nil
+        pdfData = nil
+        
+        logger.log("Starting PDF generation for inspection #\(detail.inspectionNumber)")
+        
+        do {
+            let data = try await generatePDFUseCase.execute(
+                detail: detail,
+                images: capturedPhotos
+            )
+            
+            pdfData = data
+            isShowingPDFPreview = true
+            
+            logger.log("PDF generated successfully, size: \(data.count) bytes")
+        } catch {
+            logger.error("PDF generation failed: \(error.localizedDescription)")
+            pdfError = "Không thể tạo PDF: \(error.localizedDescription)"
+        }
+        
+        isGeneratingPDF = false
+    }
+    
+    /// Generate PDF and prepare for email sending
+    func generateAndSendPDF() async {
+        guard let detail = inspectionDetail else {
+            logger.error("Cannot generate PDF: No inspection detail available")
+            pdfError = "Không có dữ liệu kiểm tra"
+            return
+        }
+        
+        // Check if mail is available
+        guard MailComposerView.canSendMail else {
+            logger.warning("Mail services not available")
+            showMailUnavailableAlert = true
+            return
+        }
+        
+        isGeneratingPDF = true
+        pdfError = nil
+        pdfData = nil
+        
+        logger.log("Starting PDF generation for inspection #\(detail.inspectionNumber)")
+        
+        do {
+            let data = try await generatePDFUseCase.execute(
+                detail: detail,
+                images: capturedPhotos
+            )
+            
+            pdfData = data
+            isShowingMailComposer = true
+            
+            logger.log("PDF generated successfully, opening mail composer")
+        } catch {
+            logger.error("PDF generation failed: \(error.localizedDescription)")
+            pdfError = "Không thể tạo PDF: \(error.localizedDescription)"
+        }
+        
+        isGeneratingPDF = false
+    }
+    
+    /// Reset PDF generation state
+    func resetPDFState() {
+        pdfData = nil
+        pdfError = nil
+        isShowingMailComposer = false
+    }
     func autoExpandFirstSection() {
         if let firstSection = inspectionDetail?.sections.first {
             expandedSections.insert(firstSection.id)

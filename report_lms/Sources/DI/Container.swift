@@ -69,6 +69,11 @@ final class Container {
             service: inspectionService
         )
         registerSingleton(InspectionRepositoryType.self, instance: inspectionRepository)
+        
+        // PDF Generator Service - Singleton
+        // Using PDFKit native approach (Solution 3) for best performance and quality
+        let pdfGeneratorService = PDFKitGeneratorService()
+        registerSingleton(PDFGeneratorType.self, instance: pdfGeneratorService)
 
         // Use Cases - Can be transient since they're stateless
         register(CreateInspectionUseCase.self) {
@@ -97,6 +102,12 @@ final class Container {
 
         register(SyncInspectionsUseCase.self) {
             SyncInspectionsUseCase(databaseRepository: Container.shared.resolve(DatabaseRepositoryType.self)!)
+        }
+        
+        register(GenerateHTMLPDFReportUseCase.self) {
+            GenerateHTMLPDFReportUseCase(
+                pdfGenerator: Container.shared.resolve(PDFGeneratorType.self)!
+            )
         }
 
         // UserManager - Singleton for shared state management
