@@ -1,3 +1,6 @@
+---
+applyTo: '**'
+---
 # Clean Architecture + SwiftUI
 
 ## Three-Layer Pattern

@@ -101,7 +101,7 @@ final class FinalReportViewModel: ObservableObject {
     
     // MARK: - PDF Generation
     
-    /// Generate PDF and show preview
+    /// Generate PDF and show preview (Using Builder Pattern)
     func generateAndPreviewPDF() async {
         guard let detail = inspectionDetail else {
             logger.error("Cannot generate PDF: No inspection detail available")
@@ -114,23 +114,27 @@ final class FinalReportViewModel: ObservableObject {
         pdfError = nil
         pdfData = nil
         
-        logger.log("Starting PDF generation for inspection #\(detail.inspectionNumber)")
-        
-        // Get inspector name from KeychainManager
-        let inspectorName = KeychainManager.getStoredUsername() ?? "Unknown"
+        logger.log("Starting PDF generation with Builder Pattern for inspection #\(detail.inspectionNumber)")
         
         do {
-            let data = try await generatePDFUseCase.execute(
-                detail: detail,
-                images: capturedPhotos,
-                inspectorName: inspectorName,
-                location: location
-            )
+            // Build request using Builder Pattern
+            let request = try PDFReportRequestBuilder.withDefaults()
+                .with(detail: detail)
+                .with(images: capturedPhotos)
+                .with(location: location)
+                .build()
+            
+            // Execute with request object
+            let data = try await generatePDFUseCase.execute(request: request)
             
             pdfData = data
             isShowingPDFPreview = true
             
-            logger.log("PDF generated successfully, size: \(data.count) bytes")
+            logger.log("PDF generated successfully using Builder Pattern, size: \(data.count) bytes")
+        } catch let error as PDFReportBuilderError {
+            logger.error("Builder validation failed: \(error.localizedDescription)")
+            errorAlertMessage = "Lỗi xây dựng PDF: \(error.localizedDescription)"
+            showErrorAlert = true
         } catch {
             logger.error("PDF generation failed: \(error.localizedDescription)")
             errorAlertMessage = "Không thể tạo PDF: \(error.localizedDescription)"
@@ -140,7 +144,7 @@ final class FinalReportViewModel: ObservableObject {
         isGeneratingPDF = false
     }
     
-    /// Generate PDF and prepare for email sending
+    /// Generate PDF and prepare for email sending (Using Builder Pattern)
     func generateAndSendPDF() async {
         guard let detail = inspectionDetail else {
             logger.error("Cannot generate PDF: No inspection detail available")
@@ -160,23 +164,27 @@ final class FinalReportViewModel: ObservableObject {
         pdfError = nil
         pdfData = nil
         
-        logger.log("Starting PDF generation for inspection #\(detail.inspectionNumber)")
-        
-        // Get inspector name from KeychainManager
-        let inspectorName = KeychainManager.getStoredUsername() ?? "Unknown"
+        logger.log("Starting PDF generation for email with Builder Pattern, inspection #\(detail.inspectionNumber)")
         
         do {
-            let data = try await generatePDFUseCase.execute(
-                detail: detail,
-                images: capturedPhotos,
-                inspectorName: inspectorName,
-                location: location
-            )
+            // Build request using Builder Pattern
+            let request = try PDFReportRequestBuilder.withDefaults()
+                .with(detail: detail)
+                .with(images: capturedPhotos)
+                .with(location: location)
+                .build()
+            
+            // Execute with request object
+            let data = try await generatePDFUseCase.execute(request: request)
             
             pdfData = data
             isShowingMailComposer = true
             
-            logger.log("PDF generated successfully, opening mail composer")
+            logger.log("PDF generated successfully using Builder Pattern, opening mail composer")
+        } catch let error as PDFReportBuilderError {
+            logger.error("Builder validation failed: \(error.localizedDescription)")
+            errorAlertMessage = "Lỗi validation: \(error.localizedDescription)"
+            showErrorAlert = true
         } catch {
             logger.error("PDF generation failed: \(error.localizedDescription)")
             errorAlertMessage = "Không thể tạo PDF: \(error.localizedDescription)"

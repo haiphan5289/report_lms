@@ -1,3 +1,6 @@
+---
+applyTo: '**'
+---
 # Code Standards
 
 ## Naming Conventions

@@ -1,3 +1,6 @@
+---
+applyTo: '**'
+---
 # Code Style Guide
 
 ## SwiftUI Principles

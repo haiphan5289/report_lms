@@ -60,4 +60,31 @@ final class GenerateHTMLPDFReportUseCase {
             throw error
         }
     }
+    
+    // MARK: - Builder Pattern Support
+    
+    /// Execute PDF generation with a unified request object (Builder Pattern)
+    /// - Parameter request: Complete PDF generation request containing all required data
+    /// - Returns: PDF data ready for sharing or saving
+    /// - Throws: PDFGenerationError or PDFReportRequestError if generation/validation fails
+    func execute(request: PDFReportRequest) async throws -> Data {
+        logger.log("Executing PDF generation with request model for inspection #\(request.inspectionDetail.inspectionNumber)")
+        
+        // Validate request
+        if let error = request.validationError {
+            logger.error("Request validation failed: \(error.localizedDescription)")
+            throw error
+        }
+        
+        // Generate PDF using validated request data
+        let pdfData = try await pdfGenerator.generatePDF(
+            detail: request.inspectionDetail,
+            images: request.capturedImages,
+            inspectorName: request.inspectorName,
+            location: request.inspectionLocation
+        )
+        
+        logger.log("PDF generated successfully from request, size: \(pdfData.count) bytes")
+        return pdfData
+    }
 }
