@@ -11,7 +11,7 @@ import SwiftUI
 @MainActor
 final class InspectionDetailViewModel: ObservableObject {
     // MARK: - Published Properties
-    @Published var inspectionDetail: InspectionDetail?
+    @Published var inspection: Inspection?
     @Published var capturedPhotos: [String: [UIImage]] = [:] // fieldId: [images]
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -56,7 +56,7 @@ final class InspectionDetailViewModel: ObservableObject {
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
 
         // For now, use mock data
-        inspectionDetail = InspectionDetail.mock(
+        inspection = Inspection.mock(
             inspectionId: inspectionId,
             inspectionNumber: inspectionNumber
         )
@@ -104,7 +104,7 @@ final class InspectionDetailViewModel: ObservableObject {
     }
     
     private func findFieldLabel(for fieldId: String) -> String {
-        guard let detail = inspectionDetail else { return "Field" }
+        guard let detail = inspection else { return "Field" }
         
         for section in detail.sections {
             if let field = section.fields.first(where: { $0.id == fieldId }) {
@@ -190,7 +190,7 @@ extension InspectionDetailViewModel {
             inspectionNumber: "001"
         )
         // Set mock data directly for immediate preview rendering
-        viewModel.inspectionDetail = InspectionDetail.mock(
+        viewModel.inspection = Inspection.mock(
             inspectionId: "1",
             inspectionNumber: "001"
         )

@@ -29,8 +29,8 @@ final class InspectionDetailContentViewModel: ObservableObject {
     private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "inspection")
     
     // MARK: - Computed Properties
-    var inspectionDetail: InspectionDetail? {
-        parentViewModel?.inspectionDetail
+    var inspection: Inspection? {
+        parentViewModel?.inspection
     }
     
     var capturedPhotos: [String: [UIImage]] {
@@ -39,7 +39,7 @@ final class InspectionDetailContentViewModel: ObservableObject {
     
     // Statistics
     var totalFields: Int {
-        inspectionDetail?.sections.reduce(0) { $0 + $1.fields.count } ?? 0
+        inspection?.sections.reduce(0) { $0 + $1.fields.count } ?? 0
     }
     
     var fieldsWithPhotos: Int {
@@ -102,7 +102,7 @@ final class InspectionDetailContentViewModel: ObservableObject {
     
     /// Generate PDF and show preview
     func generateAndPreviewPDF() async {
-        guard let detail = inspectionDetail else {
+        guard let detail = inspection else {
             logger.error("Cannot generate PDF: No inspection detail available")
             pdfError = "Không có dữ liệu kiểm tra"
             return
@@ -139,7 +139,7 @@ final class InspectionDetailContentViewModel: ObservableObject {
     
     /// Generate PDF and prepare for email sending
     func generateAndSendPDF() async {
-        guard let detail = inspectionDetail else {
+        guard let detail = inspection else {
             logger.error("Cannot generate PDF: No inspection detail available")
             pdfError = "Không có dữ liệu kiểm tra"
             return
@@ -188,7 +188,7 @@ final class InspectionDetailContentViewModel: ObservableObject {
         isShowingMailComposer = false
     }
     func autoExpandFirstSection() {
-        if let firstSection = inspectionDetail?.sections.first {
+        if let firstSection = inspection?.sections.first {
             expandedSections.insert(firstSection.id)
         }
     }

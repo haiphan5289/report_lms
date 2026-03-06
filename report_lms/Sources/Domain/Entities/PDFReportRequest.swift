@@ -3,6 +3,7 @@
 //  report_lms
 //
 //  Created by GitHub Copilot on 3/6/26.
+//  Updated: March 6, 2026 - Changed to use Inspection instead of InspectionDetail
 //
 
 import Foundation
@@ -12,7 +13,7 @@ import UIKit
 /// A unified model that encapsulates all parameters for PDF generation
 struct PDFReportRequest {
     // MARK: - Properties
-    let inspectionDetail: InspectionDetail
+    let inspection: Inspection
     let capturedImages: [String: [UIImage]]
     let inspectorName: String
     let inspectionLocation: String
@@ -21,14 +22,14 @@ struct PDFReportRequest {
     
     /// Validates that all required data is present
     var isValid: Bool {
-        !inspectionDetail.sections.isEmpty &&
+        !inspection.sections.isEmpty &&
         !inspectorName.isEmpty &&
         !inspectionLocation.isEmpty
     }
     
     /// Validation error if data is invalid
     var validationError: PDFReportRequestError? {
-        if inspectionDetail.sections.isEmpty {
+        if inspection.sections.isEmpty {
             return .noInspectionSections
         }
         if inspectorName.isEmpty {
@@ -63,7 +64,7 @@ enum PDFReportRequestError: LocalizedError {
 extension PDFReportRequest {
     static func mock() -> PDFReportRequest {
         PDFReportRequest(
-            inspectionDetail: .mock(inspectionId: "1", inspectionNumber: "001"),
+            inspection: .mock(inspectionId: "1", inspectionNumber: "001"),
             capturedImages: [:],
             inspectorName: "John Doe",
             inspectionLocation: "Factory A"

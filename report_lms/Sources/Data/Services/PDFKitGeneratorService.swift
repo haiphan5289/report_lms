@@ -46,7 +46,7 @@ final class PDFKitGeneratorService: PDFGeneratorType {
     
     // MARK: - Public Methods
     func generatePDF(
-        detail: InspectionDetail,
+        detail: Inspection,
         images: [String: [UIImage]],
         inspectorName: String,
         location: String
@@ -329,7 +329,7 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         return yPosition + lineHeight + 6
     }
     
-    private func drawSummarySection(for detail: InspectionDetail, at yPosition: CGFloat) -> CGFloat {
+    private func drawSummarySection(for detail: Inspection, at yPosition: CGFloat) -> CGFloat {
         var currentY = yPosition
         
         // Section title

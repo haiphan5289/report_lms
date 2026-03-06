@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Combine
 
 @MainActor
 final class PlanLMSHomeViewModel: ObservableObject {
@@ -16,24 +15,16 @@ final class PlanLMSHomeViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     // MARK: - Private Properties
-    private var fetchInspectionsUseCase: FetchInspectionsUseCase
-    private var groupInspectionsByWeekUseCase: GroupInspectionsByWeekUseCase
-    private var repository: InspectionRepositoryType
-    private var cancellables = Set<AnyCancellable>()
+    private let storageService: InspectionStorageServiceType
+    private let groupInspectionsByWeekUseCase: GroupInspectionsByWeekUseCase
 
     // MARK: - Initialization
     nonisolated init(
-        fetchInspectionsUseCase: FetchInspectionsUseCase,
-        groupInspectionsByWeekUseCase: GroupInspectionsByWeekUseCase,
-        repository: InspectionRepositoryType
+        storageService: InspectionStorageServiceType,
+        groupInspectionsByWeekUseCase: GroupInspectionsByWeekUseCase
     ) {
-        self.fetchInspectionsUseCase = fetchInspectionsUseCase
+        self.storageService = storageService
         self.groupInspectionsByWeekUseCase = groupInspectionsByWeekUseCase
-        self.repository = repository
-
-        Task { @MainActor in
-            self.setupSubscriptions()
-        }
     }
 
     // MARK: - Public Methods
@@ -43,37 +34,18 @@ final class PlanLMSHomeViewModel: ObservableObject {
 
         defer { isLoading = false }
 
-        do {
-            let inspections = try await fetchInspectionsUseCase.execute()
-            let sections = groupInspectionsByWeekUseCase.execute(inspections)
-            weeklyInspections = sections
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        // Load from in-memory cache (already loaded on app launch)
+        let inspections = storageService.getAllInspections()
+        let sections = groupInspectionsByWeekUseCase.execute(inspections)
+        weeklyInspections = sections
     }
 
     func visibleInspections(for section: WeekSection) -> [Inspection] {
         section.inspections
     }
 
-    func addNewInspection(_ inspection: Inspection) {
-        // The repository already updated the inspectionsSubject when createInspection was called
-        // The setupSubscriptions() will receive this update automatically
-    }
-
-    private func getAllInspections() -> [Inspection] {
-        weeklyInspections.flatMap { $0.inspections }
-    }
-
-    // MARK: - Private Methods
-    private func setupSubscriptions() {
-        repository.inspectionsPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] inspections in
-                guard let self = self else { return }
-                let sections = self.groupInspectionsByWeekUseCase.execute(inspections)
-                self.weeklyInspections = sections
-            }
-            .store(in: &cancellables)
+    func addNewInspection(_ inspection: Inspection) async {
+        // Reload from cache (inspection was already saved by CreateInspectionViewModel)
+        await loadInspections()
     }
 }

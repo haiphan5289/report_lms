@@ -46,7 +46,7 @@ struct InspectionDetailView: View {
                 LMSLoadingOverlay()
             }
         }
-        .navigationTitle(viewModel.inspectionDetail?.inspectionNumber ?? "")
+        .navigationTitle(viewModel.inspection?.inspectionNumber ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {

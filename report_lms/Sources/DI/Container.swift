@@ -54,6 +54,10 @@ final class Container {
         // Legacy Services - Singleton to maintain state
         let inspectionService = InspectionService()
         registerSingleton(InspectionServiceType.self, instance: inspectionService)
+        
+        // Local Storage Service - Singleton for in-memory cache
+        let inspectionStorageService = InspectionStorageService()
+        registerSingleton(InspectionStorageServiceType.self, instance: inspectionStorageService)
 
         // Repositories - Singleton to maintain publisher state
         let authRepository = AuthRepository(service: firebaseAuthService)
@@ -127,9 +131,8 @@ final class Container {
         }
         register(PlanLMSHomeViewModel.self) {
             PlanLMSHomeViewModel(
-                fetchInspectionsUseCase: Container.shared.resolve(FetchInspectionsUseCase.self)!,
-                groupInspectionsByWeekUseCase: Container.shared.resolve(GroupInspectionsByWeekUseCase.self)!,
-                repository: Container.shared.resolve(InspectionRepositoryType.self)!
+                storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
+                groupInspectionsByWeekUseCase: Container.shared.resolve(GroupInspectionsByWeekUseCase.self)!
             )
         }
     }

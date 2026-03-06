@@ -15,6 +15,7 @@ final class LMSHomeViewModel: ObservableObject {
     @Published var showCloudAction = false
     @Published var selectedTab: Tab = .plan
     @Published var navigationPath = NavigationPath()
+    @Published var dataRefreshTrigger = 0
 
     // MARK: - Public Methods
     func showMenuAction() {
@@ -38,8 +39,8 @@ final class LMSHomeViewModel: ObservableObject {
     }
 
     func handleNewInspectionCreated(_ inspection: Inspection) {
-        // Handle the new inspection creation
-        // You can add it to a list or trigger a refresh
+        // Trigger data refresh in Plan tab
+        dataRefreshTrigger += 1
     }
     
     func navigateToReportTab() {

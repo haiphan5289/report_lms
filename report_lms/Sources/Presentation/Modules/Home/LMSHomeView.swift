@@ -60,7 +60,8 @@ struct LMSHomeView: View {
                 .navigationDestination(for: String.self) { destination in
                     if destination == "createInspection" {
                         let createViewModel = CreateInspectionViewModel(
-                            createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!
+                            createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!,
+                            storageService: Container.shared.resolve(InspectionStorageServiceType.self)!
                         )
                         CreateInspectionView(viewModel: createViewModel) { createdInspection in
                             viewModel.handleNewInspectionCreated(createdInspection)
@@ -221,7 +222,10 @@ struct LMSHomeView: View {
         Group {
             switch viewModel.selectedTab {
             case LMSHomeViewModel.Tab.plan:
-                PlanLMSHomeView(onQuickInspection: viewModel.navigateToCreateInspection)
+                PlanLMSHomeView(
+                    refreshTrigger: viewModel.dataRefreshTrigger,
+                    onQuickInspection: viewModel.navigateToCreateInspection
+                )
             case LMSHomeViewModel.Tab.inProgress:
                 ErrorHomeView(
                     viewModel: ErrorHomeViewModel(),

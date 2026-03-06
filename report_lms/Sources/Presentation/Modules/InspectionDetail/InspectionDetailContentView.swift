@@ -37,7 +37,7 @@ struct InspectionDetailContentView: View {
     // MARK: - Body
     var body: some View {
         Group {
-            if let detail = contentViewModel.inspectionDetail {
+            if let detail = contentViewModel.inspection {
                 sectionListView(detail: detail)
             } else if let errorMessage = errorMessage {
                 errorView(message: errorMessage)
@@ -48,7 +48,7 @@ struct InspectionDetailContentView: View {
     }
     
     // MARK: - Private Views
-    private func sectionListView(detail: InspectionDetail) -> some View {
+    private func sectionListView(detail: Inspection) -> some View {
         ScrollView {
             LazyVStack(spacing: Layout.sectionSpacing) {
                 // Existing inspection sections
@@ -74,9 +74,9 @@ struct InspectionDetailContentView: View {
             }
         }
         .fullScreenCover(isPresented: $showFinalReport) {
-            if let detail = contentViewModel.inspectionDetail {
+            if let detail = contentViewModel.inspection {
                 FinalReportView(
-                    inspectionDetail: detail,
+                    inspection: detail,
                     capturedPhotos: contentViewModel.capturedPhotos
                 )
             }

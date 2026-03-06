@@ -25,11 +25,11 @@ struct FinalReportView: View {
     
     // MARK: - Initialization
     init(
-        inspectionDetail: InspectionDetail?,
+        inspection: Inspection?,
         capturedPhotos: [String: [UIImage]]
     ) {
         _viewModel = StateObject(wrappedValue: FinalReportViewModel(
-            inspectionDetail: inspectionDetail,
+            inspection: inspection,
             capturedPhotos: capturedPhotos
         ))
     }
@@ -83,7 +83,7 @@ struct FinalReportView: View {
             if let pdfData = viewModel.pdfData {
                 MailComposerView(
                     pdfData: pdfData,
-                    inspectionNumber: viewModel.inspectionDetail?.inspectionNumber ?? "",
+                    inspectionNumber: viewModel.inspection?.inspectionNumber ?? "",
                     onComplete: { result in
                         if result == .sent {
                             viewModel.handleEmailSent()
@@ -96,7 +96,7 @@ struct FinalReportView: View {
             if let pdfData = viewModel.pdfData {
                 PDFPreviewView(
                     pdfData: pdfData,
-                    fileName: "Bao_cao_kiem_tra_\(viewModel.inspectionDetail?.inspectionNumber ?? "").pdf"
+                    fileName: "Bao_cao_kiem_tra_\(viewModel.inspection?.inspectionNumber ?? "").pdf"
                 )
             }
         }
@@ -158,22 +158,22 @@ struct FinalReportView: View {
             VStack(spacing: 8) {
                 InfoRowView(
                     label: "Số lượng đơn hàng",
-                    value: "\(viewModel.inspectionDetail?.orderQuantity ?? 0)"
+                    value: "\(viewModel.inspection?.orderQuantity ?? 0)"
                 )
                 
                 InfoRowView(
                     label: "Số lượng thực tế đã xong",
-                    value: "\(viewModel.inspectionDetail?.actualCompletedQuantity ?? 0)"
+                    value: "\(viewModel.inspection?.actualCompletedQuantity ?? 0)"
                 )
                 
                 InfoRowView(
                     label: "Số lượng cần kiểm tra theo AQL",
-                    value: "\(viewModel.inspectionDetail?.aqlInspectionQuantity ?? 0)"
+                    value: "\(viewModel.inspection?.aqlInspectionQuantity ?? 0)"
                 )
                 
                 InfoRowView(
                     label: "Số lượng đã kiểm tra",
-                    value: "\(viewModel.inspectionDetail?.inspectedQuantity ?? 0)"
+                    value: "\(viewModel.inspection?.inspectedQuantity ?? 0)"
                 )
             }
         }
@@ -508,7 +508,7 @@ private struct LoadingOverlayView: View {
 // MARK: - Preview
 #Preview {
     FinalReportView(
-        inspectionDetail: InspectionDetail.mock(inspectionId: "1", inspectionNumber: "001"),
+        inspection: Inspection.mock(inspectionId: "1", inspectionNumber: "001"),
         capturedPhotos: ["field1": [UIImage(systemName: "photo")].compactMap { $0 }]
     )
 }

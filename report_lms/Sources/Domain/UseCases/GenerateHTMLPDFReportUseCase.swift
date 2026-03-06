@@ -31,7 +31,7 @@ final class GenerateHTMLPDFReportUseCase {
     /// - Returns: PDF data ready for sharing or saving
     /// - Throws: PDFGenerationError if generation fails
     func execute(
-        detail: InspectionDetail,
+        detail: Inspection,
         images: [String: [UIImage]],
         inspectorName: String,
         location: String
@@ -68,7 +68,7 @@ final class GenerateHTMLPDFReportUseCase {
     /// - Returns: PDF data ready for sharing or saving
     /// - Throws: PDFGenerationError or PDFReportRequestError if generation/validation fails
     func execute(request: PDFReportRequest) async throws -> Data {
-        logger.log("Executing PDF generation with request model for inspection #\(request.inspectionDetail.inspectionNumber)")
+        logger.log("Executing PDF generation with request model for inspection #\(request.inspection.inspectionNumber)")
         
         // Validate request
         if let error = request.validationError {
@@ -78,7 +78,7 @@ final class GenerateHTMLPDFReportUseCase {
         
         // Generate PDF using validated request data
         let pdfData = try await pdfGenerator.generatePDF(
-            detail: request.inspectionDetail,
+            detail: request.inspection,
             images: request.capturedImages,
             inspectorName: request.inspectorName,
             location: request.inspectionLocation

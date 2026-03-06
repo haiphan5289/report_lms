@@ -19,7 +19,7 @@ protocol PDFGeneratorType {
     /// - Returns: PDF data
     /// - Throws: PDFGenerationError if generation fails
     func generatePDF(
-        detail: InspectionDetail,
+        detail: Inspection,
         images: [String: [UIImage]],
         inspectorName: String,
         location: String

@@ -3,6 +3,7 @@
 //  report_lms
 //
 //  Created by GitHub Copilot on 3/6/26.
+//  Updated: March 6, 2026 - Changed to use Inspection instead of InspectionDetail
 //
 
 import Foundation
@@ -12,17 +13,17 @@ import UIKit
 /// Provides a fluent interface for constructing PDF report requests with validation
 final class PDFReportRequestBuilder {
     // MARK: - Private Properties
-    private var inspectionDetail: InspectionDetail?
+    private var inspection: Inspection?
     private var capturedImages: [String: [UIImage]] = [:]
     private var inspectorName: String?
     private var inspectionLocation: String?
     
     // MARK: - Builder Methods
     
-    /// Set inspection detail
+    /// Set inspection
     @discardableResult
-    func with(detail: InspectionDetail) -> Self {
-        self.inspectionDetail = detail
+    func with(inspection: Inspection) -> Self {
+        self.inspection = inspection
         return self
     }
     
@@ -51,8 +52,8 @@ final class PDFReportRequestBuilder {
     /// - Returns: Validated PDFReportRequest
     /// - Throws: PDFReportBuilderError if required fields are missing
     func build() throws -> PDFReportRequest {
-        guard let detail = inspectionDetail else {
-            throw PDFReportBuilderError.missingInspectionDetail
+        guard let inspectionData = inspection else {
+            throw PDFReportBuilderError.missingInspection
         }
         
         guard let inspector = inspectorName, !inspector.isEmpty else {
@@ -64,7 +65,7 @@ final class PDFReportRequestBuilder {
         }
         
         return PDFReportRequest(
-            inspectionDetail: detail,
+            inspection: inspectionData,
             capturedImages: capturedImages,
             inspectorName: inspector,
             inspectionLocation: location
@@ -75,12 +76,12 @@ final class PDFReportRequestBuilder {
     /// - Returns: PDFReportRequest with defaults applied
     /// - Throws: Only throws if critical required fields are missing
     func buildWithDefaults() throws -> PDFReportRequest {
-        guard let detail = inspectionDetail else {
-            throw PDFReportBuilderError.missingInspectionDetail
+        guard let inspectionData = inspection else {
+            throw PDFReportBuilderError.missingInspection
         }
         
         return PDFReportRequest(
-            inspectionDetail: detail,
+            inspection: inspectionData,
             capturedImages: capturedImages,
             inspectorName: inspectorName ?? "Unknown Inspector",
             inspectionLocation: inspectionLocation ?? "Unknown Location"
@@ -89,7 +90,7 @@ final class PDFReportRequestBuilder {
     
     /// Reset builder to initial state
     func reset() {
-        inspectionDetail = nil
+        inspection = nil
         capturedImages = [:]
         inspectorName = nil
         inspectionLocation = nil
@@ -98,14 +99,14 @@ final class PDFReportRequestBuilder {
 
 // MARK: - Builder Error Types
 enum PDFReportBuilderError: LocalizedError {
-    case missingInspectionDetail
+    case missingInspection
     case missingInspectorName
     case missingLocation
     
     var errorDescription: String? {
         switch self {
-        case .missingInspectionDetail:
-            return "Inspection detail is required"
+        case .missingInspection:
+            return "Inspection is required"
         case .missingInspectorName:
             return "Inspector name is required"
         case .missingLocation:

@@ -26,7 +26,8 @@ struct CreateInspectionView: View {
     // MARK: - Initialization
     init(viewModel: CreateInspectionViewModel? = nil, onInspectionCreated: ((Inspection) -> Void)? = nil) {
         let viewModel = viewModel ?? CreateInspectionViewModel(
-            createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!
+            createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!,
+            storageService: Container.shared.resolve(InspectionStorageServiceType.self)!
         )
         _viewModel = StateObject(wrappedValue: viewModel)
         self.onInspectionCreated = onInspectionCreated
@@ -63,6 +64,13 @@ struct CreateInspectionView: View {
             } else {
                 print("🔴 [CreateInspectionView] newInspection is nil - not dismissing")
             }
+        }
+        .alert("Thành công", isPresented: $viewModel.showSuccessAlert) {
+            Button("OK") {
+                viewModel.showSuccessAlert = false
+            }
+        } message: {
+            Text("Đã tạo báo cáo kiểm tra thành công!")
         }
     }
 

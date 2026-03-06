@@ -40,7 +40,7 @@ final class FinalReportViewModel: ObservableObject {
     @Published var errorAlertMessage: String?
     
     // MARK: - Private Properties
-    let inspectionDetail: InspectionDetail?
+    let inspection: Inspection?
     private let capturedPhotos: [String: [UIImage]]
     private let generatePDFUseCase: GenerateHTMLPDFReportUseCase
     private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "finalreport")
@@ -64,11 +64,11 @@ final class FinalReportViewModel: ObservableObject {
     
     // MARK: - Initialization
     init(
-        inspectionDetail: InspectionDetail?,
+        inspection: Inspection?,
         capturedPhotos: [String: [UIImage]],
         generatePDFUseCase: GenerateHTMLPDFReportUseCase? = nil
     ) {
-        self.inspectionDetail = inspectionDetail
+        self.inspection = inspection
         self.capturedPhotos = capturedPhotos
         
         if let useCase = generatePDFUseCase {
@@ -103,7 +103,7 @@ final class FinalReportViewModel: ObservableObject {
     
     /// Generate PDF and show preview (Using Builder Pattern)
     func generateAndPreviewPDF() async {
-        guard let detail = inspectionDetail else {
+        guard let detail = inspection else {
             logger.error("Cannot generate PDF: No inspection detail available")
             errorAlertMessage = "Không có dữ liệu kiểm tra"
             showErrorAlert = true
@@ -119,7 +119,7 @@ final class FinalReportViewModel: ObservableObject {
         do {
             // Build request using Builder Pattern
             let request = try PDFReportRequestBuilder.withDefaults()
-                .with(detail: detail)
+                .with(inspection: detail)
                 .with(images: capturedPhotos)
                 .with(location: location)
                 .build()
@@ -146,7 +146,7 @@ final class FinalReportViewModel: ObservableObject {
     
     /// Generate PDF and prepare for email sending (Using Builder Pattern)
     func generateAndSendPDF() async {
-        guard let detail = inspectionDetail else {
+        guard let detail = inspection else {
             logger.error("Cannot generate PDF: No inspection detail available")
             errorAlertMessage = "Không có dữ liệu kiểm tra"
             showErrorAlert = true
@@ -169,7 +169,7 @@ final class FinalReportViewModel: ObservableObject {
         do {
             // Build request using Builder Pattern
             let request = try PDFReportRequestBuilder.withDefaults()
-                .with(detail: detail)
+                .with(inspection: detail)
                 .with(images: capturedPhotos)
                 .with(location: location)
                 .build()
@@ -252,10 +252,10 @@ final class FinalReportViewModel: ObservableObject {
 // MARK: - Preview Helpers
 extension FinalReportViewModel {
     static func preview() -> FinalReportViewModel {
-        let mockDetail = InspectionDetail.mock(inspectionId: "1", inspectionNumber: "001")
+        let mockDetail = Inspection.mock(inspectionId: "1", inspectionNumber: "001")
         let mockPhotos = ["field1": [UIImage(systemName: "photo")].compactMap { $0 }]
         return FinalReportViewModel(
-            inspectionDetail: mockDetail,
+            inspection: mockDetail,
             capturedPhotos: mockPhotos
         )
     }

@@ -90,6 +90,7 @@ final class CreateInspectionViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var createdInspection: Inspection?
+    @Published var showSuccessAlert: Bool = false
 
     // MARK: - Field Error Messages
     @Published var productNameError: String?
@@ -104,10 +105,12 @@ final class CreateInspectionViewModel: ObservableObject {
 
     // MARK: - Private Properties
     private let createInspectionUseCase: CreateInspectionUseCase
+    private let storageService: InspectionStorageServiceType
 
     // MARK: - Initialization
-    init(createInspectionUseCase: CreateInspectionUseCase) {
+    init(createInspectionUseCase: CreateInspectionUseCase, storageService: InspectionStorageServiceType) {
         self.createInspectionUseCase = createInspectionUseCase
+        self.storageService = storageService
         // Initialize inputFields immediately
         inputFields = InputFieldType.allCases.map { type in
             InputField(
@@ -161,21 +164,42 @@ final class CreateInspectionViewModel: ObservableObject {
         }
 
         do {
-            print("🟡 [CreateInspectionViewModel] Calling createInspectionUseCase.execute()...")
-            let parameters = InspectionCreationParameters(
+            print("🟡 [CreateInspectionViewModel] Creating inspection with sections template...")
+            
+            // Parse quantity
+            let orderQty = Int(quantity) ?? 0
+            
+            // Create inspection with sections template
+            let inspection = Inspection(
+                id: UUID().uuidString,
+                inspectionNumber: "INS-\(Date().timeIntervalSince1970)",
+                companyName: "",
                 productName: productName,
                 productCode: productCode,
                 orderCode: orderCode,
                 inspectionType: inspectionType,
                 quantity: quantity,
                 factory: factory,
-                productionUnit: productionUnit
+                productionUnit: productionUnit,
+                createdAt: Date(),
+                inspectorId: nil,
+                status: .plan,
+                sections: Inspection.emptyTemplate(),
+                orderQuantity: orderQty,
+                actualCompletedQuantity: 0,
+                aqlInspectionQuantity: 0,
+                inspectedQuantity: 0
             )
-            let inspection = try await createInspectionUseCase.execute(parameters: parameters)
-            print("✅ [CreateInspectionViewModel] Inspection created successfully!")
+            
+            print("🟡 [CreateInspectionViewModel] Saving to FileManager...")
+            try await storageService.saveInspection(inspection)
+            
+            print("✅ [CreateInspectionViewModel] Inspection saved successfully!")
             print("✅ [CreateInspectionViewModel] Inspection ID: \(inspection.id)")
-            print("✅ [CreateInspectionViewModel] Setting createdInspection property...")
+            
             createdInspection = inspection
+            showSuccessAlert = true
+            
             print("✅ [CreateInspectionViewModel] createdInspection is now: \(String(describing: createdInspection))")
         } catch {
             print("🔴 [CreateInspectionViewModel] Error creating inspection: \(error.localizedDescription)")

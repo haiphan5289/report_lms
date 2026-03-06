@@ -12,16 +12,19 @@ import SwiftUI
 struct PlanLMSHomeView: View {
     // MARK: - Properties
     @StateObject private var viewModel: PlanLMSHomeViewModel
+    let refreshTrigger: Int
     let onQuickInspection: () -> Void
     let onLogout: () -> Void
 
     // MARK: - Initialization
     init(
         viewModel: PlanLMSHomeViewModel? = nil,
+        refreshTrigger: Int = 0,
         onQuickInspection: @escaping () -> Void = {},
         onLogout: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(wrappedValue: viewModel ?? Container.shared.resolve(PlanLMSHomeViewModel.self)!)
+        self.refreshTrigger = refreshTrigger
         self.onQuickInspection = onQuickInspection
         self.onLogout = onLogout
     }
@@ -35,6 +38,12 @@ struct PlanLMSHomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
             await viewModel.loadInspections()
+        }
+        .task(id: refreshTrigger) {
+            // Reload when refreshTrigger changes (e.g., after creating new inspection)
+            if refreshTrigger > 0 {
+                await viewModel.loadInspections()
+            }
         }
         .refreshable {
             await viewModel.loadInspections()
@@ -180,7 +189,50 @@ struct PlanLMSHomeView: View {
 
 // MARK: - Preview Helpers
 
-// Mock service that returns preview data
+// Mock storage service that returns preview data
+private final class PreviewInspectionStorageService: InspectionStorageServiceType {
+    private var mockInspections: [Inspection]
+
+    init(inspections: [Inspection]) {
+        self.mockInspections = inspections
+    }
+
+    func loadCache() async throws {
+        // Already loaded
+    }
+
+    func getAllInspections() -> [Inspection] {
+        mockInspections
+    }
+
+    func getInspection(by id: String) -> Inspection? {
+        mockInspections.first(where: { $0.id == id })
+    }
+
+    func saveInspection(_ inspection: Inspection) async throws {
+        mockInspections.append(inspection)
+    }
+
+    func updateInspection(_ inspection: Inspection) async throws {
+        if let index = mockInspections.firstIndex(where: { $0.id == inspection.id }) {
+            mockInspections[index] = inspection
+        }
+    }
+
+    func deleteInspection(by id: String) async throws {
+        mockInspections.removeAll { $0.id == id }
+    }
+
+    func getDraftInspections() -> [Inspection] {
+        mockInspections.filter { $0.status == .plan || $0.status == .inProgress }
+    }
+
+    func getCompletedInspections() -> [Inspection] {
+        mockInspections.filter { $0.status == .completed }
+    }
+}
+
+// Mock service that returns preview data (kept for backwards compatibility)
 private final class PreviewInspectionService: InspectionServiceType {
     private let mockInspections: [InspectionModel]
 
@@ -208,16 +260,13 @@ private final class PreviewInspectionService: InspectionServiceType {
 private func createPreviewViewModel() -> PlanLMSHomeViewModel {
     let mockInspections = createMockInspections()
 
-    // Create mock service that returns our data
-    let mockService = PreviewInspectionService(inspections: mockInspections)
-    let mockRepository = InspectionRepository(service: mockService)
-    let mockFetchUseCase = FetchInspectionsUseCase(repository: mockRepository)
+    // Create mock storage service that returns our data
+    let mockStorageService = PreviewInspectionStorageService(inspections: mockInspections)
     let mockGroupUseCase = GroupInspectionsByWeekUseCase()
 
     let viewModel = PlanLMSHomeViewModel(
-        fetchInspectionsUseCase: mockFetchUseCase,
-        groupInspectionsByWeekUseCase: mockGroupUseCase,
-        repository: mockRepository
+        storageService: mockStorageService,
+        groupInspectionsByWeekUseCase: mockGroupUseCase
     )
 
     return viewModel
