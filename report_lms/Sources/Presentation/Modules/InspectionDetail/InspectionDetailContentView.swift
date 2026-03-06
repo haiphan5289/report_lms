@@ -32,6 +32,7 @@ struct InspectionDetailContentView: View {
     let errorMessage: String?
     
     @State private var showAddCustomField = false
+    @State private var showFinalReport = false
     
     // MARK: - Body
     var body: some View {
@@ -43,41 +44,6 @@ struct InspectionDetailContentView: View {
             } else {
                 EmptyView()
             }
-        }
-        .sheet(isPresented: $contentViewModel.isShowingMailComposer) {
-            if let pdfData = contentViewModel.pdfData {
-                MailComposerView(
-                    pdfData: pdfData,
-                    inspectionNumber: contentViewModel.inspectionDetail?.inspectionNumber ?? ""
-                )
-            }
-        }
-        .sheet(isPresented: $contentViewModel.isShowingPDFPreview) {
-            if let pdfData = contentViewModel.pdfData {
-                PDFPreviewView(
-                    pdfData: pdfData,
-                    fileName: "Bao_cao_kiem_tra_\(contentViewModel.inspectionDetail?.inspectionNumber ?? "").pdf"
-                )
-            }
-        }
-        .overlay {
-            if contentViewModel.isGeneratingPDF {
-                LoadingOverlayView(message: "Đang tạo PDF...")
-            }
-        }
-        .alert("Lỗi tạo PDF", isPresented: .constant(contentViewModel.pdfError != nil)) {
-            Button("OK") {
-                contentViewModel.resetPDFState()
-            }
-        } message: {
-            if let error = contentViewModel.pdfError {
-                Text(error)
-            }
-        }
-        .alert("Email không khả dụng", isPresented: $contentViewModel.showMailUnavailableAlert) {
-            Button("OK") { }
-        } message: {
-            Text("Thiết bị này chưa được cấu hình email. Vui lòng thiết lập tài khoản email trong Cài đặt.")
         }
     }
     
@@ -93,15 +59,8 @@ struct InspectionDetailContentView: View {
                 // Button: Thêm điểm kiểm tra
                 addCustomFieldButton()
                 
-                // Action Buttons
-                HStack(spacing: 12) {
-                    // Preview PDF button
-                    previewPDFButton()
-                    
-                    // Send Email button
-                    sendEmailButton()
-                }
-                .padding(.top, 8)
+                // Action Button: Hoàn tất kiểm tra
+                completeInspectionButton()
             }
             .padding(.horizontal, Layout.horizontalPadding)
             .padding(.vertical, Layout.verticalPadding)
@@ -112,6 +71,14 @@ struct InspectionDetailContentView: View {
                 // Handle custom field creation
                 print("Custom field: \(label), type: \(type)")
                 // TODO: Add logic to create custom field
+            }
+        }
+        .fullScreenCover(isPresented: $showFinalReport) {
+            if let detail = contentViewModel.inspectionDetail {
+                FinalReportView(
+                    inspectionDetail: detail,
+                    capturedPhotos: contentViewModel.capturedPhotos
+                )
             }
         }
     }
@@ -202,49 +169,16 @@ struct InspectionDetailContentView: View {
         .accessibilityHint("Thêm một điểm kiểm tra mới vào danh sách")
     }
     
-    private func previewPDFButton() -> some View {
+    private func completeInspectionButton() -> some View {
         Button(action: {
-            Task {
-                await contentViewModel.generateAndPreviewPDF()
-            }
+            showFinalReport = true
         }) {
-            HStack(spacing: 8) {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: Layout.actionButtonIconSize, weight: .medium))
-                    .foregroundColor(LMSColor.primary)
-                
-                Text("Xem PDF")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(LMSColor.primary)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: Layout.actionButtonHeight)
-            .background(LMSColor.white)
-            .overlay(
-                RoundedRectangle(cornerRadius: Layout.actionButtonCornerRadius)
-                    .stroke(LMSColor.primaryBorder, lineWidth: Layout.actionButtonBorderWidth)
-            )
-            .cornerRadius(Layout.actionButtonCornerRadius)
-        }
-        .buttonStyle(.plain)
-        .disabled(contentViewModel.isGeneratingPDF)
-        .opacity(contentViewModel.isGeneratingPDF ? 0.6 : 1.0)
-        .accessibilityLabel("Xem trước PDF")
-        .accessibilityHint("Tạo và xem trước file PDF trước khi gửi")
-    }
-    
-    private func sendEmailButton() -> some View {
-        Button(action: {
-            Task {
-                await contentViewModel.generateAndSendPDF()
-            }
-        }) {
-            HStack(spacing: 8) {
-                Image(systemName: "paperplane.fill")
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: Layout.actionButtonIconSize, weight: .medium))
                     .foregroundColor(LMSColor.white)
                 
-                Text("Gửi Email")
+                Text("Hoàn tất kiểm tra")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(LMSColor.white)
             }
@@ -261,38 +195,9 @@ struct InspectionDetailContentView: View {
             .shadow(color: LMSColor.primary.opacity(0.25), radius: 8, x: 0, y: 4)
         }
         .buttonStyle(.plain)
-        .disabled(contentViewModel.isGeneratingPDF)
-        .opacity(contentViewModel.isGeneratingPDF ? 0.6 : 1.0)
-        .accessibilityLabel("Gửi báo cáo qua Email")
-        .accessibilityHint("Tạo file PDF và gửi qua email")
-    }
-}
-
-// MARK: - Loading Overlay
-private struct LoadingOverlayView: View {
-    let message: String
-    
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 16) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(1.5)
-                    .tint(.white)
-                
-                Text(message)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-            }
-            .padding(30)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.black.opacity(0.8))
-            )
-        }
+        .padding(.top, 8)
+        .accessibilityLabel("Hoàn tất kiểm tra")
+        .accessibilityHint("Mở màn hình hoàn tất kiểm tra và gửi báo cáo")
     }
 }
 

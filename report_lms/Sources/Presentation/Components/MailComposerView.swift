@@ -15,16 +15,23 @@ struct MailComposerView: UIViewControllerRepresentable {
     let pdfData: Data
     let inspectionNumber: String
     let recipientEmail: String?
+    let onComplete: ((MFMailComposeResult) -> Void)?
     
     @Environment(\.dismiss) private var dismiss
     
     private let logger = Logger(subsystem: "com.reportlms.mail", category: "composer")
     
     // MARK: - Initialization
-    init(pdfData: Data, inspectionNumber: String, recipientEmail: String? = nil) {
+    init(
+        pdfData: Data,
+        inspectionNumber: String,
+        recipientEmail: String? = nil,
+        onComplete: ((MFMailComposeResult) -> Void)? = nil
+    ) {
         self.pdfData = pdfData
         self.inspectionNumber = inspectionNumber
         self.recipientEmail = recipientEmail
+        self.onComplete = onComplete
     }
     
     // MARK: - UIViewControllerRepresentable
@@ -67,17 +74,19 @@ struct MailComposerView: UIViewControllerRepresentable {
     }
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(dismiss: dismiss, logger: logger)
+        Coordinator(dismiss: dismiss, logger: logger, onComplete: onComplete)
     }
     
     // MARK: - Coordinator
     final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
         let dismiss: DismissAction
         let logger: Logger
+        let onComplete: ((MFMailComposeResult) -> Void)?
         
-        init(dismiss: DismissAction, logger: Logger) {
+        init(dismiss: DismissAction, logger: Logger, onComplete: ((MFMailComposeResult) -> Void)?) {
             self.dismiss = dismiss
             self.logger = logger
+            self.onComplete = onComplete
         }
         
         func mailComposeController(_ controller: MFMailComposeViewController,
@@ -100,6 +109,7 @@ struct MailComposerView: UIViewControllerRepresentable {
                 logger.warning("Unknown mail compose result")
             }
             
+            onComplete?(result)
             dismiss()
         }
     }

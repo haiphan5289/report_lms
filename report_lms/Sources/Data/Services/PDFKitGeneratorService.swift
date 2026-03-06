@@ -45,7 +45,12 @@ final class PDFKitGeneratorService: PDFGeneratorType {
     }
     
     // MARK: - Public Methods
-    func generatePDF(detail: InspectionDetail, images: [String: [UIImage]]) async throws -> Data {
+    func generatePDF(
+        detail: InspectionDetail,
+        images: [String: [UIImage]],
+        inspectorName: String,
+        location: String
+    ) async throws -> Data {
         logger.log("Starting PDFKit native generation for inspection #\(detail.inspectionNumber)")
         
         let format = UIGraphicsPDFRendererFormat()
@@ -62,6 +67,21 @@ final class PDFKitGeneratorService: PDFGeneratorType {
             var yPosition: CGFloat = Layout.margin
             
             context.beginPage()
+            
+            // Header fields (new feature)
+            yPosition = drawHeaderFields(
+                inspectorName: inspectorName,
+                inspectionDate: Date(),
+                sampleQuantity: "1",
+                orderQuantity: "\(detail.orderQuantity)",
+                location: location,
+                formName: "Final CheckList",
+                expectedDate: Date(),
+                samplingMethod: "100% inspection",
+                factoryName: detail.factoryName,
+                at: yPosition
+            )
+            yPosition += Layout.sectionSpacing
             
             // Page 1: Title and Summary
             yPosition = drawTitle(detail.inspectionNumber, at: yPosition)
@@ -152,6 +172,161 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         
         dateString.draw(in: dateRect, withAttributes: attributes)
         return yPosition + dateSize.height
+    }
+    
+    private func drawHeaderFields(
+        inspectorName: String,
+        inspectionDate: Date,
+        sampleQuantity: String,
+        orderQuantity: String,
+        location: String,
+        formName: String,
+        expectedDate: Date,
+        samplingMethod: String,
+        factoryName: String,
+        at yPosition: CGFloat
+    ) -> CGFloat {
+        var currentY = yPosition
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "th.MM dd, yyyy"
+        dateFormatter.locale = Locale(identifier: "vi_VN")
+        
+        let inspectionDateFormatter = DateFormatter()
+        inspectionDateFormatter.dateFormat = "dd/MM/yyyy"
+        inspectionDateFormatter.locale = Locale(identifier: "vi_VN")
+        
+        let labelFont = UIFont.systemFont(ofSize: Layout.bodyFontSize)
+        let valueFont = UIFont.boldSystemFont(ofSize: Layout.bodyFontSize)
+        
+        // Row 1: Người kiểm tra & Ngày kiểm tra
+        currentY = drawHeaderRow(
+            leftLabel: "Người kiểm tra:",
+            leftValue: inspectorName,
+            rightLabel: "Ngày kiểm tra:",
+            rightValue: inspectionDateFormatter.string(from: inspectionDate),
+            at: currentY,
+            labelFont: labelFont,
+            valueFont: valueFont
+        )
+        
+        // Row 2: Số lượng mẫu & Số lượng đơn hàng
+        currentY = drawHeaderRow(
+            leftLabel: "Số lượng mẫu:",
+            leftValue: sampleQuantity,
+            rightLabel: "Số lượng đơn hàng:",
+            rightValue: orderQuantity,
+            at: currentY,
+            labelFont: labelFont,
+            valueFont: valueFont
+        )
+        
+        // Row 3: Vị trí & Tên biểu mẫu
+        currentY = drawHeaderRow(
+            leftLabel: "Vị trí:",
+            leftValue: location.isEmpty ? "N/A" : location,
+            rightLabel: "Tên biểu mẫu:",
+            rightValue: formName,
+            at: currentY,
+            labelFont: labelFont,
+            valueFont: valueFont
+        )
+        
+        // Row 4: Ngày dự kiến & Phương pháp lấy mẫu
+        currentY = drawHeaderRow(
+            leftLabel: "Ngày dự kiến:",
+            leftValue: dateFormatter.string(from: expectedDate),
+            rightLabel: "Phương pháp lấy mẫu:",
+            rightValue: samplingMethod,
+            at: currentY,
+            labelFont: labelFont,
+            valueFont: valueFont
+        )
+        
+        // Row 5: Tên nhà máy (full width)
+        let factoryLabel = "Tên nhà máy:"
+        let factoryAttributes: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: UIColor.black
+        ]
+        let factoryLabelSize = factoryLabel.size(withAttributes: factoryAttributes)
+        factoryLabel.draw(
+            at: CGPoint(x: Layout.margin, y: currentY),
+            withAttributes: factoryAttributes
+        )
+        
+        let factoryValueAttributes: [NSAttributedString.Key: Any] = [
+            .font: valueFont,
+            .foregroundColor: UIColor.black
+        ]
+        factoryName.draw(
+            at: CGPoint(x: Layout.margin + factoryLabelSize.width + 8, y: currentY),
+            withAttributes: factoryValueAttributes
+        )
+        
+        currentY += factoryLabelSize.height + 8
+        
+        // Draw separator line
+        let separatorY = currentY + 8
+        let separatorPath = UIBezierPath()
+        separatorPath.move(to: CGPoint(x: Layout.margin, y: separatorY))
+        separatorPath.addLine(to: CGPoint(x: Layout.margin + Layout.contentWidth, y: separatorY))
+        UIColor.lightGray.setStroke()
+        separatorPath.lineWidth = 1
+        separatorPath.stroke()
+        
+        return separatorY + 8
+    }
+    
+    private func drawHeaderRow(
+        leftLabel: String,
+        leftValue: String,
+        rightLabel: String,
+        rightValue: String,
+        at yPosition: CGFloat,
+        labelFont: UIFont,
+        valueFont: UIFont
+    ) -> CGFloat {
+        let halfWidth = Layout.contentWidth / 2
+        let dashesAttributes: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: UIColor.lightGray
+        ]
+        
+        // Left side
+        let leftLabelAttributes: [NSAttributedString.Key: Any] = [
+            .font: labelFont,
+            .foregroundColor: UIColor.black
+        ]
+        let leftValueAttributes: [NSAttributedString.Key: Any] = [
+            .font: valueFont,
+            .foregroundColor: UIColor.black
+        ]
+        
+        var xPosition: CGFloat = Layout.margin
+        leftLabel.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: leftLabelAttributes)
+        xPosition += leftLabel.size(withAttributes: leftLabelAttributes).width + 4
+        
+        leftValue.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: leftValueAttributes)
+        xPosition += leftValue.size(withAttributes: leftValueAttributes).width + 8
+        
+        // Dashes separator
+        let dashesText = "---------"
+        dashesText.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: dashesAttributes)
+        
+        // Right side
+        xPosition = Layout.margin + halfWidth + 20
+        rightLabel.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: leftLabelAttributes)
+        xPosition += rightLabel.size(withAttributes: leftLabelAttributes).width + 4
+        
+        rightValue.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: leftValueAttributes)
+        
+        let lineHeight = max(
+            leftLabel.size(withAttributes: leftLabelAttributes).height,
+            rightLabel.size(withAttributes: leftLabelAttributes).height
+        )
+        
+        return yPosition + lineHeight + 6
     }
     
     private func drawSummarySection(for detail: InspectionDetail, at yPosition: CGFloat) -> CGFloat {

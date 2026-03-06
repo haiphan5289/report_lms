@@ -11,6 +11,15 @@ struct InspectionDetail: Identifiable {
     let id: String
     let inspectionNumber: String
     let sections: [InspectionSection]
+    
+    // Quantity Information
+    let orderQuantity: Int
+    let actualCompletedQuantity: Int
+    let aqlInspectionQuantity: Int
+    let inspectedQuantity: Int
+    
+    // Factory Information
+    let factoryName: String
 }
 
 struct InspectionSection: Identifiable {
@@ -41,7 +50,7 @@ struct InspectionField: Identifiable {
 
 // MARK: - Mock Data Extension
 extension InspectionDetail {
-    static func mock(inspectionId: String, inspectionNumber: String) -> InspectionDetail {
+    static func mock(inspectionId: String, inspectionNumber: String, factoryName: String = "KUKA") -> InspectionDetail {
         InspectionDetail(
             id: inspectionId,
             inspectionNumber: inspectionNumber,
@@ -214,7 +223,12 @@ extension InspectionDetail {
                     ],
                     order: 6
                 )
-            ]
+            ],
+            orderQuantity: 5000,
+            actualCompletedQuantity: 4800,
+            aqlInspectionQuantity: 315,
+            inspectedQuantity: 315,
+            factoryName: factoryName
         )
     }
 }

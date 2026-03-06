@@ -26,9 +26,16 @@ final class GenerateHTMLPDFReportUseCase {
     /// - Parameters:
     ///   - detail: The inspection detail containing all sections and fields
     ///   - images: Dictionary mapping field IDs to their captured images
+    ///   - inspectorName: Name of the inspector
+    ///   - location: Inspection location
     /// - Returns: PDF data ready for sharing or saving
     /// - Throws: PDFGenerationError if generation fails
-    func execute(detail: InspectionDetail, images: [String: [UIImage]]) async throws -> Data {
+    func execute(
+        detail: InspectionDetail,
+        images: [String: [UIImage]],
+        inspectorName: String,
+        location: String
+    ) async throws -> Data {
         logger.log("Executing PDF generation use case for inspection #\(detail.inspectionNumber)")
         
         // Validate input
@@ -39,7 +46,12 @@ final class GenerateHTMLPDFReportUseCase {
         
         // Generate PDF
         do {
-            let pdfData = try await pdfGenerator.generatePDF(detail: detail, images: images)
+            let pdfData = try await pdfGenerator.generatePDF(
+                detail: detail,
+                images: images,
+                inspectorName: inspectorName,
+                location: location
+            )
             
             logger.log("PDF generation completed successfully, size: \(pdfData.count) bytes")
             return pdfData

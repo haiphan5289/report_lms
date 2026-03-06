@@ -14,9 +14,16 @@ protocol PDFGeneratorType {
     /// - Parameters:
     ///   - detail: The inspection detail containing sections and fields
     ///   - images: Dictionary mapping field IDs to their captured images
+    ///   - inspectorName: Name of the inspector
+    ///   - location: Inspection location
     /// - Returns: PDF data
     /// - Throws: PDFGenerationError if generation fails
-    func generatePDF(detail: InspectionDetail, images: [String: [UIImage]]) async throws -> Data
+    func generatePDF(
+        detail: InspectionDetail,
+        images: [String: [UIImage]],
+        inspectorName: String,
+        location: String
+    ) async throws -> Data
 }
 
 /// Errors that can occur during PDF generation

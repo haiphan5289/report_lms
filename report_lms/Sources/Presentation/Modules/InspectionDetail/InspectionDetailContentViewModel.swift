@@ -114,10 +114,15 @@ final class InspectionDetailContentViewModel: ObservableObject {
         
         logger.log("Starting PDF generation for inspection #\(detail.inspectionNumber)")
         
+        // Get inspector name from KeychainManager
+        let inspectorName = KeychainManager.getStoredUsername() ?? "Unknown"
+        
         do {
             let data = try await generatePDFUseCase.execute(
                 detail: detail,
-                images: capturedPhotos
+                images: capturedPhotos,
+                inspectorName: inspectorName,
+                location: ""
             )
             
             pdfData = data
@@ -153,10 +158,15 @@ final class InspectionDetailContentViewModel: ObservableObject {
         
         logger.log("Starting PDF generation for inspection #\(detail.inspectionNumber)")
         
+        // Get inspector name from KeychainManager
+        let inspectorName = KeychainManager.getStoredUsername() ?? "Unknown"
+        
         do {
             let data = try await generatePDFUseCase.execute(
                 detail: detail,
-                images: capturedPhotos
+                images: capturedPhotos,
+                inspectorName: inspectorName,
+                location: ""
             )
             
             pdfData = data
