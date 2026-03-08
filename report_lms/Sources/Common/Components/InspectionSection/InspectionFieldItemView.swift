@@ -25,18 +25,21 @@ struct InspectionFieldItemView: View {
     let fieldName: String
     let hasPhoto: Bool
     let images: [UIImage]
+    let onTextTap: () -> Void
     let onCameraTap: () -> Void
 
     // MARK: - Body
     var body: some View {
         HStack(spacing: Layout.itemSpacing) {
-            LMSLabel(
-                fieldName,
-                style: .body,
-                color: .primary
-            )
-
-            Spacer()
+            Button(action: onTextTap) {
+                LMSLabel(
+                    fieldName,
+                    style: .body,
+                    color: .primary
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
 
             cameraButton
         }
@@ -93,6 +96,7 @@ struct InspectionFieldItemView: View {
         fieldName: "Tổng quan về thùng carton",
         hasPhoto: false,
         images: [],
+        onTextTap: {},
         onCameraTap: {}
     )
     .padding()
@@ -103,6 +107,7 @@ struct InspectionFieldItemView: View {
         fieldName: "Thông tin in trên thùng carton",
         hasPhoto: true,
         images: [],
+        onTextTap: {},
         onCameraTap: {}
     )
     .padding()
@@ -113,6 +118,7 @@ struct InspectionFieldItemView: View {
         fieldName: "Tổng quan chi tiết về thông tin in trên bề mặt thùng carton bên ngoài",
         hasPhoto: false,
         images: [],
+        onTextTap: {},
         onCameraTap: {}
     )
     .padding()

@@ -8,6 +8,11 @@
 import Foundation
 import OSLog
 
+/// Notification posted when cache finishes loading
+extension Notification.Name {
+    static let inspectionCacheDidLoad = Notification.Name("inspectionCacheDidLoad")
+}
+
 /// Local storage service for inspections with in-memory caching
 /// Stores all inspections in a single JSON file: Documents/inspections.json
 final class InspectionStorageService: InspectionStorageServiceType {
@@ -54,6 +59,8 @@ final class InspectionStorageService: InspectionStorageServiceType {
                 await MainActor.run {
                     cache = []
                 }
+                // Notify that cache is ready (empty but ready)
+                NotificationCenter.default.post(name: .inspectionCacheDidLoad, object: nil)
                 return
             }
             
@@ -69,6 +76,9 @@ final class InspectionStorageService: InspectionStorageServiceType {
             }
             
             logger.log("Loaded \(inspections.count) inspections into cache")
+            
+            // Notify that cache is ready
+            NotificationCenter.default.post(name: .inspectionCacheDidLoad, object: nil)
         } catch {
             logger.error("Failed to load cache: \(error.localizedDescription)")
             throw InspectionStorageError.decodingFailed

@@ -42,7 +42,7 @@ struct InspectionDetailContentView: View {
             } else if let errorMessage = errorMessage {
                 errorView(message: errorMessage)
             } else {
-                EmptyView()
+                loadingPlaceholder
             }
         }
     }
@@ -113,7 +113,8 @@ struct InspectionDetailContentView: View {
             fieldName: field.label,
             hasPhoto: contentViewModel.hasPhoto(for: field.id),
             images: contentViewModel.getImages(for: field.id),
-            onCameraTap: { contentViewModel.openPhotoPicker(for: field.id) }
+            onTextTap: { contentViewModel.openValidationView(for: field.id) },
+            onCameraTap: { contentViewModel.openCamera(for: field.id) }
         )
     }
 
@@ -138,6 +139,18 @@ struct InspectionDetailContentView: View {
         })
         .frame(maxWidth: Layout.retryButtonMaxWidth)
         .frame(height: Layout.retryButtonHeight)
+    }
+    
+    private var loadingPlaceholder: some View {
+        ScrollView {
+            VStack {
+                // Empty placeholder to maintain layout
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Layout.horizontalPadding)
+            .padding(.vertical, Layout.verticalPadding)
+        }
+        .background(Color(.systemGroupedBackground))
     }
     
     // MARK: - New Action Buttons

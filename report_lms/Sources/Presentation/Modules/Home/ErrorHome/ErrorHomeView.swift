@@ -6,96 +6,139 @@
 //
 
 import SwiftUI
-import UIKit
-
-// MARK: - Layout Constants
-private enum ErrorHomeLayout {
-    static let buttonSize: CGFloat = 56
-    static let buttonBottomPadding: CGFloat = 32
-    static let buttonTrailingPadding: CGFloat = 20
-    static let buttonIconSize: CGFloat = 24
-}
 
 // MARK: - ErrorHomeView
 
 struct ErrorHomeView: View {
-
     // MARK: - Properties
     @StateObject private var viewModel: ErrorHomeViewModel
     var onNavigateToPhotoCaptureErrorReview: () -> Void
 
     // MARK: - Initialization
-    init(viewModel: ErrorHomeViewModel, onNavigateToPhotoCaptureErrorReview: @escaping () -> Void) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+    init(viewModel: ErrorHomeViewModel? = nil, onNavigateToPhotoCaptureErrorReview: @escaping () -> Void) {
+        _viewModel = StateObject(wrappedValue: viewModel ?? ErrorHomeViewModel())
         self.onNavigateToPhotoCaptureErrorReview = onNavigateToPhotoCaptureErrorReview
     }
 
     // MARK: - Body
     var body: some View {
-        ZStack {
-            if viewModel.isLoading {
-                LMSLoadingView(message: "Đang tải danh sách lỗi...")
-            } else if viewModel.errors.isEmpty {
-                EmptyErrorView()
-            } else {
-                errorListView
-            }
-            containerButton
+        ZStack(alignment: .bottom) {
+            contentView
+            floatingButton
         }
-        .task {
-            await viewModel.loadErrors()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            Task {
+                await viewModel.loadErrorInspections()
+            }
+        }
+        .refreshable {
+            await viewModel.loadErrorInspections()
         }
     }
-    
-    private var containerButton: some View {
-        VStack {
-            Spacer()
-            HStack {
-                Spacer()
-                reportButton
-                    .padding(.trailing, ErrorHomeLayout.buttonTrailingPadding)
+
+    // MARK: - Private Views
+    private var contentView: some View {
+        Group {
+            if viewModel.isLoading && viewModel.errorInspections.isEmpty {
+                LMSLoadingView()
+            } else if let errorMessage = viewModel.errorMessage {
+                errorView(message: errorMessage)
+            } else if viewModel.errorInspections.isEmpty {
+                emptyStateView
+            } else {
+                inspectionListView
+            }
+        }
+    }
+
+    private func errorView(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 48))
+                .foregroundColor(.red)
+
+            LMSLabel(message, style: .body, alignment: .center)
+
+            LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary, action: {
+                Task {
+                    await viewModel.loadErrorInspections()
+                }
+            })
+            .frame(maxWidth: 200)
+            .frame(height: 44)
+        }
+        .padding()
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 8) {
+                Image(systemName: "checkmark.circle")
+                    .font(.system(size: 48))
+                    .foregroundColor(.green.opacity(0.6))
+                LMSLabel("Không có lỗi nào được phát hiện", style: .body, alignment: .center)
+                LMSLabel("Tất cả kiểm tra đang diễn ra tốt", style: .subheadline, color: .secondary, alignment: .center)
             }
             .padding()
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+            )
+
+            Spacer()
         }
-        .padding(.bottom, ErrorHomeLayout.buttonBottomPadding)
+        .multilineTextAlignment(.center)
+        .padding()
     }
-    
-    private var errorListView: some View {
+
+    private var inspectionListView: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                ForEach(viewModel.errors) { error in
-                    ErrorListItemView(error: error)
+            LazyVStack(spacing: 12) {
+                ForEach(viewModel.errorInspections) { inspection in
+                    NavigationLink(value: inspection) {
+                        InspectionCardView(
+                            inspection: inspection,
+                            isLastIndex: false
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(LMSColor.background)
+                            .shadow(color: LMSColor.Shadow.medium, radius: 4, x: 0, y: 2)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(LMSColor.Border.subtle, lineWidth: 1)
+                            )
+                    )
+                    .padding(.horizontal, 16)
                 }
             }
-            .padding()
+            .padding(.vertical, 12)
         }
+        .background(Color(.systemGroupedBackground))
     }
-    
-    private var reportButton: some View {
-        Button(action: handleReportError) {
-            ZStack {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: ErrorHomeLayout.buttonSize, height: ErrorHomeLayout.buttonSize)
-                    .shadow(color: Color.red.opacity(0.3), radius: 8, y: 4)
-                
-                Image(systemName: "exclamationmark")
-                    .font(.system(size: ErrorHomeLayout.buttonIconSize, weight: .bold))
+
+    private var floatingButton: some View {
+        HStack {
+            Spacer()
+            Button(action: onNavigateToPhotoCaptureErrorReview) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(.white)
             }
+            .frame(width: 56, height: 56)
+            .background(Circle().fill(Color.orange))
+            .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
+            .padding([.bottom, .trailing], 24)
         }
-        .buttonStyle(.plain)
-    }
-    
-    private func handleReportError() {
-        onNavigateToPhotoCaptureErrorReview()
     }
 }
-// MARK: - Preview
 
-#Preview("Error Home View") {
-    ErrorHomeView(
-        viewModel: ErrorHomeViewModel(),
-        onNavigateToPhotoCaptureErrorReview: {}
-    )
+// MARK: - Preview
+#Preview {
+    ErrorHomeView(onNavigateToPhotoCaptureErrorReview: {})
 }

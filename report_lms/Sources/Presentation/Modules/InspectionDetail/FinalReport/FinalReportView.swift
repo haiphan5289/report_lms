@@ -14,9 +14,6 @@ struct FinalReportView: View {
         static let horizontalPadding: CGFloat = 16
         static let verticalPadding: CGFloat = 20
         static let cornerRadius: CGFloat = 12
-        static let iconSize: CGFloat = 20
-        static let actionButtonHeight: CGFloat = 56
-        static let savePhotoButtonHeight: CGFloat = 50
     }
     
     // MARK: - Properties
@@ -38,7 +35,7 @@ struct FinalReportView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color(.systemGroupedBackground)
+                LMSColor.backgroundGrouped
                     .ignoresSafeArea()
                 
                 ScrollView(.vertical, showsIndicators: true) {
@@ -102,9 +99,9 @@ struct FinalReportView: View {
         }
         .overlay {
             if viewModel.isGeneratingPDF {
-                LoadingOverlayView(message: "Đang tạo PDF...")
+                LMSLoadingOverlay(message: "Đang tạo PDF...", style: .dark)
             } else if viewModel.isSavingPhotos {
-                LoadingOverlayView(message: "Đang lưu ảnh...")
+                LMSLoadingOverlay(message: "Đang lưu ảnh...", style: .dark)
             }
         }
         .overlay {
@@ -152,40 +149,33 @@ struct FinalReportView: View {
     // MARK: - Section Views
     
     private var quantitiesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LMSLabel("Số lượng", style: .headline)
-            
+        LMSSectionContainer(title: "Số lượng") {
             VStack(spacing: 8) {
-                InfoRowView(
+                LMSInfoRow(
                     label: "Số lượng đơn hàng",
                     value: "\(viewModel.inspection?.orderQuantity ?? 0)"
                 )
                 
-                InfoRowView(
+                LMSInfoRow(
                     label: "Số lượng thực tế đã xong",
                     value: "\(viewModel.inspection?.actualCompletedQuantity ?? 0)"
                 )
                 
-                InfoRowView(
+                LMSInfoRow(
                     label: "Số lượng cần kiểm tra theo AQL",
                     value: "\(viewModel.inspection?.aqlInspectionQuantity ?? 0)"
                 )
                 
-                InfoRowView(
+                LMSInfoRow(
                     label: "Số lượng đã kiểm tra",
                     value: "\(viewModel.inspection?.inspectedQuantity ?? 0)"
                 )
             }
         }
-        .padding()
-        .background(LMSColor.white)
-        .cornerRadius(Layout.cornerRadius)
     }
     
     private var statusSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LMSLabel("Trạng thái", style: .headline)
-            
+        LMSSectionContainer(title: "Trạng thái") {
             Picker("Trạng thái", selection: $viewModel.selectedStatus) {
                 ForEach(FinalReportStatus.allCases, id: \.self) { status in
                     Label {
@@ -199,118 +189,91 @@ struct FinalReportView: View {
             .pickerStyle(.menu)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
-            .background(Color(.systemGray6))
+            .background(LMSColor.backgroundSecondary)
             .cornerRadius(8)
         }
-        .padding()
-        .background(LMSColor.white)
-        .cornerRadius(Layout.cornerRadius)
     }
     
     private var locationSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LMSLabel("Vị trí", style: .headline)
-            
+        LMSSectionContainer(title: "Vị trí") {
             TextField("Nhập vị trí kiểm tra", text: $viewModel.location)
                 .padding(12)
-                .background(Color(.systemGray6))
+                .background(LMSColor.backgroundSecondary)
                 .cornerRadius(8)
                 .font(.system(size: 15))
         }
-        .padding()
-        .background(LMSColor.white)
-        .cornerRadius(Layout.cornerRadius)
     }
     
     private var summarySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LMSLabel("Tóm tắt nhận xét", style: .headline)
-            
+        LMSSectionContainer(title: "Tóm tắt nhận xét") {
             TextEditor(text: $viewModel.summaryComments)
                 .frame(minHeight: 120)
                 .padding(8)
-                .background(Color(.systemGray6))
+                .background(LMSColor.backgroundSecondary)
                 .cornerRadius(8)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(.systemGray4), lineWidth: 1)
+                        .stroke(LMSColor.secondary, lineWidth: 1)
                 )
         }
-        .padding()
-        .background(LMSColor.white)
-        .cornerRadius(Layout.cornerRadius)
     }
     
     private var notificationSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            Button(action: {
-                viewModel.toggleNotificationSection()
-            }) {
-                HStack {
-                    LMSLabel("Thông báo (\(viewModel.recipientsCount))", style: .headline)
-                    
-                    Spacer()
-                    
-                    Image(systemName: viewModel.isNotificationSectionExpanded ? "chevron.up" : "chevron.down")
-                        .foregroundColor(LMSColor.textSecondary)
-                        .font(.system(size: 14, weight: .semibold))
-                }
-            }
-            .buttonStyle(.plain)
-            
-            if viewModel.isNotificationSectionExpanded {
-                // Info Text
-                Text("Khi báo cáo đã hoàn tất và được tải lên, email thông báo sẽ được gửi tới")
-                    .font(.system(size: 14))
-                    .foregroundColor(LMSColor.textSecondary)
-                    .padding(.top, 4)
-                
-                // Selected Recipients List
-                if !viewModel.selectedRecipients.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(viewModel.selectedRecipients) { recipient in
-                            HStack {
-                                Image(systemName: "person.circle.fill")
-                                    .foregroundColor(LMSColor.primary)
-                                Text(recipient.name)
-                                    .font(.system(size: 15))
-                                    .foregroundColor(LMSColor.textPrimary)
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-                
-                // Add Button
+        LMSSectionContainer {
+            VStack(alignment: .leading, spacing: 12) {
+                // Header
                 Button(action: {
-                    viewModel.isShowingRecipientsPicker = true
+                    viewModel.toggleNotificationSection()
                 }) {
                     HStack {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: Layout.iconSize))
-                            .foregroundColor(LMSColor.primary)
+                        LMSLabel("Thông báo (\(viewModel.recipientsCount))", style: .headline)
                         
-                        Text("Thêm")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(LMSColor.primary)
+                        Spacer()
+                        
+                        Image(systemName: viewModel.isNotificationSectionExpanded ? "chevron.up" : "chevron.down")
+                            .foregroundColor(LMSColor.textSecondary)
+                            .font(.system(size: 14, weight: .semibold))
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(LMSColor.white)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(LMSColor.primaryBorder, lineWidth: 1.5)
-                    )
-                    .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
+                
+                if viewModel.isNotificationSectionExpanded {
+                    // Info Text
+                    LMSLabel(
+                        "Khi báo cáo đã hoàn tất và được tải lên, email thông báo sẽ được gửi tới",
+                        style: .caption,
+                        color: .secondary
+                    )
+                    .padding(.top, 4)
+                    
+                    // Selected Recipients List
+                    if !viewModel.selectedRecipients.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(viewModel.selectedRecipients) { recipient in
+                                HStack {
+                                    Image(systemName: "person.circle.fill")
+                                        .foregroundColor(LMSColor.primary)
+                                    LMSLabel(recipient.name, style: .body, color: .primary)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    
+                    // Add Button
+                    LMSButton(
+                        "Thêm",
+                        icon: "plus.circle.fill",
+                        variant: .tertiary,
+                        size: .medium,
+                        isFullWidth: true
+                    ) {
+                        viewModel.isShowingRecipientsPicker = true
+                    }
+                }
             }
         }
-        .padding()
-        .background(LMSColor.white)
-        .cornerRadius(Layout.cornerRadius)
     }
     
     private var actionButtonsSection: some View {
@@ -320,97 +283,50 @@ struct FinalReportView: View {
             
             HStack(spacing: 12) {
                 // Preview PDF Button
-                Button(action: {
+                LMSButton(
+                    "Xem PDF",
+                    icon: "doc.text.magnifyingglass",
+                    variant: .tertiary,
+                    size: .large,
+                    isFullWidth: true,
+                    isDisabled: viewModel.isGeneratingPDF
+                ) {
                     Task {
                         await viewModel.generateAndPreviewPDF()
                     }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: Layout.iconSize, weight: .medium))
-                            .foregroundColor(LMSColor.primary)
-                        
-                        Text("Xem PDF")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(LMSColor.primary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Layout.actionButtonHeight)
-                    .background(LMSColor.white)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Layout.cornerRadius)
-                            .stroke(LMSColor.primaryBorder, lineWidth: 1.5)
-                    )
-                    .cornerRadius(Layout.cornerRadius)
                 }
-                .buttonStyle(.plain)
-                .disabled(viewModel.isGeneratingPDF)
-                .opacity(viewModel.isGeneratingPDF ? 0.6 : 1.0)
                 
                 // Send Email Button
-                Button(action: {
+                LMSButton(
+                    "Gửi Email",
+                    icon: "paperplane.fill",
+                    variant: .primary,
+                    size: .large,
+                    isFullWidth: true,
+                    isDisabled: viewModel.isGeneratingPDF
+                ) {
                     Task {
                         await viewModel.generateAndSendPDF()
                     }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "paperplane.fill")
-                            .font(.system(size: Layout.iconSize, weight: .medium))
-                            .foregroundColor(LMSColor.white)
-                        
-                        Text("Gửi Email")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(LMSColor.white)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Layout.actionButtonHeight)
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: [LMSColor.primary, LMSColor.primary.opacity(0.85)]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .cornerRadius(Layout.cornerRadius)
-                    .shadow(color: LMSColor.primary.opacity(0.25), radius: 8, x: 0, y: 4)
                 }
-                .buttonStyle(.plain)
-                .disabled(viewModel.isGeneratingPDF)
-                .opacity(viewModel.isGeneratingPDF ? 0.6 : 1.0)
             }
             .padding(.horizontal)
         }
     }
     
     private var savePhotosSection: some View {
-        Button(action: {
+        LMSButton(
+            "Lưu vào tập ảnh (\(viewModel.totalPhotosCount))",
+            icon: "photo.on.rectangle.angled",
+            variant: .secondary,
+            size: .medium,
+            isFullWidth: true,
+            isDisabled: viewModel.isSavingPhotos || viewModel.totalPhotosCount == 0
+        ) {
             Task {
                 await viewModel.saveAllPhotosToLibrary()
             }
-        }) {
-            HStack(spacing: 12) {
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: Layout.iconSize, weight: .medium))
-                    .foregroundColor(LMSColor.white)
-                
-                Text("Lưu vào tập ảnh (\(viewModel.totalPhotosCount))")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(LMSColor.white)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: Layout.savePhotoButtonHeight)
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [LMSColor.secondary, LMSColor.secondary.opacity(0.85)]),
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .cornerRadius(Layout.cornerRadius)
         }
-        .buttonStyle(.plain)
-        .disabled(viewModel.isSavingPhotos || viewModel.totalPhotosCount == 0)
-        .opacity(viewModel.totalPhotosCount == 0 ? 0.5 : 1.0)
     }
     
     private var recipientsPickerView: some View {
@@ -425,9 +341,7 @@ struct FinalReportView: View {
                                 .foregroundColor(LMSColor.primary)
                                 .font(.system(size: 24))
                             
-                            Text(recipient.name)
-                                .font(.system(size: 16))
-                                .foregroundColor(LMSColor.textPrimary)
+                            LMSLabel(recipient.name, style: .body, color: .primary)
                             
                             Spacer()
                             
@@ -455,55 +369,7 @@ struct FinalReportView: View {
     }
 }
 
-// MARK: - Supporting Views
 
-private struct InfoRowView: View {
-    let label: String
-    let value: String
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            LMSLabel(label, style: .body, color: .secondary)
-            
-            Spacer()
-            
-            LMSLabel(value, style: .body, color: .primary)
-                .fontWeight(.medium)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(.systemGray6))
-        .cornerRadius(8)
-    }
-}
-
-// MARK: - Loading Overlay
-private struct LoadingOverlayView: View {
-    let message: String
-    
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 16) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .scaleEffect(1.5)
-                    .tint(.white)
-                
-                Text(message)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-            }
-            .padding(30)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.black.opacity(0.8))
-            )
-        }
-    }
-}
 
 // MARK: - Preview
 #Preview {

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 @MainActor
 final class PlanLMSHomeViewModel: ObservableObject {
@@ -17,6 +18,7 @@ final class PlanLMSHomeViewModel: ObservableObject {
     // MARK: - Private Properties
     private let storageService: InspectionStorageServiceType
     private let groupInspectionsByWeekUseCase: GroupInspectionsByWeekUseCase
+    private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Initialization
     nonisolated init(
@@ -25,6 +27,17 @@ final class PlanLMSHomeViewModel: ObservableObject {
     ) {
         self.storageService = storageService
         self.groupInspectionsByWeekUseCase = groupInspectionsByWeekUseCase
+        
+        // Subscribe to cache loaded notification
+        Task { @MainActor in
+            NotificationCenter.default.publisher(for: .inspectionCacheDidLoad)
+                .sink { [weak self] _ in
+                    Task { @MainActor in
+                        await self?.loadInspections()
+                    }
+                }
+                .store(in: &self.cancellables)
+        }
     }
 
     // MARK: - Public Methods

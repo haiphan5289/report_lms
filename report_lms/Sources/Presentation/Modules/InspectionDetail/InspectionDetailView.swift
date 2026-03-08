@@ -66,7 +66,8 @@ struct InspectionDetailView: View {
                 InspectionValidationView(
                     fieldId: field.id,
                     fieldLabel: field.label,
-                    initialImages: viewModel.getImages(for: field.id)
+                    initialImages: viewModel.getImages(for: field.id),
+                    inspectionId: viewModel.inspection?.id
                 ) { validation in
                     viewModel.handleValidationSave(validation)
                 }

@@ -26,8 +26,11 @@ final class InspectionDetailViewModel: ObservableObject {
     private(set) lazy var contentViewModel: InspectionDetailContentViewModel = {
         InspectionDetailContentViewModel(
             parentViewModel: self,
-            onPhotoPickerOpen: { [weak self] fieldId in
-                self?.openPhotoPicker(for: fieldId)
+            onTextTap: { [weak self] fieldId in
+                self?.openValidationView(for: fieldId)
+            },
+            onCameraTap: { [weak self] fieldId in
+                self?.openCamera(for: fieldId)
             }
         )
     }()
@@ -73,19 +76,15 @@ final class InspectionDetailViewModel: ObservableObject {
         !(capturedPhotos[fieldId]?.isEmpty ?? true)
     }
 
-    private func openPhotoPicker(for fieldId: String) {
-        // Find field label from inspection detail
+    func openValidationView(for fieldId: String) {
         let fieldLabel = findFieldLabel(for: fieldId)
-        
-        // If field has images, navigate to validation view
-        if hasPhoto(for: fieldId) {
-            selectedValidationField = (id: fieldId, label: fieldLabel)
-            showValidation = true
-        } else {
-            // Otherwise, open camera
-            selectedFieldId = fieldId
-            showCamera = true
-        }
+        selectedValidationField = (id: fieldId, label: fieldLabel)
+        showValidation = true
+    }
+    
+    func openCamera(for fieldId: String) {
+        selectedFieldId = fieldId
+        showCamera = true
     }
     
     func handleValidationSave(_ validation: FieldValidation) {

@@ -8,6 +8,11 @@
 import Foundation
 import SwiftUI
 
+/// Notification posted when inspection status changes to inProgress
+extension Notification.Name {
+    static let inspectionMovedToInProgress = Notification.Name("inspectionMovedToInProgress")
+}
+
 @MainActor
 final class InspectionValidationViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -24,11 +29,13 @@ final class InspectionValidationViewModel: ObservableObject {
     // MARK: - Private Properties
     private var imageIndexToDelete: Int?
     private let fieldId: String
+    private let inspectionId: String?
     let fieldLabel: String
     private var onSave: ((FieldValidation) -> Void)?
     private let initialStatus: ValidationStatus
     private let initialComments: String
     private let initialImagesCount: Int
+    private let storageService: InspectionStorageServiceType?
     
     // MARK: - Initialization
     init(
@@ -37,6 +44,8 @@ final class InspectionValidationViewModel: ObservableObject {
         initialImages: [UIImage],
         initialStatus: ValidationStatus = .pending,
         initialComments: String = "",
+        inspectionId: String? = nil,
+        storageService: InspectionStorageServiceType? = nil,
         onSave: ((FieldValidation) -> Void)? = nil
     ) {
         self.fieldId = fieldId
@@ -47,6 +56,8 @@ final class InspectionValidationViewModel: ObservableObject {
         self.initialImagesCount = initialImages.count
         self.status = initialStatus
         self.comments = initialComments
+        self.inspectionId = inspectionId
+        self.storageService = storageService ?? Container.shared.resolve(InspectionStorageServiceType.self)
         self.onSave = onSave
     }
     
@@ -119,6 +130,11 @@ final class InspectionValidationViewModel: ObservableObject {
         // Save draft locally
         saveDraft(validation)
         
+        // Update inspection status to .inProgress and persist
+        Task {
+            await updateInspectionStatus()
+        }
+        
         // Call save callback
         onSave?(validation)
         
@@ -133,6 +149,27 @@ final class InspectionValidationViewModel: ObservableObject {
     }
     
     // MARK: - Private Methods
+    
+    private func updateInspectionStatus() async {
+        guard let inspectionId = inspectionId,
+              let storageService = storageService,
+              var inspection = storageService.getInspection(by: inspectionId) else {
+            return
+        }
+        
+        // Update status to inProgress
+        inspection.status = .inProgress
+        
+        // Persist the change
+        do {
+            try await storageService.updateInspection(inspection)
+            
+            // Post notification to switch to ErrorHome tab
+            NotificationCenter.default.post(name: .inspectionMovedToInProgress, object: nil)
+        } catch {
+            print("Failed to update inspection status: \(error)")
+        }
+    }
     
     private func updateDirtyState() {
         isDirty = status != initialStatus ||

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - LMSHomeViewModel
 
@@ -16,6 +17,34 @@ final class LMSHomeViewModel: ObservableObject {
     @Published var selectedTab: Tab = .plan
     @Published var navigationPath = NavigationPath()
     @Published var dataRefreshTrigger = 0
+    
+    // MARK: - Private Properties
+    private var cancellables = Set<AnyCancellable>()
+    
+    // MARK: - Initialization
+    init() {
+        setupNotificationObservers()
+    }
+    
+    // MARK: - Private Methods
+    private func setupNotificationObservers() {
+        // Listen for inspection moved to inProgress notification
+        NotificationCenter.default.publisher(for: .inspectionMovedToInProgress)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.navigateToErrorTab()
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func navigateToErrorTab() {
+        // Pop back to home by clearing navigation path
+        navigationPath = NavigationPath()
+        
+        // Switch to error (inProgress) tab
+        selectedTab = .inProgress
+    }
 
     // MARK: - Public Methods
     func showMenuAction() {

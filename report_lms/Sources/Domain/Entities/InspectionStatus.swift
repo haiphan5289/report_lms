@@ -10,6 +10,7 @@ import Foundation
 enum InspectionStatus: String, Codable {
     case plan = "Kế hoạch"
     case inProgress = "Đang kiểm tra"
+    case error = "Có lỗi"
     case completed = "Hoàn thành"
     case cancelled = "Đã hủy"
 

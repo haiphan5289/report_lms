@@ -23,7 +23,8 @@ final class InspectionDetailContentViewModel: ObservableObject {
     @Published var showMailUnavailableAlert = false
     
     // MARK: - Private Properties
-    private let onPhotoPickerOpen: (String) -> Void
+    private let onTextTap: (String) -> Void
+    private let onCameraTap: (String) -> Void
     private weak var parentViewModel: InspectionDetailViewModel?
     private let generatePDFUseCase: GenerateHTMLPDFReportUseCase
     private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "inspection")
@@ -49,11 +50,13 @@ final class InspectionDetailContentViewModel: ObservableObject {
     // MARK: - Initialization
     init(
         parentViewModel: InspectionDetailViewModel,
-        onPhotoPickerOpen: @escaping (String) -> Void,
+        onTextTap: @escaping (String) -> Void,
+        onCameraTap: @escaping (String) -> Void,
         generatePDFUseCase: GenerateHTMLPDFReportUseCase? = nil
     ) {
         self.parentViewModel = parentViewModel
-        self.onPhotoPickerOpen = onPhotoPickerOpen
+        self.onTextTap = onTextTap
+        self.onCameraTap = onCameraTap
         
         if let useCase = generatePDFUseCase {
             self.generatePDFUseCase = useCase
@@ -91,9 +94,14 @@ final class InspectionDetailContentViewModel: ObservableObject {
         capturedPhotos[fieldId] ?? []
     }
     
-    /// Open photo picker for a field
-    func openPhotoPicker(for fieldId: String) {
-        onPhotoPickerOpen(fieldId)
+    /// Open validation view for a field (text tap)
+    func openValidationView(for fieldId: String) {
+        onTextTap(fieldId)
+    }
+    
+    /// Open camera for a field (icon tap)
+    func openCamera(for fieldId: String) {
+        onCameraTap(fieldId)
     }
     
     /// Auto-expand first section when data loads
@@ -203,7 +211,8 @@ extension InspectionDetailContentViewModel {
         )
         return InspectionDetailContentViewModel(
             parentViewModel: parentViewModel,
-            onPhotoPickerOpen: { _ in }
+            onTextTap: { _ in },
+            onCameraTap: { _ in }
         )
     }
 }

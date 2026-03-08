@@ -29,6 +29,7 @@ struct InspectionValidationView: View {
         fieldId: String,
         fieldLabel: String,
         initialImages: [UIImage],
+        inspectionId: String? = nil,
         onSave: @escaping (FieldValidation) -> Void
     ) {
         _viewModel = StateObject(
@@ -36,6 +37,7 @@ struct InspectionValidationView: View {
                 fieldId: fieldId,
                 fieldLabel: fieldLabel,
                 initialImages: initialImages,
+                inspectionId: inspectionId,
                 onSave: onSave
             )
         )
@@ -77,13 +79,6 @@ struct InspectionValidationView: View {
         .sheet(isPresented: $viewModel.showCamera) {
             CameraView(source: .inspection) { images in
                 viewModel.appendImages(images)
-            }
-        }
-        .task {
-            // If no images initially, open camera directly
-            if !viewModel.hasImages {
-                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s delay for smooth transition
-                viewModel.openCamera()
             }
         }
         .fullScreenCover(isPresented: $viewModel.showDeleteConfirmation) {
