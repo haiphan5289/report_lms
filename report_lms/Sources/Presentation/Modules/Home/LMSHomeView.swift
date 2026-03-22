@@ -193,7 +193,7 @@ struct LMSHomeView: View {
 
             LMSLabel(
                 tab.title,
-                style: .body,
+                style: .subheadline,
                 color: isSelected ? .custom(Color.accentColor) : .secondary,
                 alignment: .center
             )

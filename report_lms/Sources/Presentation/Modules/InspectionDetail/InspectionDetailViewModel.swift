@@ -12,7 +12,7 @@ import SwiftUI
 final class InspectionDetailViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var inspection: Inspection?
-    @Published var capturedPhotos: [String: [UIImage]] = [:] // fieldId: [images]
+    @Published var capturedPhotos: [String: [InspectionImage]] = [:] // fieldId: [images]
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var showCamera = false
@@ -68,7 +68,7 @@ final class InspectionDetailViewModel: ObservableObject {
         contentViewModel.autoExpandFirstSection()
     }
 
-    func getImages(for fieldId: String) -> [UIImage] {
+    func getImages(for fieldId: String) -> [InspectionImage] {
         return capturedPhotos[fieldId] ?? []
     }
 
@@ -118,7 +118,7 @@ final class InspectionDetailViewModel: ObservableObject {
         if capturedPhotos[fieldId] == nil {
             capturedPhotos[fieldId] = []
         }
-        capturedPhotos[fieldId]?.append(image)
+        capturedPhotos[fieldId]?.append(InspectionImage(image: image))
     }
 
     func handlePhotoSelection(_ images: [UIImage]) {
@@ -156,7 +156,7 @@ extension InspectionDetailViewModel {
             switch self {
             case .inspectionDetail: return "Kiểm tra"
             case .error: return "Lỗi"
-            case .orderInformation: return "Thông tin đơn hàng"
+            case .orderInformation: return "Thông tin"
             }
         }
 

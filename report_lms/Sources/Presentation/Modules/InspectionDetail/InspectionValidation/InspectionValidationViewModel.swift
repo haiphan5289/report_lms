@@ -18,7 +18,7 @@ final class InspectionValidationViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var status: ValidationStatus = .pending
     @Published var comments: String = ""
-    @Published var images: [UIImage] = []
+    @Published var images: [InspectionImage] = []
     @Published var showCamera: Bool = false
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
@@ -41,7 +41,7 @@ final class InspectionValidationViewModel: ObservableObject {
     init(
         fieldId: String,
         fieldLabel: String,
-        initialImages: [UIImage],
+        initialImages: [InspectionImage],
         initialStatus: ValidationStatus = .pending,
         initialComments: String = "",
         inspectionId: String? = nil,
@@ -74,7 +74,8 @@ final class InspectionValidationViewModel: ObservableObject {
     
     /// Append new images from camera
     func appendImages(_ newImages: [UIImage]) {
-        images.append(contentsOf: newImages)
+        let newInspectionImages = newImages.map { InspectionImage(image: $0) }
+        images.append(contentsOf: newInspectionImages)
         updateDirtyState()
     }
     
@@ -182,13 +183,13 @@ final class InspectionValidationViewModel: ObservableObject {
         // Future: Migrate to CoreData or local database
         let key = "draft_validation_\(fieldId)"
         
+        // Only save count and meta for now; image/description persistence is not implemented here
         let draftData = [
             "status": validation.status.rawValue,
             "comments": validation.comments,
             "imageCount": validation.images.count,
             "lastUpdated": validation.lastUpdated.timeIntervalSince1970
         ] as [String : Any]
-        
         if let jsonData = try? JSONSerialization.data(withJSONObject: draftData) {
             UserDefaults.standard.set(jsonData, forKey: key)
         }
@@ -219,10 +220,10 @@ extension InspectionValidationViewModel {
             fieldId: "field1",
             fieldLabel: "Carton Overview",
             initialImages: [
-                UIImage(systemName: "photo")!,
-                UIImage(systemName: "photo.fill")!,
-                UIImage(systemName: "photo.circle")!,
-                UIImage(systemName: "photo.circle.fill")!
+                InspectionImage(image: UIImage(systemName: "photo")!),
+                InspectionImage(image: UIImage(systemName: "photo.fill")!),
+                InspectionImage(image: UIImage(systemName: "photo.circle")!),
+                InspectionImage(image: UIImage(systemName: "photo.circle.fill")!)
             ]
         )
     }

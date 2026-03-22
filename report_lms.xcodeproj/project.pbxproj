@@ -170,7 +170,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Strip Firebase framework dSYMs to prevent upload errors\n# These frameworks are distributed without debug symbols\nif [ \"${CONFIGURATION}\" = \"Release\" ]; then\n    echo \"Stripping Firebase dSYMs from archive...\"\n    \n    # Remove problematic Firebase dSYMs if they exist\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/FirebaseAnalytics.framework.dSYM\" 2>/dev/null || true\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/FirebaseFirestoreInternal.framework.dSYM\" 2>/dev/null || true\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/GoogleAdsOnDeviceConversion.framework.dSYM\" 2>/dev/null || true\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/GoogleAppMeasurement.framework.dSYM\" 2>/dev/null || true\n    rm -rf \"${DWARF_DSYM_FOLDER_PATH}/GoogleAppMeasurementIdentitySupport.framework.dSYM\" 2>/dev/null || true\n    \n    echo \"Firebase dSYM cleanup complete\"\nfi\n";
+			shellScript = "# Strip Firebase framework dSYMs to prevent upload errors\n# These frameworks are distributed without debug symbols\n#!/bin/sh\nif [ \"${CONFIGURATION}\" != \"Release\" ]; then exit 0; fi\nSCRIPT=\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\nif [ -f \"$SCRIPT\" ]; then \"$SCRIPT\"; fi\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -311,7 +311,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202603011918;
+				CURRENT_PROJECT_VERSION = 202603081130;
 				DEVELOPMENT_ASSET_PATHS = "\"report_lms/Preview Content\"";
 				DEVELOPMENT_TEAM = 3TYP89QWY5;
 				ENABLE_PREVIEWS = YES;
@@ -342,7 +342,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202603011918;
+				CURRENT_PROJECT_VERSION = 202603081130;
 				DEVELOPMENT_ASSET_PATHS = "\"report_lms/Preview Content\"";
 				DEVELOPMENT_TEAM = 3TYP89QWY5;
 				ENABLE_PREVIEWS = YES;

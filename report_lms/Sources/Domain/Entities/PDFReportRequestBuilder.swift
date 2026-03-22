@@ -14,7 +14,7 @@ import UIKit
 final class PDFReportRequestBuilder {
     // MARK: - Private Properties
     private var inspection: Inspection?
-    private var capturedImages: [String: [UIImage]] = [:]
+    private var capturedImages: [String: [InspectionImage]] = [:]
     private var inspectorName: String?
     private var inspectionLocation: String?
     
@@ -29,7 +29,7 @@ final class PDFReportRequestBuilder {
     
     /// Set captured images
     @discardableResult
-    func with(images: [String: [UIImage]]) -> Self {
+    func with(images: [String: [InspectionImage]]) -> Self {
         self.capturedImages = images
         return self
     }

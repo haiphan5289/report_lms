@@ -23,7 +23,7 @@ struct FinalReportView: View {
     // MARK: - Initialization
     init(
         inspection: Inspection?,
-        capturedPhotos: [String: [UIImage]]
+        capturedPhotos: [String: [InspectionImage]]
     ) {
         _viewModel = StateObject(wrappedValue: FinalReportViewModel(
             inspection: inspection,
@@ -375,6 +375,6 @@ struct FinalReportView: View {
 #Preview {
     FinalReportView(
         inspection: Inspection.mock(inspectionId: "1", inspectionNumber: "001"),
-        capturedPhotos: ["field1": [UIImage(systemName: "photo")].compactMap { $0 }]
+        capturedPhotos: ["field1": [InspectionImage(image: UIImage(systemName: "photo")!)]]
     )
 }

@@ -32,7 +32,7 @@ final class GenerateHTMLPDFReportUseCase {
     /// - Throws: PDFGenerationError if generation fails
     func execute(
         detail: Inspection,
-        images: [String: [UIImage]],
+        images: [String: [InspectionImage]],
         inspectorName: String,
         location: String
     ) async throws -> Data {

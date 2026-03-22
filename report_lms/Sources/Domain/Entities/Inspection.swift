@@ -133,6 +133,7 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
 }
 
 // MARK: - Mock Data Extension
+//
 
 extension Inspection {
     /// Returns empty sections template for new inspections
@@ -140,18 +141,18 @@ extension Inspection {
         [
             InspectionSection(
                 id: "section1",
-                title: "Ngoài thùng carton",
+                title: "Outer Carton",
                 fields: [
                     InspectionField(
                         id: "field1_1",
-                        label: "Tổng quan về thùng carton",
+                        label: "Carton overview",
                         type: .photo,
                         photoURL: nil,
                         isRequired: true
                     ),
                     InspectionField(
                         id: "field1_2",
-                        label: "Thông tin in trên thùng carton",
+                        label: "Shipping mark info",
                         type: .photo,
                         photoURL: nil,
                         isRequired: true
@@ -161,18 +162,18 @@ extension Inspection {
             ),
             InspectionSection(
                 id: "section2",
-                title: "Trong thùng carton",
+                title: "Inner carton",
                 fields: [
                     InspectionField(
                         id: "field2_1",
-                        label: "Bên trong thùng carton",
+                        label: "Inner carton overview",
                         type: .photo,
                         photoURL: nil,
                         isRequired: false
                     ),
                     InspectionField(
                         id: "field2_2",
-                        label: "Cách xếp sản phẩm",
+                        label: "Packaging (corner protection, filter, hardware, silica gel...)",
                         type: .photo,
                         photoURL: nil,
                         isRequired: false
@@ -182,60 +183,67 @@ extension Inspection {
             ),
             InspectionSection(
                 id: "section3",
-                title: "Tổng quan về sản phẩm",
+                title: "Product",
                 fields: [
                     InspectionField(
                         id: "field3_1",
-                        label: "Hình ảnh tổng thể sản phẩm",
+                        label: "Product view",
                         type: .photo,
                         photoURL: nil,
                         isRequired: true
                     ),
                     InspectionField(
                         id: "field3_2",
-                        label: "Kích thước sản phẩm",
+                        label: "Compare with approved sample (weight, style, finish, comfort...)",
                         type: .photo,
                         photoURL: nil,
                         isRequired: false
                     ),
                     InspectionField(
                         id: "field3_3",
-                        label: "Màu sắc sản phẩm",
+                        label: "Product dimension",
                         type: .photo,
                         photoURL: nil,
                         isRequired: false
                     ),
                     InspectionField(
                         id: "field3_4",
-                        label: "Chất liệu sản phẩm",
+                        label: "Logo on product",
                         type: .photo,
                         photoURL: nil,
                         isRequired: false
                     ),
                     InspectionField(
                         id: "field3_5",
-                        label: "Logo và nhãn mác",
+                        label: "Product label (Tip label, warning label)",
                         type: .photo,
                         photoURL: nil,
-                        isRequired: true
+                        isRequired: false
                     ),
                     InspectionField(
                         id: "field3_6",
-                        label: "Đóng gói sản phẩm",
+                        label: "Assembly instruction",
                         type: .photo,
                         photoURL: nil,
                         isRequired: false
                     ),
                     InspectionField(
                         id: "field3_7",
-                        label: "Tem mác và nhãn",
+                        label: "Moisture Readings",
                         type: .photo,
                         photoURL: nil,
                         isRequired: false
                     ),
                     InspectionField(
                         id: "field3_8",
-                        label: "Thông tin khác",
+                        label: "Sheen Readings",
+                        type: .photo,
+                        photoURL: nil,
+                        isRequired: false
+                    ),
+                    InspectionField(
+                        id: "field3_9",
+                        label: "Color Comparison",
                         type: .photo,
                         photoURL: nil,
                         isRequired: false
@@ -245,66 +253,38 @@ extension Inspection {
             ),
             InspectionSection(
                 id: "section4",
-                title: "Vật liệu",
+                title: "ANSI/BIFMA X5.5-2014",
                 fields: [
                     InspectionField(
                         id: "field4_1",
-                        label: "Chi tiết vật liệu",
+                        label: "Weight of weights",
+                        type: .photo,
+                        photoURL: nil,
+                        isRequired: false
+                    ),
+                    InspectionField(
+                        id: "field4_2",
+                        label: "Pictures of the weights to be applied",
+                        type: .photo,
+                        photoURL: nil,
+                        isRequired: false
+                    ),
+                    InspectionField(
+                        id: "field4_3",
+                        label: "Pictures of the weights on the table in the correct position",
+                        type: .photo,
+                        photoURL: nil,
+                        isRequired: false
+                    ),
+                    InspectionField(
+                        id: "field4_4",
+                        label: "Data to enter should be the amount of weight and pass/fail",
                         type: .photo,
                         photoURL: nil,
                         isRequired: false
                     )
                 ],
                 order: 4
-            ),
-            InspectionSection(
-                id: "section5",
-                title: "Hoàn thiện",
-                fields: [
-                    InspectionField(
-                        id: "field5_1",
-                        label: "Hoàn thiện sản phẩm",
-                        type: .photo,
-                        photoURL: nil,
-                        isRequired: false
-                    )
-                ],
-                order: 5
-            ),
-            InspectionSection(
-                id: "section6",
-                title: "ANSI/BIFMA X5.5-2014",
-                fields: [
-                    InspectionField(
-                        id: "field6_1",
-                        label: "Kiểm tra tiêu chuẩn ANSI",
-                        type: .photo,
-                        photoURL: nil,
-                        isRequired: false
-                    ),
-                    InspectionField(
-                        id: "field6_2",
-                        label: "Kiểm tra độ bền",
-                        type: .photo,
-                        photoURL: nil,
-                        isRequired: false
-                    ),
-                    InspectionField(
-                        id: "field6_3",
-                        label: "Kiểm tra an toàn",
-                        type: .photo,
-                        photoURL: nil,
-                        isRequired: false
-                    ),
-                    InspectionField(
-                        id: "field6_4",
-                        label: "Chứng nhận",
-                        type: .photo,
-                        photoURL: nil,
-                        isRequired: false
-                    )
-                ],
-                order: 6
             )
         ]
     }

@@ -14,7 +14,7 @@ import UIKit
 struct PDFReportRequest {
     // MARK: - Properties
     let inspection: Inspection
-    let capturedImages: [String: [UIImage]]
+    let capturedImages: [String: [InspectionImage]]
     let inspectorName: String
     let inspectionLocation: String
     

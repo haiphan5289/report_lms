@@ -47,7 +47,7 @@ final class PDFKitGeneratorService: PDFGeneratorType {
     // MARK: - Public Methods
     func generatePDF(
         detail: Inspection,
-        images: [String: [UIImage]],
+        images: [String: [InspectionImage]],
         inspectorName: String,
         location: String
     ) async throws -> Data {
@@ -487,13 +487,15 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         return yPosition + labelSize.height + 8
     }
     
-    private func drawFieldImages(_ images: [UIImage], at yPosition: CGFloat, context: UIGraphicsPDFRendererContext) -> CGFloat {
+    private func drawFieldImages(_ images: [InspectionImage], at yPosition: CGFloat, context: UIGraphicsPDFRendererContext) -> CGFloat {
         var currentY = yPosition
         var currentColumn = 0
         
         logger.log("Drawing \(images.count) images for field")
         
-        for (index, image) in images.enumerated() {
+        for (index, inspectionImage) in images.enumerated() {
+            let image = inspectionImage.image
+            let description = inspectionImage.description
             // Check if need new page
             if currentY + Layout.imageHeight > Layout.pageHeight - Layout.margin {
                 context.beginPage()

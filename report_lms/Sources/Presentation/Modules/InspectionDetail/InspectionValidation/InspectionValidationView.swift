@@ -28,7 +28,7 @@ struct InspectionValidationView: View {
     init(
         fieldId: String,
         fieldLabel: String,
-        initialImages: [UIImage],
+        initialImages: [InspectionImage],
         inspectionId: String? = nil,
         onSave: @escaping (FieldValidation) -> Void
     ) {
@@ -50,18 +50,14 @@ struct InspectionValidationView: View {
                 VStack(spacing: Layout.sectionSpacing) {
                     // Section 1: Header with title and camera button
                     headerSection
-                    
                     // Section 2: Status and Comments
                     statusSection
-                    
                     // Section 3: Image Gallery
                     if viewModel.hasImages {
                         imageGallerySection
                     }
-                    
                     // Section 4: Action Buttons
                     actionsSection
-                    
                     // Add bottom padding for fixed buttons
                     Spacer()
                         .frame(height: Layout.bottomButtonHeight + 20)
@@ -70,7 +66,10 @@ struct InspectionValidationView: View {
                 .padding(.top, Layout.horizontalPadding)
             }
             .background(Color(.systemGroupedBackground))
-            
+            .contentShape(Rectangle())
+            .onTapGesture {
+                hideKeyboard()
+            }
             // Fixed bottom buttons
             bottomActionsView
         }
@@ -91,6 +90,11 @@ struct InspectionValidationView: View {
             }
             .background(ClearBackgroundView())
         }
+    }
+
+    // MARK: - Keyboard Dismiss Helper
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
     // MARK: - Section Views
@@ -186,46 +190,28 @@ struct InspectionValidationView: View {
     }
     
     private var imageGallerySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Thư viện phương tiện truyền thông")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.primary)
-                
+                LMSLabel("Thư viện phương tiện truyền thông", style: .headline)
                 Spacer()
-                
-                Text("\(viewModel.images.count) ảnh")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
+                LMSLabel("\(viewModel.images.count) ảnh", style: .caption, color: .secondary)
             }
-            
             if viewModel.images.isEmpty {
-                Text("Chưa có ảnh nào")
-                    .foregroundColor(.secondary)
+                LMSLabel("Chưa có ảnh nào", style: .body, color: .secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 40)
             } else {
-                VStack(spacing: 12) {
-                    ForEach(viewModel.images.indices, id: \.self) { index in
-                        ZStack(alignment: .topTrailing) {
-                            Image(uiImage: viewModel.images[index])
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 200, height: 200)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            
-                            if viewModel.showReorderMode {
-                                Button(action: {
-                                    viewModel.requestDeleteImage(at: index)
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.white)
-                                        .background(Color.black.opacity(0.6))
-                                        .clipShape(Circle())
-                                        .padding(4)
-                                }
-                            }
-                        }
+                VStack(spacing: 16) {
+                    ForEach(Array(viewModel.images.enumerated()), id: \ .element.id) { (index, inspectionImage) in
+                        ImageGalleryItemView(
+                            inspectionImage: inspectionImage,
+                            isReorderMode: viewModel.showReorderMode,
+                            onDelete: { viewModel.requestDeleteImage(at: index) },
+                            descriptionBinding: Binding(
+                                get: { viewModel.images[index].description },
+                                set: { newValue in viewModel.images[index].description = newValue }
+                            )
+                        )
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -236,7 +222,7 @@ struct InspectionValidationView: View {
         .cornerRadius(Layout.cornerRadius)
         .shadow(color: LMSColor.shadow, radius: 2, x: 0, y: 1)
     }
-    
+
     private var actionsSection: some View {
         VStack(spacing: 12) {
             // Add more photos button
@@ -350,16 +336,17 @@ struct ClearBackgroundView: UIViewRepresentable {
 }
 
 // MARK: - Preview
+
 #Preview("With Images") {
     NavigationStack {
         InspectionValidationView(
             fieldId: "field1",
             fieldLabel: "Carton Overview",
             initialImages: [
-                UIImage(systemName: "photo")!,
-                UIImage(systemName: "photo.fill")!,
-                UIImage(systemName: "photo.circle")!,
-                UIImage(systemName: "photo.circle.fill")!
+                InspectionImage(image: UIImage(systemName: "photo")!),
+                InspectionImage(image: UIImage(systemName: "photo.fill")!),
+                InspectionImage(image: UIImage(systemName: "photo.circle")!),
+                InspectionImage(image: UIImage(systemName: "photo.circle.fill")!)
             ]
         ) { validation in
             print("Saved: \(validation)")
@@ -385,8 +372,8 @@ struct ClearBackgroundView: UIViewRepresentable {
             fieldId: "field1",
             fieldLabel: "Carton Overview",
             initialImages: [
-                UIImage(systemName: "photo")!,
-                UIImage(systemName: "photo.fill")!
+                InspectionImage(image: UIImage(systemName: "photo")!),
+                InspectionImage(image: UIImage(systemName: "photo.fill")!)
             ]
         ) { validation in
             print("Saved: \(validation)")

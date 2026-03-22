@@ -105,6 +105,7 @@ struct CameraView: View {
             }
         }
     }
+    //
     private var bottomControls: some View {
         VStack(spacing: 24) {
             // Zoom Controls
@@ -112,19 +113,19 @@ struct CameraView: View {
                 HStack(alignment: .center, spacing: 16) {
                     Image(systemName: "minus.magnifyingglass")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(LMSTextColor.primary.color)
                         .frame(width: 32, height: 32)
 
                     Slider(value: $viewModel.zoomFactor, in: 1...5, step: 0.1)
                         .frame(maxWidth: .infinity)
-                        .tint(.white)
+                        .tint(LMSColor.controlForeground)
                         .onChange(of: viewModel.zoomFactor) { _, newValue in
                             viewModel.updateZoom(newValue)
                         }
 
                     Image(systemName: "plus.magnifyingglass")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(LMSTextColor.primary.color)
                         .frame(width: 32, height: 32)
                 }
                 .frame(maxWidth: .infinity)
@@ -140,7 +141,7 @@ struct CameraView: View {
                     }, label: {
                         Text("Huỷ bỏ")
                             .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(.white)
+                            .foregroundColor(LMSTextColor.primary.color)
                             .padding()
                     })
                     .buttonStyle(.plain)
@@ -150,9 +151,9 @@ struct CameraView: View {
                     LMSButton("", icon: viewModel.flashIcon, variant: .iconOnly, action: {
                         viewModel.toggleFlash()
                     })
-                    .foregroundColor(.white)
+                    .foregroundColor(LMSTextColor.primary.color)
                     .frame(width: Layout.buttonSize, height: Layout.buttonSize)
-                    .background(LMSColor.black.opacity(0.5))
+                    .background(LMSColor.controlBackground.opacity(0.85))
                     .clipShape(Circle())
                 } else {
                     Spacer()
@@ -165,25 +166,25 @@ struct CameraView: View {
                 Button(action: viewModel.capturePhoto) {
                     ZStack {
                         Circle()
-                            .stroke(Color.white, lineWidth: Layout.captureButtonBorder)
+                            .stroke(LMSTextColor.primary.color, lineWidth: Layout.captureButtonBorder)
                             .frame(width: Layout.captureButtonSize, height: Layout.captureButtonSize)
 
                         Circle()
-                            .fill(Color.white)
+                            .fill(LMSTextColor.primary.color)
                             .frame(width: Layout.captureButtonSize - 15, height: Layout.captureButtonSize - 15)
                     }
                 }
                 .buttonStyle(.plain)
-
+                .shadow(color: LMSTextColor.primary.color.opacity(0.18), radius: 8, x: 0, y: 4)
                 Spacer()
 
                 // Switch Camera Button (Right)
                 LMSButton("", icon: "arrow.triangle.2.circlepath.camera.fill", variant: .iconOnly) {
                     viewModel.switchCamera()
                 }
-                .foregroundColor(.white)
+                .foregroundColor(LMSTextColor.primary.color)
                 .frame(width: Layout.buttonSize, height: Layout.buttonSize)
-                .background(LMSColor.black.opacity(0.5))
+                .background(LMSTextColor.secondary.color.opacity(0.85))
                 .clipShape(Circle())
 
                 if !viewModel.capturedImages.isEmpty {
@@ -193,7 +194,7 @@ struct CameraView: View {
                     }, label: {
                         Text("Hoàn thành")
                             .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(.white)
+                            .foregroundColor(LMSTextColor.primary.color)
                             .padding()
                     })
                     .buttonStyle(.plain)

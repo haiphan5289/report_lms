@@ -24,7 +24,7 @@ struct InspectionFieldItemView: View {
     // MARK: - Properties
     let fieldName: String
     let hasPhoto: Bool
-    let images: [UIImage]
+    let images: [InspectionImage]
     let onTextTap: () -> Void
     let onCameraTap: () -> Void
 
@@ -56,7 +56,7 @@ struct InspectionFieldItemView: View {
                     .fill(Color(.systemGray5))
                     .frame(width: Layout.buttonSize, height: Layout.buttonSize)
 
-                if let firstImage = images.first {
+                if let firstImage = images.first?.image {
                     Image(uiImage: firstImage)
                         .resizable()
                         .scaledToFill()

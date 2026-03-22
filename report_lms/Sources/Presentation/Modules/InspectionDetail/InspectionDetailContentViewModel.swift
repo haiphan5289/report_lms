@@ -34,7 +34,7 @@ final class InspectionDetailContentViewModel: ObservableObject {
         parentViewModel?.inspection
     }
     
-    var capturedPhotos: [String: [UIImage]] {
+    var capturedPhotos: [String: [InspectionImage]] {
         parentViewModel?.capturedPhotos ?? [:]
     }
     
@@ -90,7 +90,7 @@ final class InspectionDetailContentViewModel: ObservableObject {
     }
     
     /// Get captured images for a field
-    func getImages(for fieldId: String) -> [UIImage] {
+    func getImages(for fieldId: String) -> [InspectionImage] {
         capturedPhotos[fieldId] ?? []
     }
     

@@ -5,10 +5,13 @@
 //  Created by GitHub Copilot on 5/3/26.
 //
 
+
 import Foundation
 import SwiftUI
 import Photos
 import OSLog
+// Import InspectionImage
+import UIKit
 
 @MainActor
 final class FinalReportViewModel: ObservableObject {
@@ -41,7 +44,7 @@ final class FinalReportViewModel: ObservableObject {
     
     // MARK: - Private Properties
     let inspection: Inspection?
-    private let capturedPhotos: [String: [UIImage]]
+    private let capturedPhotos: [String: [InspectionImage]]
     private let generatePDFUseCase: GenerateHTMLPDFReportUseCase
     private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "finalreport")
     
@@ -55,7 +58,7 @@ final class FinalReportViewModel: ObservableObject {
     }
     
     var allPhotos: [UIImage] {
-        capturedPhotos.values.flatMap { $0 }
+        capturedPhotos.values.flatMap { $0.map { $0.image } }
     }
     
     var totalPhotosCount: Int {
@@ -65,7 +68,7 @@ final class FinalReportViewModel: ObservableObject {
     // MARK: - Initialization
     init(
         inspection: Inspection?,
-        capturedPhotos: [String: [UIImage]],
+        capturedPhotos: [String: [InspectionImage]],
         generatePDFUseCase: GenerateHTMLPDFReportUseCase? = nil
     ) {
         self.inspection = inspection
@@ -253,7 +256,11 @@ final class FinalReportViewModel: ObservableObject {
 extension FinalReportViewModel {
     static func preview() -> FinalReportViewModel {
         let mockDetail = Inspection.mock(inspectionId: "1", inspectionNumber: "001")
-        let mockPhotos = ["field1": [UIImage(systemName: "photo")].compactMap { $0 }]
+        let mockPhotos = [
+            "field1": [
+                InspectionImage(image: UIImage(systemName: "photo") ?? UIImage(), description: "Sample description")
+            ]
+        ]
         return FinalReportViewModel(
             inspection: mockDetail,
             capturedPhotos: mockPhotos

@@ -11,6 +11,17 @@ import SwiftUI
 /// Centralized color system for the LMS app
 /// Provides semantic color constants for consistent theming across the application
 struct LMSColor {
+        // MARK: - Control Colors
+
+        /// Adaptive background for controls (e.g., camera controls)
+        static var controlBackground: Color {
+            Color("ControlBackground", bundle: .main)
+        }
+
+        /// Adaptive foreground for controls (text/icons)
+        static var controlForeground: Color {
+            Color("ControlForeground", bundle: .main)
+        }
     // MARK: - Primary Colors
 
     /// Primary brand color - used for main actions and highlights

@@ -1,0 +1,25 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build iOS app (xcodebuild)",
+			"type": "shell",
+			"command": "xcodebuild -scheme report_lms -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 15' build",
+			"args": [],
+			"problemMatcher": [
+				"$xcodebuild"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Build iOS app (xcodebuild)",
+			"type": "shell",
+			"command": "xcodebuild -scheme report_lms -workspace report_lms.xcodeproj/project.xcworkspace -destination 'platform=iOS Simulator,name=iPhone 14' build",
+			"isBackground": false,
+			"problemMatcher": [
+				"$xcodebuild"
+			],
+			"group": "build"
+		}
+	]
+}
