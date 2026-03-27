@@ -42,7 +42,8 @@ enum InspectionStorageError: LocalizedError {
     case writeFailed
     case deleteFailed
     case inspectionNotFound
-    
+    case networkError
+
     var errorDescription: String? {
         switch self {
         case .fileNotFound:
@@ -57,6 +58,8 @@ enum InspectionStorageError: LocalizedError {
             return "Không thể xóa dữ liệu"
         case .inspectionNotFound:
             return "Không tìm thấy báo cáo kiểm tra"
+        case .networkError:
+            return "Không thể kết nối đến máy chủ"
         }
     }
 }

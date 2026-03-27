@@ -55,8 +55,8 @@ final class Container {
         let inspectionService = InspectionService()
         registerSingleton(InspectionServiceType.self, instance: inspectionService)
         
-        // Local Storage Service - Singleton for in-memory cache
-        let inspectionStorageService = InspectionStorageService()
+        // Firestore-backed storage service - Singleton for in-memory cache
+        let inspectionStorageService = FirestoreInspectionStorageService(firestoreService: firestoreService)
         registerSingleton(InspectionStorageServiceType.self, instance: inspectionStorageService)
 
         // Repositories - Singleton to maintain publisher state
