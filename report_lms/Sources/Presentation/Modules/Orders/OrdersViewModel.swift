@@ -1,0 +1,75 @@
+//
+//  OrdersViewModel.swift
+//  report_lms
+//
+
+import Foundation
+
+@MainActor
+final class OrdersViewModel: ObservableObject {
+    // MARK: - Published
+    @Published var inspections: [Inspection] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    @Published var searchText = ""
+    @Published var selectedStatus: InspectionStatus? = nil
+
+    // MARK: - Private
+    private let firestoreService: FirestoreService
+
+    // MARK: - Init
+    nonisolated init(firestoreService: FirestoreService) {
+        self.firestoreService = firestoreService
+    }
+
+    // MARK: - Computed
+
+    var filteredInspections: [Inspection] {
+        var result = inspections
+        if let status = selectedStatus {
+            result = result.filter { $0.status == status }
+        }
+        if !searchText.isEmpty {
+            let q = searchText.lowercased()
+            result = result.filter {
+                $0.inspectionNumber.lowercased().contains(q) ||
+                $0.companyName.lowercased().contains(q) ||
+                $0.productName.lowercased().contains(q) ||
+                $0.orderCode.lowercased().contains(q) ||
+                $0.factory.lowercased().contains(q)
+            }
+        }
+        return result.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var countAll: Int { inspections.count }
+    var countPlan: Int { inspections.filter { $0.status == .plan }.count }
+    var countInProgress: Int { inspections.filter { $0.status == .inProgress }.count }
+    var countCompleted: Int { inspections.filter { $0.status == .completed }.count }
+
+    // MARK: - Methods
+
+    func loadOrders() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        do {
+            inspections = try await firestoreService.fetchInspections()
+        } catch {
+            errorMessage = "Không thể tải đơn hàng: \(error.localizedDescription)"
+        }
+    }
+
+    func deleteInspection(id: String) async {
+        // Optimistic update — remove immediately from UI
+        let backup = inspections
+        inspections.removeAll { $0.id == id }
+        do {
+            try await firestoreService.deleteInspection(id: id)
+        } catch {
+            // Rollback if Firestore fails
+            inspections = backup
+            errorMessage = "Không thể xóa đơn hàng"
+        }
+    }
+}

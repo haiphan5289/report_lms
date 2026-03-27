@@ -67,6 +67,21 @@ final class LMSHomeViewModel: ObservableObject {
         navigationPath.append("photoCaptureErrorReview")
     }
 
+    func navigateToProfile() {
+        showMenu = false
+        navigationPath.append("profile")
+    }
+
+    func navigateToSettings() {
+        showMenu = false
+        navigationPath.append("settings")
+    }
+
+    func navigateToOrders() {
+        showMenu = false
+        navigationPath.append("orders")
+    }
+
     func handleNewInspectionCreated(_ inspection: Inspection) {
         // Trigger data refresh in Plan tab
         dataRefreshTrigger += 1

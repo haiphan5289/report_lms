@@ -7,39 +7,61 @@
 
 import SwiftUI
 
-/// Menu view shown when user taps the menu button in the header
+// MARK: - MenuAction
+
+enum MenuAction {
+    case profile
+    case settings
+    case orders
+    case logout
+}
+
+// MARK: - MenuView
+
 struct MenuView: View {
-    let onLogout: () -> Void
-    @Environment(\.dismiss) private var dismiss
+    let onAction: (MenuAction) -> Void
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                LMSLabel("Menu", style: .title2)
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
+
+            Divider()
+
+            // Menu items
             List {
                 Section {
                     LMSButton("Profile", icon: "person.circle", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
-                        // Profile action - could navigate to profile screen
-                        dismiss()
+                        onAction(.profile)
                     }
 
                     LMSButton("Settings", icon: "gear", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
-                        // Settings action - could navigate to settings screen
-                        dismiss()
+                        onAction(.settings)
+                    }
+
+                    LMSButton("Orders", icon: "cart", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
+                        onAction(.orders)
                     }
                 }
 
                 Section {
                     LMSButton("Logout", icon: "arrow.right.square", variant: .destructive, isFullWidth: true, contentAlignment: .leading) {
-                        onLogout()
-                        dismiss()
+                        onAction(.logout)
                     }
                 }
             }
-            .navigationTitle("Menu")
-            .shadow(color: LMSColor.Shadow.subtle, radius: 2, y: 1)
+            .listStyle(.insetGrouped)
         }
+        .background(Color(.systemBackground))
     }
 }
 
 #Preview {
-    MenuView(onLogout: {})
+    MenuView(onAction: { _ in })
 }

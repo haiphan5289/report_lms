@@ -58,7 +58,8 @@ struct LMSHomeView: View {
                     Button("OK", role: .cancel) {}
                 }
                 .navigationDestination(for: String.self) { destination in
-                    if destination == "createInspection" {
+                    switch destination {
+                    case "createInspection":
                         let createViewModel = CreateInspectionViewModel(
                             createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!,
                             storageService: Container.shared.resolve(InspectionStorageServiceType.self)!
@@ -66,11 +67,23 @@ struct LMSHomeView: View {
                         CreateInspectionView(viewModel: createViewModel) { createdInspection in
                             viewModel.handleNewInspectionCreated(createdInspection)
                         }
-                    } else if destination == "photoCaptureErrorReview" {
+                    case "photoCaptureErrorReview":
                         CameraView(source: .errorReport) { images in
                             capturedImages = images
                             showPhotoCaptureErrorReview = true
                         }
+                    case "orders":
+                        OrdersView()
+                    case "profile":
+                        // TODO: Replace with ProfileView when available
+                        Text("Profile")
+                            .navigationTitle("Profile")
+                    case "settings":
+                        // TODO: Replace with SettingsView when available
+                        Text("Settings")
+                            .navigationTitle("Settings")
+                    default:
+                        EmptyView()
                     }
                 }
                 .navigationDestination(for: Inspection.self) { inspection in
@@ -104,12 +117,27 @@ struct LMSHomeView: View {
                     }
 
                 HStack {
-                    MenuView(onLogout: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            viewModel.showMenu = false
+                    MenuView { action in
+                        switch action {
+                        case .profile:
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                viewModel.navigateToProfile()
+                            }
+                        case .settings:
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                viewModel.navigateToSettings()
+                            }
+                        case .orders:
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                viewModel.navigateToOrders()
+                            }
+                        case .logout:
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                viewModel.showMenu = false
+                            }
+                            onLogout()
                         }
-                        onLogout()
-                    })
+                    }
                     .frame(width: 300)
                     .background(Color(.systemBackground))
                     .transition(.move(edge: .leading))

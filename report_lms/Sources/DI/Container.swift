@@ -129,6 +129,9 @@ final class Container {
         register(LMSHomeViewModel.self) {
             LMSHomeViewModel()
         }
+        register(OrdersViewModel.self) {
+            OrdersViewModel(firestoreService: Container.shared.resolve(FirestoreService.self)!)
+        }
         register(PlanLMSHomeViewModel.self) {
             PlanLMSHomeViewModel(
                 storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,

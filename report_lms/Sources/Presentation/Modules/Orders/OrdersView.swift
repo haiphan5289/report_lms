@@ -1,0 +1,386 @@
+//
+//  OrdersView.swift
+//  report_lms
+//
+
+import SwiftUI
+
+// MARK: - OrdersView
+
+struct OrdersView: View {
+    @StateObject private var viewModel: OrdersViewModel
+    @State private var inspectionToDelete: Inspection?
+
+    init(viewModel: OrdersViewModel? = nil) {
+        _viewModel = StateObject(
+            wrappedValue: viewModel ?? Container.shared.resolve(OrdersViewModel.self)!
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
+
+            if viewModel.isLoading && viewModel.inspections.isEmpty {
+                LMSLoadingView()
+            } else if let error = viewModel.errorMessage, viewModel.inspections.isEmpty {
+                errorView(message: error)
+            } else {
+                mainContent
+            }
+        }
+        .navigationTitle("Orders")
+        .navigationBarTitleDisplayMode(.large)
+        .task { await viewModel.loadOrders() }
+        .refreshable { await viewModel.loadOrders() }
+        .fullScreenCover(item: $inspectionToDelete) { inspection in
+            DeleteConfirmationView(
+                title: "Xóa đơn hàng",
+                message: "Bạn có chắc chắn muốn xóa \"\(inspection.inspectionNumber.isEmpty ? "đơn hàng này" : inspection.inspectionNumber)\"? Hành động này không thể hoàn tác.",
+                confirmTitle: "Xóa"
+            ) {
+                Task { await viewModel.deleteInspection(id: inspection.id) }
+            }
+        }
+    }
+
+    // MARK: - Main Content
+
+    private var mainContent: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                statsStrip
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                searchBar
+                    .padding(.horizontal, 16)
+
+                filterChips
+                    .padding(.horizontal, 16)
+
+                if viewModel.filteredInspections.isEmpty {
+                    emptyState
+                        .padding(.top, 40)
+                } else {
+                    orderList
+                }
+            }
+            .padding(.bottom, 24)
+        }
+    }
+
+    // MARK: - Stats Strip
+
+    private var statsStrip: some View {
+        HStack(spacing: 10) {
+            StatCard(value: viewModel.countAll, label: "Tất cả", color: .blue)
+            StatCard(value: viewModel.countPlan, label: "Kế hoạch", color: Color(.systemBlue))
+            StatCard(value: viewModel.countInProgress, label: "Đang KT", color: .orange)
+            StatCard(value: viewModel.countCompleted, label: "Hoàn thành", color: .green)
+        }
+    }
+
+    // MARK: - Search Bar
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+                .font(.system(size: 16))
+            TextField("Tìm mã đơn, công ty, sản phẩm...", text: $viewModel.searchText)
+                .font(.system(size: 15))
+                .autocorrectionDisabled()
+            if !viewModel.searchText.isEmpty {
+                Button(action: { viewModel.searchText = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(LMSColor.background)
+        .cornerRadius(10)
+        .shadow(color: LMSColor.Shadow.subtle, radius: 2, y: 1)
+    }
+
+    // MARK: - Filter Chips
+
+    private var filterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FilterChip(label: "Tất cả", isSelected: viewModel.selectedStatus == nil) {
+                    viewModel.selectedStatus = nil
+                }
+                ForEach(InspectionStatus.allCases, id: \.self) { status in
+                    FilterChip(
+                        label: status.displayName,
+                        isSelected: viewModel.selectedStatus == status
+                    ) {
+                        viewModel.selectedStatus = (viewModel.selectedStatus == status) ? nil : status
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Order List
+
+    private var orderList: some View {
+        LazyVStack(spacing: 12) {
+            ForEach(viewModel.filteredInspections) { inspection in
+                OrderCardView(inspection: inspection) {
+                    inspectionToDelete = inspection
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: viewModel.searchText.isEmpty ? "cart" : "magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary.opacity(0.5))
+            LMSLabel(
+                viewModel.searchText.isEmpty ? "Không có đơn hàng nào" : "Không tìm thấy kết quả",
+                style: .body,
+                color: .secondary,
+                alignment: .center
+            )
+            if !viewModel.searchText.isEmpty {
+                LMSButton("Xóa bộ lọc", variant: .ghost, size: .small) {
+                    viewModel.searchText = ""
+                    viewModel.selectedStatus = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Error State
+
+    private func errorView(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 48))
+                .foregroundColor(.red.opacity(0.7))
+            LMSLabel(message, style: .body, color: .secondary, alignment: .center)
+                .padding(.horizontal, 32)
+            LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary) {
+                Task { await viewModel.loadOrders() }
+            }
+            .frame(maxWidth: 180)
+            .frame(height: 44)
+        }
+    }
+}
+
+// MARK: - OrderCardView
+
+struct OrderCardView: View {
+    let inspection: Inspection
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // Colored left accent bar
+            RoundedRectangle(cornerRadius: 2)
+                .fill(inspection.status.accentColor)
+                .frame(width: 4)
+
+            VStack(alignment: .leading, spacing: 10) {
+                // Row 1: Number + Status badge + Delete button
+                HStack {
+                    LMSLabel(
+                        inspection.inspectionNumber.isEmpty ? "---" : inspection.inspectionNumber,
+                        style: .headline
+                    )
+                    Spacer()
+                    StatusBadge(status: inspection.status)
+                    LMSButton("", icon: "trash", variant: .iconOnly, action: onDelete)
+                        .foregroundColor(.red)
+                        .frame(width: 32, height: 32)
+                }
+
+                Divider()
+
+                // Row 2: Company
+                HStack(spacing: 6) {
+                    Image(systemName: "building.2")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    LMSLabel(
+                        inspection.companyName.isEmpty ? "---" : inspection.companyName,
+                        style: .subheadline
+                    )
+                }
+
+                // Row 3: Product
+                HStack(spacing: 6) {
+                    Image(systemName: "shippingbox")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    LMSLabel(inspection.productName, style: .body)
+                    if !inspection.productCode.isEmpty {
+                        Text("·")
+                            .foregroundColor(.secondary)
+                        LMSLabel(inspection.productCode, style: .caption, color: .secondary)
+                    }
+                }
+
+                // Row 4: Factory + Date
+                HStack {
+                    HStack(spacing: 6) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        LMSLabel(
+                            inspection.factory.isEmpty ? "---" : inspection.factory,
+                            style: .caption,
+                            color: .secondary
+                        )
+                    }
+                    Spacer()
+                    LMSLabel(inspection.formattedDate, style: .caption, color: .secondary)
+                }
+
+                // Row 5: Order code chip
+                HStack(spacing: 6) {
+                    Image(systemName: "number")
+                        .font(.system(size: 11))
+                        .foregroundColor(.blue)
+                    LMSLabel(
+                        inspection.orderCode.isEmpty ? "---" : inspection.orderCode,
+                        style: .caption,
+                        color: .primary
+                    )
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.blue.opacity(0.08))
+                .cornerRadius(6)
+            }
+            .padding(14)
+        }
+        .background(LMSColor.background)
+        .cornerRadius(12)
+        .shadow(color: LMSColor.Shadow.medium, radius: 4, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(LMSColor.Border.subtle, lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Preview
+
+// MARK: - Preview Helpers
+
+private let previewInspections: [Inspection] = [
+    Inspection(
+        id: "1",
+        inspectionNumber: "INS-2026-001",
+        companyName: "Công ty TNHH ABC",
+        productName: "Áo thun cotton",
+        productCode: "AT-001",
+        orderCode: "ORD-2026-001",
+        inspectionType: "Final Inspection",
+        quantity: "1000",
+        factory: "Nhà máy Hà Nội",
+        productionUnit: "Pcs",
+        createdAt: Date(),
+        status: .plan
+    ),
+    Inspection(
+        id: "2",
+        inspectionNumber: "INS-2026-002",
+        companyName: "Công ty TNHH XYZ",
+        productName: "Quần jean nam",
+        productCode: "QJ-002",
+        orderCode: "ORD-2026-002",
+        inspectionType: "During Production",
+        quantity: "500",
+        factory: "Nhà máy TP.HCM",
+        productionUnit: "Pcs",
+        createdAt: Date().addingTimeInterval(-86400),
+        status: .inProgress
+    ),
+    Inspection(
+        id: "3",
+        inspectionNumber: "INS-2026-003",
+        companyName: "Công ty TNHH DEF",
+        productName: "Váy công sở",
+        productCode: "VCS-003",
+        orderCode: "ORD-2026-003",
+        inspectionType: "Pre-shipment",
+        quantity: "800",
+        factory: "Nhà máy Đà Nẵng",
+        productionUnit: "Pcs",
+        createdAt: Date().addingTimeInterval(-172800),
+        status: .completed
+    ),
+    Inspection(
+        id: "4",
+        inspectionNumber: "INS-2026-004",
+        companyName: "Công ty TNHH GHI",
+        productName: "Áo khoác nam",
+        productCode: "AK-004",
+        orderCode: "ORD-2026-004",
+        inspectionType: "Final Inspection",
+        quantity: "600",
+        factory: "Nhà máy Hải Phòng",
+        productionUnit: "Pcs",
+        createdAt: Date().addingTimeInterval(-259200),
+        status: .error
+    ),
+    Inspection(
+        id: "5",
+        inspectionNumber: "INS-2026-005",
+        companyName: "Công ty TNHH JKL",
+        productName: "Giày sneaker",
+        productCode: "GS-005",
+        orderCode: "ORD-2026-005",
+        inspectionType: "Pre-shipment",
+        quantity: "1200",
+        factory: "Nhà máy Bình Dương",
+        productionUnit: "Pairs",
+        createdAt: Date().addingTimeInterval(-432000),
+        status: .cancelled
+    )
+]
+
+@MainActor
+private func makePreviewViewModel() -> OrdersViewModel {
+    let firestoreService = FirestoreService()
+    let vm = OrdersViewModel(firestoreService: firestoreService)
+    vm.inspections = previewInspections
+    return vm
+}
+
+#Preview("With Data") {
+    NavigationView {
+        OrdersView(viewModel: makePreviewViewModel())
+    }
+}
+
+#Preview("Empty") {
+    NavigationView {
+        OrdersView(viewModel: {
+            let vm = OrdersViewModel(firestoreService: FirestoreService())
+            return vm
+        }())
+    }
+}
+
+#Preview("Loading") {
+    NavigationView {
+        OrdersView(viewModel: {
+            let vm = OrdersViewModel(firestoreService: FirestoreService())
+            vm.isLoading = true
+            return vm
+        }())
+    }
+}
