@@ -28,22 +28,7 @@ final class LMSHomeViewModel: ObservableObject {
     
     // MARK: - Private Methods
     private func setupNotificationObservers() {
-        // Listen for inspection moved to inProgress notification
-        NotificationCenter.default.publisher(for: .inspectionMovedToInProgress)
-            .sink { [weak self] _ in
-                Task { @MainActor in
-                    self?.navigateToErrorTab()
-                }
-            }
-            .store(in: &cancellables)
-    }
-    
-    private func navigateToErrorTab() {
-        // Pop back to home by clearing navigation path
-        navigationPath = NavigationPath()
-        
-        // Switch to error (inProgress) tab
-        selectedTab = .inProgress
+        // No active observers
     }
 
     // MARK: - Public Methods

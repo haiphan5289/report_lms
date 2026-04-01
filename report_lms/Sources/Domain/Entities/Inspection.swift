@@ -122,6 +122,7 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
     let label: String
     let type: FieldType
     var photoURL: String?
+    var imageURLs: [String]
     let isRequired: Bool
 
     enum FieldType: String, Codable {
@@ -129,6 +130,29 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
         case photo
         case checkbox
         case number
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, label, type, photoURL, imageURLs, isRequired
+    }
+
+    init(id: String, label: String, type: FieldType, photoURL: String? = nil, imageURLs: [String] = [], isRequired: Bool) {
+        self.id = id
+        self.label = label
+        self.type = type
+        self.photoURL = photoURL
+        self.imageURLs = imageURLs
+        self.isRequired = isRequired
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        label = try container.decode(String.self, forKey: .label)
+        type = try container.decode(FieldType.self, forKey: .type)
+        photoURL = try container.decodeIfPresent(String.self, forKey: .photoURL)
+        imageURLs = (try? container.decodeIfPresent([String].self, forKey: .imageURLs)) ?? []
+        isRequired = try container.decode(Bool.self, forKey: .isRequired)
     }
 }
 

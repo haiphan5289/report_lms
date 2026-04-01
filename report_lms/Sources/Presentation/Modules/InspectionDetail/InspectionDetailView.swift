@@ -46,6 +46,7 @@ struct InspectionDetailView: View {
                 LMSLoadingOverlay()
             }
         }
+        .lmsSnackbar(message: $viewModel.snackbarMessage, type: .success)
         .navigationTitle(viewModel.inspection?.inspectionNumber ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -67,10 +68,15 @@ struct InspectionDetailView: View {
                     fieldId: field.id,
                     fieldLabel: field.label,
                     initialImages: viewModel.getImages(for: field.id),
-                    inspectionId: viewModel.inspection?.id
-                ) { validation in
-                    viewModel.handleValidationSave(validation)
-                }
+                    inspectionId: viewModel.inspection?.id,
+                    onSave: { validation in
+                        viewModel.handleValidationSave(validation)
+                    },
+                    onUploadComplete: {
+                        viewModel.refreshInspection()
+                        viewModel.snackbarMessage = "Ảnh đã được lưu thành công!"
+                    }
+                )
             }
         }
     }

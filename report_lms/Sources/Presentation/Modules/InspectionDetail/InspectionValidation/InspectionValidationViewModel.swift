@@ -8,10 +8,6 @@
 import Foundation
 import SwiftUI
 
-/// Notification posted when inspection status changes to inProgress
-extension Notification.Name {
-    static let inspectionMovedToInProgress = Notification.Name("inspectionMovedToInProgress")
-}
 
 @MainActor
 final class InspectionValidationViewModel: ObservableObject {
@@ -32,11 +28,13 @@ final class InspectionValidationViewModel: ObservableObject {
     private let inspectionId: String?
     let fieldLabel: String
     private var onSave: ((FieldValidation) -> Void)?
+    private var onUploadComplete: (() -> Void)?
     private let initialStatus: ValidationStatus
     private let initialComments: String
     private let initialImagesCount: Int
     private let storageService: InspectionStorageServiceType?
-    
+    private let uploadUseCase: UploadInspectionMediaUseCase?
+
     // MARK: - Initialization
     init(
         fieldId: String,
@@ -46,7 +44,8 @@ final class InspectionValidationViewModel: ObservableObject {
         initialComments: String = "",
         inspectionId: String? = nil,
         storageService: InspectionStorageServiceType? = nil,
-        onSave: ((FieldValidation) -> Void)? = nil
+        onSave: ((FieldValidation) -> Void)? = nil,
+        onUploadComplete: (() -> Void)? = nil
     ) {
         self.fieldId = fieldId
         self.fieldLabel = fieldLabel
@@ -58,7 +57,9 @@ final class InspectionValidationViewModel: ObservableObject {
         self.comments = initialComments
         self.inspectionId = inspectionId
         self.storageService = storageService ?? Container.shared.resolve(InspectionStorageServiceType.self)
+        self.uploadUseCase = Container.shared.resolve(UploadInspectionMediaUseCase.self)
         self.onSave = onSave
+        self.onUploadComplete = onUploadComplete
     }
     
     // MARK: - Computed Properties
@@ -119,7 +120,7 @@ final class InspectionValidationViewModel: ObservableObject {
     /// Save validation with specified status
     func saveValidation(status: ValidationStatus) {
         self.status = status
-        
+
         let validation = FieldValidation(
             id: fieldId,
             status: status,
@@ -127,18 +128,20 @@ final class InspectionValidationViewModel: ObservableObject {
             images: images,
             lastUpdated: Date()
         )
-        
+
         // Save draft locally
         saveDraft(validation)
-        
-        // Update inspection status to .inProgress and persist
+
+        // Upload images to Firebase Storage, then update inspection status and photo URLs
+        let imagesToUpload = images
         Task {
+            await uploadPhotosAndUpdateField(fieldId: fieldId, images: imagesToUpload)
             await updateInspectionStatus()
         }
-        
+
         // Call save callback
         onSave?(validation)
-        
+
         // Reset dirty state
         isDirty = false
     }
@@ -151,6 +154,43 @@ final class InspectionValidationViewModel: ObservableObject {
     
     // MARK: - Private Methods
     
+    private func uploadPhotosAndUpdateField(fieldId: String, images: [InspectionImage]) async {
+        guard let inspectionId = inspectionId,
+              let storageService = storageService,
+              let uploadUseCase = uploadUseCase else { return }
+
+        var uploadedURLs: [String] = []
+        for inspectionImage in images {
+            guard let imageData = inspectionImage.image.jpegData(compressionQuality: 0.8) else { continue }
+            do {
+                let url = try await uploadUseCase.execute(imageData: imageData, inspectionId: inspectionId)
+                uploadedURLs.append(url)
+            } catch {
+                print("🔴 [InspectionValidationViewModel] Failed to upload image: \(error)")
+            }
+        }
+
+        guard !uploadedURLs.isEmpty else { return }
+
+        guard var inspection = storageService.getInspection(by: inspectionId) else { return }
+
+        for sectionIndex in inspection.sections.indices {
+            if let fieldIndex = inspection.sections[sectionIndex].fields.firstIndex(where: { $0.id == fieldId }) {
+                inspection.sections[sectionIndex].fields[fieldIndex].imageURLs = uploadedURLs
+                inspection.sections[sectionIndex].fields[fieldIndex].photoURL = uploadedURLs.first
+                break
+            }
+        }
+
+        do {
+            try await storageService.updateInspection(inspection)
+            print("✅ [InspectionValidationViewModel] Photo URLs saved to Firestore for field \(fieldId)")
+            onUploadComplete?()
+        } catch {
+            print("🔴 [InspectionValidationViewModel] Failed to save photo URLs: \(error)")
+        }
+    }
+
     private func updateInspectionStatus() async {
         guard let inspectionId = inspectionId,
               let storageService = storageService,
@@ -161,12 +201,8 @@ final class InspectionValidationViewModel: ObservableObject {
         // Update status to inProgress
         inspection.status = .inProgress
         
-        // Persist the change
         do {
             try await storageService.updateInspection(inspection)
-            
-            // Post notification to switch to ErrorHome tab
-            NotificationCenter.default.post(name: .inspectionMovedToInProgress, object: nil)
         } catch {
             print("Failed to update inspection status: \(error)")
         }

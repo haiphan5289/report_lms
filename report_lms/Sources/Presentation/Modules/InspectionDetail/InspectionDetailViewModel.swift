@@ -15,6 +15,7 @@ final class InspectionDetailViewModel: ObservableObject {
     @Published var capturedPhotos: [String: [InspectionImage]] = [:] // fieldId: [images]
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var snackbarMessage: String?
     @Published var showCamera = false
     @Published var selectedFieldId: String?
     @Published var isSubmitted = false
@@ -39,33 +40,73 @@ final class InspectionDetailViewModel: ObservableObject {
     private let inspectionId: String
     private let inspectionNumber: String
     private weak var homeViewModel: LMSHomeViewModel?
+    private let storageService: InspectionStorageServiceType
+    private let storageRepository: StorageRepositoryType
+    private var hasLoadedOnce = false
 
     // MARK: - Initialization
     init(inspectionId: String, inspectionNumber: String, homeViewModel: LMSHomeViewModel? = nil) {
         self.inspectionId = inspectionId
         self.inspectionNumber = inspectionNumber
         self.homeViewModel = homeViewModel
+        self.storageService = Container.shared.resolve(InspectionStorageServiceType.self)!
+        self.storageRepository = Container.shared.resolve(StorageRepositoryType.self)!
     }
 
     // MARK: - Public Methods
 
     func loadInspectionDetail() async {
+        guard !hasLoadedOnce else { return }
+        hasLoadedOnce = true
+
         isLoading = true
         errorMessage = nil
-
         defer { isLoading = false }
 
-        // Simulate network delay
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        if let loaded = storageService.getInspection(by: inspectionId) {
+            inspection = loaded
+            await restoreCapturedPhotos(from: loaded)
+        } else {
+            inspection = Inspection.mock(
+                inspectionId: inspectionId,
+                inspectionNumber: inspectionNumber
+            )
+        }
 
-        // For now, use mock data
-        inspection = Inspection.mock(
-            inspectionId: inspectionId,
-            inspectionNumber: inspectionNumber
-        )
-
-        // Auto-expand first section in content view
         contentViewModel.autoExpandFirstSection()
+    }
+
+    /// Download images from Firebase Storage URLs and populate capturedPhotos.
+    /// Skips fields that already have in-memory images to avoid overwriting
+    /// images captured in the current session.
+    private func restoreCapturedPhotos(from inspection: Inspection) async {
+        for section in inspection.sections {
+            for field in section.fields {
+                guard !field.imageURLs.isEmpty else { continue }
+                // In-memory images take priority — don't overwrite with downloaded ones
+                guard capturedPhotos[field.id] == nil else { continue }
+                var fieldImages: [InspectionImage] = []
+                for urlString in field.imageURLs {
+                    do {
+                        let data = try await storageRepository.downloadImage(from: urlString)
+                        if let uiImage = UIImage(data: data) {
+                            fieldImages.append(InspectionImage(image: uiImage))
+                        }
+                    } catch {
+                        print("🔴 [InspectionDetailViewModel] Failed to download image from \(urlString): \(error)")
+                    }
+                }
+                if !fieldImages.isEmpty {
+                    capturedPhotos[field.id] = fieldImages
+                }
+            }
+        }
+    }
+
+    func refreshInspection() {
+        if let updated = storageService.getInspection(by: inspectionId) {
+            inspection = updated
+        }
     }
 
     func getImages(for fieldId: String) -> [InspectionImage] {
@@ -88,18 +129,9 @@ final class InspectionDetailViewModel: ObservableObject {
     }
     
     func handleValidationSave(_ validation: FieldValidation) {
-        // Update captured photos with validated images
         capturedPhotos[validation.id] = validation.images
-        
-        // Close validation view first
         showValidation = false
         selectedValidationField = nil
-        
-        // Switch to order information tab
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-            selectedTab = .orderInformation
-        }
     }
     
     private func findFieldLabel(for fieldId: String) -> String {

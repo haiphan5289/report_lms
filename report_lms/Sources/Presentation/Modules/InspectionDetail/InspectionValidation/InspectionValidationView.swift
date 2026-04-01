@@ -30,7 +30,8 @@ struct InspectionValidationView: View {
         fieldLabel: String,
         initialImages: [InspectionImage],
         inspectionId: String? = nil,
-        onSave: @escaping (FieldValidation) -> Void
+        onSave: @escaping (FieldValidation) -> Void,
+        onUploadComplete: (() -> Void)? = nil
     ) {
         _viewModel = StateObject(
             wrappedValue: InspectionValidationViewModel(
@@ -38,7 +39,8 @@ struct InspectionValidationView: View {
                 fieldLabel: fieldLabel,
                 initialImages: initialImages,
                 inspectionId: inspectionId,
-                onSave: onSave
+                onSave: onSave,
+                onUploadComplete: onUploadComplete
             )
         )
     }
@@ -253,7 +255,6 @@ struct InspectionValidationView: View {
             VStack(spacing: 8) {
                 Button(action: {
                     viewModel.saveValidation(status: .passed)
-                    dismiss()
                 }) {
                     ZStack {
                         Circle()
@@ -275,7 +276,6 @@ struct InspectionValidationView: View {
             VStack(spacing: 8) {
                 Button(action: {
                     viewModel.saveValidation(status: .notApplicable)
-                    dismiss()
                 }) {
                     ZStack {
                         Circle()
