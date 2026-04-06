@@ -159,15 +159,25 @@ final class InspectionValidationViewModel: ObservableObject {
               let storageService = storageService,
               let uploadUseCase = uploadUseCase else { return }
 
-        var uploadedURLs: [String] = []
-        for inspectionImage in images {
-            guard let imageData = inspectionImage.image.jpegData(compressionQuality: 0.8) else { continue }
-            do {
-                let url = try await uploadUseCase.execute(imageData: imageData, inspectionId: inspectionId)
-                uploadedURLs.append(url)
-            } catch {
-                print("🔴 [InspectionValidationViewModel] Failed to upload image: \(error)")
+        // Upload all images in parallel — order is preserved via index
+        let uploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
+            for (index, inspectionImage) in images.enumerated() {
+                guard let imageData = inspectionImage.image.jpegData(compressionQuality: 0.8) else { continue }
+                group.addTask {
+                    do {
+                        let url = try await uploadUseCase.execute(imageData: imageData, inspectionId: inspectionId)
+                        return (index, url)
+                    } catch {
+                        print("🔴 [InspectionValidationViewModel] Failed to upload image \(index): \(error)")
+                        return (index, nil)
+                    }
+                }
             }
+            var results: [(Int, String)] = []
+            for await (index, url) in group {
+                if let url { results.append((index, url)) }
+            }
+            return results.sorted { $0.0 < $1.0 }.map { $0.1 }
         }
 
         guard !uploadedURLs.isEmpty else { return }
