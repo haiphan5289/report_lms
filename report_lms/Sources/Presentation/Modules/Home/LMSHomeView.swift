@@ -255,10 +255,7 @@ struct LMSHomeView: View {
                     onQuickInspection: viewModel.navigateToCreateInspection
                 )
             case LMSHomeViewModel.Tab.inProgress:
-                ErrorHomeView(
-                    viewModel: ErrorHomeViewModel(),
-                    onNavigateToPhotoCaptureErrorReview: viewModel.navigateToPhotoCaptureErrorReview
-                )
+                LMSProgressView()
             case LMSHomeViewModel.Tab.report:
                 reportContent
             }

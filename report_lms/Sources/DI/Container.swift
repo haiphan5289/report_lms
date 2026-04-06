@@ -138,5 +138,11 @@ final class Container {
                 groupInspectionsByWeekUseCase: Container.shared.resolve(GroupInspectionsByWeekUseCase.self)!
             )
         }
+        register(ProgressViewModel.self) {
+            ProgressViewModel(
+                storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
+                groupInspectionsByWeekUseCase: Container.shared.resolve(GroupInspectionsByWeekUseCase.self)!
+            )
+        }
     }
 }

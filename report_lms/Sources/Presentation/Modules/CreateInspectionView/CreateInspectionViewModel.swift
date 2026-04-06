@@ -172,7 +172,7 @@ final class CreateInspectionViewModel: ObservableObject {
             // Create inspection with sections template
             let inspection = Inspection(
                 id: UUID().uuidString,
-                inspectionNumber: "INS-\(Date().timeIntervalSince1970)",
+                inspectionNumber: generateInspectionNumber(),
                 companyName: "",
                 productName: productName,
                 productCode: productCode,
@@ -208,6 +208,12 @@ final class CreateInspectionViewModel: ObservableObject {
     }
 
     // MARK: - Private Methods
+    private func generateInspectionNumber() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMHHmmss"
+        return "INS-\(formatter.string(from: Date()))"
+    }
+
     private func validateInputs() -> Bool {
         // Check if any required fields have errors
         return fieldErrors.allSatisfy { $0 == nil }

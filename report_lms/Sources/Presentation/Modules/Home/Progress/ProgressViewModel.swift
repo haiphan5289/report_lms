@@ -1,15 +1,13 @@
 //
-//  PlanLMSHomeViewModel.swift
+//  ProgressViewModel.swift
 //  report_lms
-//
-//  Created by GitHub Copilot on 27/1/26.
 //
 
 import Foundation
 import Combine
 
 @MainActor
-final class PlanLMSHomeViewModel: ObservableObject {
+final class ProgressViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var weeklyInspections: [WeekSection] = []
     @Published var isLoading = false
@@ -27,8 +25,7 @@ final class PlanLMSHomeViewModel: ObservableObject {
     ) {
         self.storageService = storageService
         self.groupInspectionsByWeekUseCase = groupInspectionsByWeekUseCase
-        
-        // Subscribe to cache loaded notification
+
         Task { @MainActor in
             NotificationCenter.default.publisher(for: .inspectionCacheDidLoad)
                 .sink { [weak self] _ in
@@ -44,21 +41,14 @@ final class PlanLMSHomeViewModel: ObservableObject {
     func loadInspections() async {
         isLoading = true
         errorMessage = nil
-
         defer { isLoading = false }
 
-        // Load from in-memory cache (already loaded on app launch)
-        let inspections = storageService.getAllInspections().filter { $0.status == .plan }
+        let inspections = storageService.getAllInspections().filter { $0.status == .inProgress }
         let sections = groupInspectionsByWeekUseCase.execute(inspections)
         weeklyInspections = sections
     }
 
     func visibleInspections(for section: WeekSection) -> [Inspection] {
         section.inspections
-    }
-
-    func addNewInspection(_ inspection: Inspection) async {
-        // Reload from cache (inspection was already saved by CreateInspectionViewModel)
-        await loadInspections()
     }
 }
