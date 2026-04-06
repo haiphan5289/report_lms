@@ -53,7 +53,7 @@ struct PlanLMSHomeView: View {
     // MARK: - Private Views
     private var contentView: some View {
         Group {
-            if viewModel.isLoading && viewModel.weeklyInspections.isEmpty {
+            if viewModel.isLoading {
                 LMSLoadingView()
             } else if let errorMessage = viewModel.errorMessage {
                 errorView(message: errorMessage)

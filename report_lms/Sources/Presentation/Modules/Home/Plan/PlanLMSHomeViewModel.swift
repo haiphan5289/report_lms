@@ -12,13 +12,14 @@ import Combine
 final class PlanLMSHomeViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var weeklyInspections: [WeekSection] = []
-    @Published var isLoading = false
+    @Published var isLoading = true
     @Published var errorMessage: String?
 
     // MARK: - Private Properties
     private let storageService: InspectionStorageServiceType
     private let groupInspectionsByWeekUseCase: GroupInspectionsByWeekUseCase
     private var cancellables = Set<AnyCancellable>()
+    private var isCacheReady = false
 
     // MARK: - Initialization
     nonisolated init(
@@ -27,12 +28,13 @@ final class PlanLMSHomeViewModel: ObservableObject {
     ) {
         self.storageService = storageService
         self.groupInspectionsByWeekUseCase = groupInspectionsByWeekUseCase
-        
+
         // Subscribe to cache loaded notification
         Task { @MainActor in
             NotificationCenter.default.publisher(for: .inspectionCacheDidLoad)
                 .sink { [weak self] _ in
                     Task { @MainActor in
+                        self?.isCacheReady = true
                         await self?.loadInspections()
                     }
                 }
@@ -45,12 +47,14 @@ final class PlanLMSHomeViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        defer { isLoading = false }
-
-        // Load from in-memory cache (already loaded on app launch)
         let inspections = storageService.getAllInspections().filter { $0.status == .plan }
         let sections = groupInspectionsByWeekUseCase.execute(inspections)
         weeklyInspections = sections
+
+        // Keep loading until Firestore cache is ready
+        if isCacheReady {
+            isLoading = false
+        }
     }
 
     func visibleInspections(for section: WeekSection) -> [Inspection] {
