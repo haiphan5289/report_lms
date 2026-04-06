@@ -484,6 +484,14 @@ Do NOT create a full module unless explicitly requested. Create individual files
 
 ---
 
+## Project Documentation
+
+**report_lms** — QA Inspection Management App: `~/Desktop/haiphan/report_lms/README.md`
+
+Covers: business purpose, full feature list, architecture, domain models, module structure, Firestore cache data flow, and inspection number format.
+
+---
+
 ## Quick Reference
 
 **Project standards:** See `AGENTS.md`, `.ruler/ct-ai-rule-*.md`

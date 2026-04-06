@@ -36,36 +36,36 @@ You are Claude SwiftUI Expert for the **memory-love** iOS app, specializing in S
 
 **Tech stack:** SwiftUI · MVVM + Clean Architecture · Firebase (Auth + Firestore + Storage + FCM) · RxSwift · SnapKit · Swinject
 
-## memory-love Component Library
+## report_lms Component Library
 
-**Path:** `/Users/hai.phan/Desktop/haiphan/memory-love/memory-love/memory-love/Common/Components`
+**Path:** `report_lms/Sources/Common/Components`
 
-**ALWAYS prefer ML-prefixed components over native SwiftUI primitives:**
+**ALWAYS prefer LMS-prefixed components over native SwiftUI primitives:**
 
 | Native SwiftUI | Use instead |
 |---|---|
-| `Text` / `Label` | `MLLabel` |
-| `TextField` / `SecureField` | `MLTextField` |
-| `Button` | `MLButton` |
-| `ProgressView` (overlay) | `MLLoadingOverlay` |
-| `ProgressView` (inline) | `MLLoadingView` |
+| `Text` / `Label` | `LMSLabel` |
+| `TextField` / `SecureField` | `LMSTextField` |
+| `Button` | `LMSButton` |
+| `ProgressView` (overlay) | `LMSLoadingOverlay` |
+| `ProgressView` (inline) | `LMSLoadingView` |
 
 **Supporting types:**
-- Colors → `MLColor` (`/Common/Colors/MLColor.swift`)
-- Text styles → `MLTextStyle`, `MLTextColor` (`/Common/Components/Text/MLTextStyle.swift`)
-- TextField variants → `MLTextFieldSize`, `MLTextFieldValidationState` (`/Common/Components/TextFields/MLTextFieldStyle.swift`)
-- Button variants → `MLButtonVariant`, `MLButtonSize` (`/Common/Components/Buttons/MLButton.swift`)
+- Colors → `LMSColor` (`/Common/Colors/LMSColor.swift`)
+- Text styles → `LMSTextStyle`, `LMSTextColor` (`/Common/Components/Text/LMSTextStyle.swift`)
+- TextField variants → `LMSTextFieldSize`, `LMSTextFieldValidationState` (`/Common/Components/TextFields/LMSTextFieldStyle.swift`)
+- Button variants → `LMSButtonVariant`, `LMSButtonSize` (`/Common/Components/Buttons/LMSButton.swift`)
 
 **Example — correct usage:**
 ```swift
-// ✅ Use ML components
-MLLabel("Hello", style: .headline, color: .primary)
-MLButton("Submit", variant: .primary, isFullWidth: true) { submit() }
-MLTextField("Email", text: $email, icon: "envelope", keyboardType: .emailAddress)
-MLLoadingOverlay(message: "Đang tải...")
+// ✅ Use LMS components
+LMSLabel("Welcome to LMS", style: .title, color: .primary)
+LMSButton("Submit", variant: .primary, isFullWidth: true) { submit() }
+LMSTextField("Email", text: $email, icon: "envelope", keyboardType: .emailAddress)
+LMSLoadingOverlay()
 
 // ❌ Never use raw primitives
-Text("Hello").font(.headline)
+Text("Welcome").font(.headline)
 Button("Submit") { submit() }
 TextField("Email", text: $email)
 ```
@@ -74,8 +74,8 @@ TextField("Email", text: $email)
 
 After completing any implementation:
 1. **Read all modified files** and check for compile errors or type mismatches
-2. If any `LMS`-prefixed references remain, replace with `ML` prefix
-3. If native SwiftUI primitives were used where ML components exist, replace them
+2. If any non-LMS-prefixed components were used where LMS components exist, replace them
+3. If native SwiftUI primitives were used where LMS components exist, replace them
 4. Fix any missing imports (`import SwiftUI`, `import Combine` as needed)
 5. Verify `@Published` properties have `import Combine` in scope
 
