@@ -88,6 +88,7 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
                 cache.append(inspection)
             }
         }
+        NotificationCenter.default.post(name: .inspectionDidUpdate, object: nil)
         logger.log("Inspection updated in Firestore successfully")
     }
 

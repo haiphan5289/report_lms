@@ -11,6 +11,7 @@ import OSLog
 /// Notification posted when cache finishes loading
 extension Notification.Name {
     static let inspectionCacheDidLoad = Notification.Name("inspectionCacheDidLoad")
+    static let inspectionDidUpdate = Notification.Name("inspectionDidUpdate")
 }
 
 /// Local storage service for inspections with in-memory caching

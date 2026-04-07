@@ -19,7 +19,6 @@ final class PlanLMSHomeViewModel: ObservableObject {
     private let storageService: InspectionStorageServiceType
     private let groupInspectionsByWeekUseCase: GroupInspectionsByWeekUseCase
     private var cancellables = Set<AnyCancellable>()
-    private var isCacheReady = false
 
     // MARK: - Initialization
     nonisolated init(
@@ -34,7 +33,14 @@ final class PlanLMSHomeViewModel: ObservableObject {
             NotificationCenter.default.publisher(for: .inspectionCacheDidLoad)
                 .sink { [weak self] _ in
                     Task { @MainActor in
-                        self?.isCacheReady = true
+                        await self?.loadInspections()
+                    }
+                }
+                .store(in: &self.cancellables)
+
+            NotificationCenter.default.publisher(for: .inspectionDidUpdate)
+                .sink { [weak self] _ in
+                    Task { @MainActor in
                         await self?.loadInspections()
                     }
                 }
@@ -50,11 +56,7 @@ final class PlanLMSHomeViewModel: ObservableObject {
         let inspections = storageService.getAllInspections().filter { $0.status == .plan }
         let sections = groupInspectionsByWeekUseCase.execute(inspections)
         weeklyInspections = sections
-
-        // Keep loading until Firestore cache is ready
-        if isCacheReady {
-            isLoading = false
-        }
+        isLoading = false
     }
 
     func visibleInspections(for section: WeekSection) -> [Inspection] {
