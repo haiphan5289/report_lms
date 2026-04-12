@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Combine
 
 // MARK: - ErrorHomeViewModel
 
@@ -16,36 +15,40 @@ final class ErrorHomeViewModel: ObservableObject {
     @Published var errorInspections: [Inspection] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
-    
+
+    // MARK: - Properties
+    let inspectionId: String
+
     // MARK: - Private Properties
-    private let storageService: InspectionStorageServiceType
-    private var cancellables = Set<AnyCancellable>()
+    private let errorRepository: ErrorRepositoryType
 
     // MARK: - Initialization
-    init(storageService: InspectionStorageServiceType? = nil) {
-        self.storageService = storageService ?? Container.shared.resolve(InspectionStorageServiceType.self)!
-        
-        // Subscribe to cache loaded notification
-        NotificationCenter.default.publisher(for: .inspectionCacheDidLoad)
-            .sink { [weak self] _ in
-                Task { @MainActor in
-                    await self?.loadErrorInspections()
-                }
-            }
-            .store(in: &cancellables)
+    init(inspectionId: String, errorRepository: ErrorRepositoryType? = nil) {
+        self.inspectionId = inspectionId
+        self.errorRepository = errorRepository ?? Container.shared.resolve(ErrorRepositoryType.self)!
     }
 
     // MARK: - Public Methods
     func loadErrorInspections() async {
         isLoading = true
         errorMessage = nil
-        
+
         defer { isLoading = false }
 
-        // Load inspections with error or inProgress status
-        let allInspections = storageService.getAllInspections()
-        errorInspections = allInspections.filter { 
-            $0.status == .error || $0.status == .inProgress 
+        do {
+            errorInspections = try await errorRepository.fetchErrorItems(for: inspectionId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Inserts a new item at the top, or replaces an existing one with the same id.
+    func upsertErrorItem(_ inspection: Inspection) {
+        if let index = errorInspections.firstIndex(where: { $0.id == inspection.id }) {
+            errorInspections[index] = inspection
+        } else {
+            errorInspections.insert(inspection, at: 0)
         }
     }
 }
+

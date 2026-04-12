@@ -12,17 +12,18 @@ import SwiftUI
 struct ErrorHomeView: View {
     // MARK: - Properties
     @StateObject private var viewModel: ErrorHomeViewModel
-    var onNavigateToPhotoCaptureErrorReview: () -> Void
+    @State private var showErrorCamera = false
+    @State private var capturedImages: [UIImage] = []
+    @State private var showErrorReview = false
 
     // MARK: - Initialization
-    init(viewModel: ErrorHomeViewModel? = nil, onNavigateToPhotoCaptureErrorReview: @escaping () -> Void) {
-        _viewModel = StateObject(wrappedValue: viewModel ?? ErrorHomeViewModel())
-        self.onNavigateToPhotoCaptureErrorReview = onNavigateToPhotoCaptureErrorReview
+    init(viewModel: ErrorHomeViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
     }
 
     // MARK: - Body
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: .bottomTrailing) {
             contentView
             floatingButton
         }
@@ -34,6 +35,22 @@ struct ErrorHomeView: View {
         }
         .refreshable {
             await viewModel.loadErrorInspections()
+        }
+        .navigationDestination(isPresented: $showErrorCamera) {
+            CameraView(source: .errorReport) { images in
+                capturedImages = images
+                showErrorReview = true
+            }
+        }
+        .sheet(isPresented: $showErrorReview) {
+            PhotoCaptureErrorReviewView(
+                inspectionId: viewModel.inspectionId,
+                initialImages: capturedImages,
+                onImagesUpdated: { _ in },
+                onSaved: { saved in
+                    viewModel.upsertErrorItem(saved)
+                }
+            )
         }
     }
 
@@ -50,6 +67,7 @@ struct ErrorHomeView: View {
                 inspectionListView
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorView(message: String) -> some View {
@@ -123,22 +141,22 @@ struct ErrorHomeView: View {
     }
 
     private var floatingButton: some View {
-        HStack {
-            Spacer()
-            Button(action: onNavigateToPhotoCaptureErrorReview) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.white)
-            }
-            .frame(width: 56, height: 56)
-            .background(Circle().fill(Color.orange))
-            .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
-            .padding([.bottom, .trailing], 24)
+        Button(action: { showErrorCamera = true }) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(.white)
         }
+        .frame(width: 56, height: 56)
+        .background(Circle().fill(Color.orange))
+        .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
+        .padding(.trailing, 24)
+        .padding(.bottom, 24)
     }
 }
 
 // MARK: - Preview
 #Preview {
-    ErrorHomeView(onNavigateToPhotoCaptureErrorReview: {})
+    NavigationStack {
+        ErrorHomeView(viewModel: ErrorHomeViewModel(inspectionId: "preview-id"))
+    }
 }

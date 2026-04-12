@@ -161,10 +161,7 @@ struct InspectionDetailView: View {
     
     private var errorTabContent: some View {
         ErrorHomeView(
-            viewModel: ErrorHomeViewModel(),
-            onNavigateToPhotoCaptureErrorReview: {
-                // Handle navigation if needed
-            }
+            viewModel: ErrorHomeViewModel(inspectionId: viewModel.inspectionId)
         )
     }
     

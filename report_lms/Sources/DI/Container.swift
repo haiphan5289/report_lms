@@ -73,6 +73,9 @@ final class Container {
             service: inspectionService
         )
         registerSingleton(InspectionRepositoryType.self, instance: inspectionRepository)
+
+        let errorRepository = ErrorRepository(storageService: firebaseStorageService)
+        registerSingleton(ErrorRepositoryType.self, instance: errorRepository)
         
         // PDF Generator Service - Singleton
         // Using PDFKit native approach (Solution 3) for best performance and quality

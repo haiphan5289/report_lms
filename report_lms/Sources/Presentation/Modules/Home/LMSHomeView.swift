@@ -31,8 +31,6 @@ struct LMSHomeView: View {
     // MARK: - Properties
     @StateObject private var viewModel: LMSHomeViewModel
     @Namespace private var tabBarNamespace
-    @State private var capturedImages: [UIImage] = []
-    @State private var showPhotoCaptureErrorReview = false
     let onLogout: () -> Void
 
     // MARK: - Initialization
@@ -67,11 +65,6 @@ struct LMSHomeView: View {
                         CreateInspectionView(viewModel: createViewModel) { createdInspection in
                             viewModel.handleNewInspectionCreated(createdInspection)
                         }
-                    case "photoCaptureErrorReview":
-                        CameraView(source: .errorReport) { images in
-                            capturedImages = images
-                            showPhotoCaptureErrorReview = true
-                        }
                     case "orders":
                         OrdersView()
                     case "profile":
@@ -95,14 +88,6 @@ struct LMSHomeView: View {
                 }
                 .onChange(of: viewModel.navigationPath) { oldValue, newValue in
                     viewModel.handleNavigationBack(from: oldValue, to: newValue)
-                }
-                .sheet(isPresented: $showPhotoCaptureErrorReview) {
-                    PhotoCaptureErrorReviewView(
-                        initialImages: capturedImages,
-                        onImagesUpdated: { updatedImages in
-                            capturedImages = updatedImages
-                        }
-                    )
                 }
             }
 

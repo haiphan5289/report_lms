@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import OSLog
 
 // MARK: - Photo Capture Review ViewModel
 @MainActor
@@ -22,8 +23,16 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
+    // MARK: - Private Properties
+    private let inspectionId: String
+    private let errorRepository: ErrorRepositoryType
+    private let logger = Logger(subsystem: "com.reportlms", category: "PhotoCaptureErrorReviewViewModel")
+
     // MARK: - Initialization
-    init() {}
+    init(inspectionId: String, errorRepository: ErrorRepositoryType? = nil) {
+        self.inspectionId = inspectionId
+        self.errorRepository = errorRepository ?? Container.shared.resolve(ErrorRepositoryType.self)!
+    }
 
     // MARK: - Public Methods
     func addImages(_ newImages: [UIImage]) {
@@ -39,46 +48,46 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
         images = initialImages
     }
 
-    func saveReview() async {
+    func saveReview() async -> Inspection? {
         isLoading = true
         defer { isLoading = false }
 
+        guard !images.isEmpty else {
+            errorMessage = "Vui lòng chụp ít nhất một ảnh"
+            return nil
+        }
+
+        let errorRecord = buildErrorInspection()
+
         do {
-            // Validate review data
-            guard !images.isEmpty else {
-                errorMessage = "Vui lòng chụp ít nhất một ảnh"
-                return
-            }
-
-            // Placeholder: Implement actual save logic with repository/use case
-            // try await saveReviewUseCase.execute(review: createReviewEntity())
-
-            // Simulate async operation
-            try await Task.sleep(nanoseconds: 500_000_000)
-
+            try await errorRepository.saveError(errorRecord, for: inspectionId)
+            return errorRecord
         } catch {
             errorMessage = "Không thể lưu đánh giá: \(error.localizedDescription)"
+            return nil
         }
     }
 
-    func updateReview() async {
+    func updateReview() async -> Inspection? {
         isLoading = true
         defer { isLoading = false }
 
+        let errorRecord = buildErrorInspection()
+        logger.debug("[updateReview] START inspectionId=\(self.inspectionId, privacy: .public) imageCount=\(self.images.count, privacy: .public)")
+        logger.debug("[updateReview] errorRecord.id=\(errorRecord.id, privacy: .public)")
+
         do {
-            // Placeholder: Implement actual update logic
-            // try await updateReviewUseCase.execute(review: createReviewEntity())
-
-            // Simulate async operation
-            try await Task.sleep(nanoseconds: 500_000_000)
-
+            try await errorRepository.saveErrorItem(errorRecord, images: images, for: inspectionId)
+            logger.debug("[updateReview] ✅ saveErrorItem succeeded")
+            return errorRecord
         } catch {
+            logger.error("[updateReview] ❌ saveErrorItem failed: \(error, privacy: .public)")
             errorMessage = "Không thể cập nhật đánh giá: \(error.localizedDescription)"
+            return nil
         }
     }
 
     func deleteReview() {
-        // Reset all fields
         images.removeAll()
         selectedSeverity = .low
         generalConditionEnabled = false
@@ -88,13 +97,20 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     }
 
     // MARK: - Private Methods
-    private func createReviewEntity() -> InspectionReviewData {
-        InspectionReviewData(
-            images: images,
-            severity: selectedSeverity,
-            generalCondition: generalConditionEnabled ? selectedGeneralCondition : nil,
-            defectType: selectedDefectType,
-            comments: comments
+    private func buildErrorInspection() -> Inspection {
+        let defectName = selectedDefectType?.displayName ?? DefectType.other.displayName
+        let severityNote = selectedSeverity.displayName
+        let note = comments.isEmpty ? defectName : comments
+
+        return Inspection(
+            productName: defectName,
+            productCode: selectedSeverity.rawValue,
+            orderCode: "",
+            inspectionType: severityNote,
+            quantity: "\(images.count) ảnh",
+            factory: "",
+            productionUnit: note,
+            status: .error
         )
     }
 }

@@ -10,12 +10,26 @@ import SwiftUI
 
 // MARK: - Photo Capture Error Review View
 struct PhotoCaptureErrorReviewView: View {
-    @StateObject private var viewModel = PhotoCaptureErrorReviewViewModel()
+    @StateObject private var viewModel: PhotoCaptureErrorReviewViewModel
     @Environment(\.dismiss) private var dismiss
     let initialImages: [UIImage]
     let onImagesUpdated: ([UIImage]) -> Void
+    let onSaved: (Inspection) -> Void
 
     @State private var showingDefectTypeList = false
+
+    // MARK: - Initialization
+    init(
+        inspectionId: String,
+        initialImages: [UIImage],
+        onImagesUpdated: @escaping ([UIImage]) -> Void,
+        onSaved: @escaping (Inspection) -> Void = { _ in }
+    ) {
+        _viewModel = StateObject(wrappedValue: PhotoCaptureErrorReviewViewModel(inspectionId: inspectionId))
+        self.initialImages = initialImages
+        self.onImagesUpdated = onImagesUpdated
+        self.onSaved = onSaved
+    }
 
     // MARK: - Body
     var body: some View {
@@ -53,9 +67,9 @@ struct PhotoCaptureErrorReviewView: View {
                 },
                 trailing: Button("Hoàn thành") {
                     Task {
-                        await viewModel.saveReview()
-                        if viewModel.errorMessage == nil {
+                        if let saved = await viewModel.saveReview() {
                             onImagesUpdated(viewModel.images)
+                            onSaved(saved)
                             dismiss()
                         }
                     }
@@ -269,9 +283,13 @@ struct PhotoCaptureErrorReviewView: View {
                 dismiss()
             }
 
-            LMSButton("Thay đổi", icon: "pencil", variant: .primary) {
+            LMSButton("Lưu Thay đổi", icon: "pencil", variant: .primary) {
                 Task {
-                    await viewModel.updateReview()
+                    if let saved = await viewModel.updateReview() {
+                        onImagesUpdated(viewModel.images)
+                        onSaved(saved)
+                        dismiss()
+                    }
                 }
             }
         }
@@ -328,6 +346,7 @@ private struct SampleListItem: ListItemProtocol {
 // MARK: - Preview
 #Preview("Empty State") {
     PhotoCaptureErrorReviewView(
+        inspectionId: "preview-id",
         initialImages: [],
         onImagesUpdated: { _ in }
     )
@@ -340,6 +359,7 @@ private struct SampleListItem: ListItemProtocol {
     let sampleImage3 = UIImage(systemName: "camera") ?? UIImage()
 
     return PhotoCaptureErrorReviewView(
+        inspectionId: "preview-id",
         initialImages: [sampleImage1, sampleImage2, sampleImage3],
         onImagesUpdated: { _ in }
     )

@@ -37,7 +37,7 @@ final class InspectionDetailViewModel: ObservableObject {
     }()
 
     // MARK: - Private Properties
-    private let inspectionId: String
+    let inspectionId: String
     private let inspectionNumber: String
     private weak var homeViewModel: LMSHomeViewModel?
     private let storageService: InspectionStorageServiceType

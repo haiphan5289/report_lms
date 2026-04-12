@@ -48,10 +48,6 @@ final class LMSHomeViewModel: ObservableObject {
         navigationPath.append(inspection)
     }
 
-    func navigateToPhotoCaptureErrorReview() {
-        navigationPath.append("photoCaptureErrorReview")
-    }
-
     func navigateToProfile() {
         showMenu = false
         navigationPath.append("profile")
