@@ -124,9 +124,15 @@ struct PlanLMSHomeView: View {
 
                             ForEach(Array(visibleInspections.enumerated()), id: \.element.id) { index, inspection in
                                 NavigationLink(value: inspection) {
-                                    InspectionCardView(
+                                InspectionCardView(
                                         inspection: inspection,
-                                        isLastIndex: index == visibleInspections.count - 1
+                                        isLastIndex: index == visibleInspections.count - 1,
+                                        onDelete: {
+                                            Task { await viewModel.deleteInspection(inspection) }
+                                        },
+                                        onReset: {
+                                            Task { await viewModel.resetInspection(inspection) }
+                                        }
                                     )
                                 }
                                 .buttonStyle(.plain)

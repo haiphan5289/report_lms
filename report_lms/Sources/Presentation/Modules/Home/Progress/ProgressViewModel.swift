@@ -51,4 +51,33 @@ final class ProgressViewModel: ObservableObject {
     func visibleInspections(for section: WeekSection) -> [Inspection] {
         section.inspections
     }
+
+    func deleteInspection(_ inspection: Inspection) async {
+        do {
+            try await storageService.deleteInspection(by: inspection.id)
+            await loadInspections()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func resetInspection(_ inspection: Inspection) async {
+        var reset = inspection
+        reset.sections = reset.sections.map { section in
+            var s = section
+            s.fields = s.fields.map { field in
+                var f = field
+                f.photoURL = nil
+                f.imageURLs = []
+                return f
+            }
+            return s
+        }
+        do {
+            try await storageService.updateInspection(reset)
+            await loadInspections()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }

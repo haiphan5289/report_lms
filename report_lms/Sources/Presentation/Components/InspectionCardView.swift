@@ -12,15 +12,24 @@ struct InspectionCardView: View {
     let inspection: Inspection
     let isLastIndex: Bool
     let onTap: (() -> Void)?
+    let onDelete: (() -> Void)?
+    let onReset: (() -> Void)?
+
+    @State private var showingMenu = false
+    @State private var showingDeleteConfirm = false
 
     init(
         inspection: Inspection,
         isLastIndex: Bool = false,
-        onTap: (() -> Void)? = nil
+        onTap: (() -> Void)? = nil,
+        onDelete: (() -> Void)? = nil,
+        onReset: (() -> Void)? = nil
     ) {
         self.inspection = inspection
         self.isLastIndex = isLastIndex
         self.onTap = onTap
+        self.onDelete = onDelete
+        self.onReset = onReset
     }
 
     // MARK: - Body
@@ -43,6 +52,23 @@ struct InspectionCardView: View {
         .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
         .if(onTap != nil) { view in
             view.onTapGesture(perform: onTap!)
+        }
+        .confirmationDialog("", isPresented: $showingMenu, titleVisibility: .hidden) {
+            Button("Xoá", role: .destructive) {
+                showingDeleteConfirm = true
+            }
+            Button("Cài đặt lại") {
+                onReset?()
+            }
+            Button("Huỷ Bỏ", role: .cancel) {}
+        }
+        .alert("Xác nhận xoá", isPresented: $showingDeleteConfirm) {
+            Button("Xoá", role: .destructive) {
+                onDelete?()
+            }
+            Button("Huỷ", role: .cancel) {}
+        } message: {
+            Text("Bạn có chắc muốn xoá kiểm tra này không?")
         }
     }
 
@@ -106,7 +132,7 @@ struct InspectionCardView: View {
                         VStack(spacing: 16) {
                             // Three dots menu
                             Button(action: {
-                                // Menu action to be implemented (edit, delete, etc.)
+                                showingMenu = true
                             }, label: {
                                 Image(systemName: "ellipsis")
                                     .font(.system(size: 20))
