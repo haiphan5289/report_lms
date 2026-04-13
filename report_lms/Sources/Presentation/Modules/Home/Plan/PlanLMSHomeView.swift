@@ -12,6 +12,7 @@ import SwiftUI
 struct PlanLMSHomeView: View {
     // MARK: - Properties
     @StateObject private var viewModel: PlanLMSHomeViewModel
+    @EnvironmentObject private var localizationManager: LocalizationManager
     let refreshTrigger: Int
     let onQuickInspection: () -> Void
     let onLogout: () -> Void
@@ -73,7 +74,7 @@ struct PlanLMSHomeView: View {
 
             LMSLabel(message, style: .body, alignment: .center)
 
-            LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary, action: {
+            LMSButton(localizationManager.localize("common.retry"), icon: "arrow.clockwise", variant: .primary, action: {
                 Task {
                     await viewModel.loadInspections()
                 }
@@ -90,8 +91,8 @@ struct PlanLMSHomeView: View {
                 Image(systemName: "doc.text.magnifyingglass")
                     .font(.system(size: 48))
                     .foregroundColor(.secondary.opacity(0.6))
-                LMSLabel("Không có yêu cầu kiểm tra nào được tải xuống", style: .body, alignment: .center)
-                LMSLabel("Nhấn button bên dưới để xem thêm", style: .subheadline, color: .secondary, alignment: .center)
+                LMSLabel(localizationManager.localize("plan.empty.title"), style: .body, alignment: .center)
+                LMSLabel(localizationManager.localize("plan.empty.subtitle"), style: .subheadline, color: .secondary, alignment: .center)
             }
             .padding()
             .frame(maxWidth: .infinity)
@@ -100,7 +101,7 @@ struct PlanLMSHomeView: View {
                     .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
             )
 
-            LMSButton("Tải thêm yêu cầu kiểm hàng", icon: "arrow.clockwise", variant: .primary, action: {
+            LMSButton(localizationManager.localize("plan.loadMore"), icon: "arrow.clockwise", variant: .primary, action: {
                 Task {
                     await viewModel.loadInspections()
                 }
@@ -358,4 +359,5 @@ private let mockInspectionsData: [Inspection] = [
 
 #Preview {
     PlanLMSHomeView(viewModel: createPreviewViewModel())
+        .environmentObject(LocalizationManager.shared)
 }

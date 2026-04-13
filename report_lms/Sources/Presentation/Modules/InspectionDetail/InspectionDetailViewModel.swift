@@ -186,9 +186,9 @@ extension InspectionDetailViewModel {
 
         var title: String {
             switch self {
-            case .inspectionDetail: return "Kiểm tra"
-            case .error: return "Lỗi"
-            case .orderInformation: return "Thông tin"
+            case .inspectionDetail: return "inspection.tab.inspection"
+            case .error: return "inspection.tab.error"
+            case .orderInformation: return "inspection.tab.info"
             }
         }
 

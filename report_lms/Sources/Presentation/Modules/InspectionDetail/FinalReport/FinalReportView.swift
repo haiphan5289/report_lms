@@ -18,6 +18,7 @@ struct FinalReportView: View {
     
     // MARK: - Properties
     @StateObject private var viewModel: FinalReportViewModel
+    @EnvironmentObject private var localizationManager: LocalizationManager
     @Environment(\.dismiss) private var dismiss
     
     // MARK: - Initialization
@@ -64,7 +65,7 @@ struct FinalReportView: View {
                     .padding(.vertical, Layout.verticalPadding)
                 }
             }
-            .navigationTitle("Hoàn tất kiểm tra")
+            .navigationTitle(localizationManager.localize("finalReport.title"))
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(leading:
                 Button(action: { dismiss() }) {
@@ -99,84 +100,84 @@ struct FinalReportView: View {
         }
         .overlay {
             if viewModel.isGeneratingPDF {
-                LMSLoadingOverlay(message: "Đang tạo PDF...", style: .dark)
+                LMSLoadingOverlay(message: localizationManager.localize("finalReport.loading.pdf"), style: .dark)
             } else if viewModel.isSavingPhotos {
-                LMSLoadingOverlay(message: "Đang lưu ảnh...", style: .dark)
+                LMSLoadingOverlay(message: localizationManager.localize("finalReport.loading.savePhotos"), style: .dark)
             }
         }
         .overlay {
             if viewModel.showEmailSuccessAlert {
                 SuccessConfirmationView(
-                    title: "Gửi thành công",
-                    message: "Email báo cáo đã được gửi",
-                    confirmTitle: "OK"
+                    title: localizationManager.localize("finalReport.success.email.title"),
+                    message: localizationManager.localize("finalReport.success.email.message"),
+                    confirmTitle: localizationManager.localize("common.ok")
                 ) {
                     viewModel.showEmailSuccessAlert = false
                 }
             }
-            
+
             if viewModel.showPhotoSaveSuccess {
                 SuccessConfirmationView(
-                    title: "Lưu thành công",
-                    message: "Đã lưu \(viewModel.totalPhotosCount) ảnh vào thư viện",
-                    confirmTitle: "OK"
+                    title: localizationManager.localize("finalReport.success.save.title"),
+                    message: localizationManager.localize("finalReport.success.save.message", viewModel.totalPhotosCount),
+                    confirmTitle: localizationManager.localize("common.ok")
                 ) {
                     viewModel.showPhotoSaveSuccess = false
                 }
             }
         }
-        .alert("Lỗi", isPresented: $viewModel.showErrorAlert) {
-            Button("OK") { }
+        .alert(localizationManager.localize("common.error"), isPresented: $viewModel.showErrorAlert) {
+            Button(localizationManager.localize("common.ok")) { }
         } message: {
             if let error = viewModel.errorAlertMessage {
                 Text(error)
             }
         }
-        .alert("Lỗi lưu ảnh", isPresented: $viewModel.showPhotoSaveError) {
-            Button("OK") { }
+        .alert(localizationManager.localize("finalReport.error.photoSave.title"), isPresented: $viewModel.showPhotoSaveError) {
+            Button(localizationManager.localize("common.ok")) { }
         } message: {
             if let error = viewModel.photoSaveErrorMessage {
                 Text(error)
             }
         }
-        .alert("Email không khả dụng", isPresented: $viewModel.showMailUnavailableAlert) {
-            Button("OK") { }
+        .alert(localizationManager.localize("finalReport.error.emailUnavailable.title"), isPresented: $viewModel.showMailUnavailableAlert) {
+            Button(localizationManager.localize("common.ok")) { }
         } message: {
-            Text("Thiết bị này chưa được cấu hình email. Vui lòng thiết lập tài khoản email trong Cài đặt.")
+            Text(localizationManager.localize("finalReport.error.emailUnavailable.message"))
         }
     }
     
     // MARK: - Section Views
     
     private var quantitiesSection: some View {
-        LMSSectionContainer(title: "Số lượng") {
+        LMSSectionContainer(title: localizationManager.localize("finalReport.section.quantity")) {
             VStack(spacing: 8) {
                 LMSInfoRow(
-                    label: "Số lượng đơn hàng",
+                    label: localizationManager.localize("finalReport.quantity.order"),
                     value: "\(viewModel.inspection?.orderQuantity ?? 0)"
                 )
-                
+
                 LMSInfoRow(
-                    label: "Số lượng thực tế đã xong",
+                    label: localizationManager.localize("finalReport.quantity.actual"),
                     value: "\(viewModel.inspection?.actualCompletedQuantity ?? 0)"
                 )
-                
+
                 LMSInfoRow(
-                    label: "Số lượng cần kiểm tra theo AQL",
+                    label: localizationManager.localize("finalReport.quantity.aql"),
                     value: "\(viewModel.inspection?.aqlInspectionQuantity ?? 0)"
                 )
-                
+
                 LMSInfoRow(
-                    label: "Số lượng đã kiểm tra",
+                    label: localizationManager.localize("finalReport.quantity.inspected"),
                     value: "\(viewModel.inspection?.inspectedQuantity ?? 0)"
                 )
             }
         }
     }
-    
+
     private var statusSection: some View {
-        LMSSectionContainer(title: "Trạng thái") {
-            Picker("Trạng thái", selection: $viewModel.selectedStatus) {
+        LMSSectionContainer(title: localizationManager.localize("finalReport.section.status")) {
+            Picker(localizationManager.localize("finalReport.section.status"), selection: $viewModel.selectedStatus) {
                 ForEach(FinalReportStatus.allCases, id: \.self) { status in
                     Label {
                         Text(status.displayName)
@@ -195,17 +196,17 @@ struct FinalReportView: View {
     }
     
     private var locationSection: some View {
-        LMSSectionContainer(title: "Vị trí") {
-            TextField("Nhập vị trí kiểm tra", text: $viewModel.location)
+        LMSSectionContainer(title: localizationManager.localize("finalReport.section.location")) {
+            TextField(localizationManager.localize("finalReport.location.placeholder"), text: $viewModel.location)
                 .padding(12)
                 .background(LMSColor.backgroundSecondary)
                 .cornerRadius(8)
                 .font(.system(size: 15))
         }
     }
-    
+
     private var summarySection: some View {
-        LMSSectionContainer(title: "Tóm tắt nhận xét") {
+        LMSSectionContainer(title: localizationManager.localize("finalReport.section.summary")) {
             TextEditor(text: $viewModel.summaryComments)
                 .frame(minHeight: 120)
                 .padding(8)
@@ -226,7 +227,7 @@ struct FinalReportView: View {
                     viewModel.toggleNotificationSection()
                 }) {
                     HStack {
-                        LMSLabel("Thông báo (\(viewModel.recipientsCount))", style: .headline)
+                        LMSLabel("\(localizationManager.localize("finalReport.section.notification")) (\(viewModel.recipientsCount))", style: .headline)
                         
                         Spacer()
                         
@@ -240,7 +241,7 @@ struct FinalReportView: View {
                 if viewModel.isNotificationSectionExpanded {
                     // Info Text
                     LMSLabel(
-                        "Khi báo cáo đã hoàn tất và được tải lên, email thông báo sẽ được gửi tới",
+                        localizationManager.localize("finalReport.notification.info"),
                         style: .caption,
                         color: .secondary
                     )
@@ -263,7 +264,7 @@ struct FinalReportView: View {
                     
                     // Add Button
                     LMSButton(
-                        "Thêm",
+                        localizationManager.localize("common.add"),
                         icon: "plus.circle.fill",
                         variant: .tertiary,
                         size: .medium,
@@ -278,13 +279,12 @@ struct FinalReportView: View {
     
     private var actionButtonsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LMSLabel("Kết thúc kiểm tra", style: .headline)
+            LMSLabel(localizationManager.localize("finalReport.section.endInspection"), style: .headline)
                 .padding(.horizontal)
-            
+
             HStack(spacing: 12) {
-                // Preview PDF Button
                 LMSButton(
-                    "Xem PDF",
+                    localizationManager.localize("finalReport.button.viewPDF"),
                     icon: "doc.text.magnifyingglass",
                     variant: .tertiary,
                     size: .large,
@@ -295,10 +295,9 @@ struct FinalReportView: View {
                         await viewModel.generateAndPreviewPDF()
                     }
                 }
-                
-                // Send Email Button
+
                 LMSButton(
-                    "Gửi Email",
+                    localizationManager.localize("finalReport.button.sendEmail"),
                     icon: "paperplane.fill",
                     variant: .primary,
                     size: .large,
@@ -316,7 +315,7 @@ struct FinalReportView: View {
     
     private var savePhotosSection: some View {
         LMSButton(
-            "Lưu vào tập ảnh (\(viewModel.totalPhotosCount))",
+            "\(localizationManager.localize("finalReport.button.savePhotos")) (\(viewModel.totalPhotosCount))",
             icon: "photo.on.rectangle.angled",
             variant: .secondary,
             size: .medium,
@@ -356,11 +355,11 @@ struct FinalReportView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .navigationTitle("Chọn người nhận")
+            .navigationTitle(localizationManager.localize("finalReport.recipients.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Xong") {
+                    Button(localizationManager.localize("finalReport.recipients.done")) {
                         viewModel.isShowingRecipientsPicker = false
                     }
                 }

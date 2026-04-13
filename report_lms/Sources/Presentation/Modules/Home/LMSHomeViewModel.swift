@@ -106,9 +106,9 @@ extension LMSHomeViewModel {
 
         var title: String {
             switch self {
-            case .plan: return "Kế hoạch"
-            case .inProgress: return "Trong tiến trình"
-            case .report: return "Báo cáo"
+            case .plan: return "home.tab.plan"
+            case .inProgress: return "home.tab.inProgress"
+            case .report: return "home.tab.report"
             }
         }
 

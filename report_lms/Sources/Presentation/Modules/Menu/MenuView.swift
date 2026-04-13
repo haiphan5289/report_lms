@@ -19,13 +19,14 @@ enum MenuAction {
 // MARK: - MenuView
 
 struct MenuView: View {
+    @EnvironmentObject private var localizationManager: LocalizationManager
     let onAction: (MenuAction) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                LMSLabel("Menu", style: .title2)
+                LMSLabel(localizationManager.localize("menu.title"), style: .title2)
                 Spacer()
             }
             .padding(.horizontal, 20)
@@ -37,21 +38,21 @@ struct MenuView: View {
             // Menu items
             List {
                 Section {
-                    LMSButton("Profile", icon: "person.circle", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
+                    LMSButton(localizationManager.localize("menu.profile"), icon: "person.circle", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
                         onAction(.profile)
                     }
 
-                    LMSButton("Settings", icon: "gear", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
+                    LMSButton(localizationManager.localize("menu.settings"), icon: "gear", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
                         onAction(.settings)
                     }
 
-                    LMSButton("Orders", icon: "cart", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
+                    LMSButton(localizationManager.localize("menu.orders"), icon: "cart", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
                         onAction(.orders)
                     }
                 }
 
                 Section {
-                    LMSButton("Logout", icon: "arrow.right.square", variant: .destructive, isFullWidth: true, contentAlignment: .leading) {
+                    LMSButton(localizationManager.localize("menu.logout"), icon: "arrow.right.square", variant: .destructive, isFullWidth: true, contentAlignment: .leading) {
                         onAction(.logout)
                     }
                 }
@@ -64,4 +65,5 @@ struct MenuView: View {
 
 #Preview {
     MenuView(onAction: { _ in })
+        .environmentObject(LocalizationManager.shared)
 }

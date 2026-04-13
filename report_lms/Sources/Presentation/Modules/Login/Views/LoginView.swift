@@ -23,6 +23,7 @@ struct LoginView: View {
 
     // MARK: - Properties
     @StateObject private var viewModel: LoginViewModel
+    @EnvironmentObject private var localizationManager: LocalizationManager
 
     // MARK: - Initialization
     init(viewModel: LoginViewModel) {
@@ -54,7 +55,7 @@ struct LoginView: View {
         VStack(spacing: Layout.formSpacing) {
             LMSLabel("IPSLMS", style: .largeTitle, alignment: .center)
             LMSLabel(
-                "Đăng nhập bằng email",
+                localizationManager.localize("login.subtitle"),
                 style: .caption,
                 color: .secondary,
                 alignment: .center
@@ -72,7 +73,7 @@ struct LoginView: View {
 
     private var emailTextField: some View {
         LMSTextField(
-            "Email",
+            localizationManager.localize("login.email"),
             text: $viewModel.username,
             icon: "envelope",
             keyboardType: .emailAddress
@@ -81,7 +82,7 @@ struct LoginView: View {
 
     private var passwordTextField: some View {
         LMSTextField(
-            "Mật khẩu",
+            localizationManager.localize("login.password"),
             text: $viewModel.password,
             icon: "lock",
             isSecure: true
@@ -92,7 +93,7 @@ struct LoginView: View {
         HStack {
             Spacer()
             NavigationLink(destination: ForgotPasswordView()) {
-                Text("Quên mật khẩu?")
+                Text(localizationManager.localize("login.forgotPassword"))
                     .font(.footnote)
                     .foregroundColor(.accentColor)
                     .padding(.vertical, Layout.forgotPasswordVerticalPadding)
@@ -130,7 +131,9 @@ struct LoginView: View {
 
     private var loginButton: some View {
         LMSButton(
-            viewModel.isLoginLoading ? "Đang đăng nhập..." : "Đăng nhập",
+            viewModel.isLoginLoading
+                ? localizationManager.localize("login.button.loading")
+                : localizationManager.localize("login.button"),
             variant: .primary,
             isFullWidth: true,
             isLoading: .constant(viewModel.isLoginLoading),
@@ -144,7 +147,7 @@ struct LoginView: View {
         Group {
             if viewModel.isBiometricAvailable {
                 VStack(spacing: 8) {
-                    Text("hoặc")
+                    Text(localizationManager.localize("common.or"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -185,11 +188,11 @@ struct LoginView: View {
     private var biometricButtonTitle: String {
         switch viewModel.biometricType {
         case .faceID:
-            return "Đăng nhập bằng Face ID"
+            return localizationManager.localize("login.biometric.faceID")
         case .touchID:
-            return "Đăng nhập bằng Touch ID"
+            return localizationManager.localize("login.biometric.touchID")
         default:
-            return "Đăng nhập sinh trắc học"
+            return localizationManager.localize("login.biometric.generic")
         }
     }
 
@@ -223,5 +226,6 @@ struct LoginView: View {
     
     return NavigationStack {
         LoginView(viewModel: viewModel)
+            .environmentObject(LocalizationManager.shared)
     }
 }

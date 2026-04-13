@@ -30,6 +30,7 @@ struct LMSHomeView: View {
 
     // MARK: - Properties
     @StateObject private var viewModel: LMSHomeViewModel
+    @EnvironmentObject private var localizationManager: LocalizationManager
     @Namespace private var tabBarNamespace
     let onLogout: () -> Void
 
@@ -52,8 +53,8 @@ struct LMSHomeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(.systemGroupedBackground))
                 .ignoresSafeArea(.container, edges: .bottom)
-                .alert("Cloud action triggered!", isPresented: $viewModel.showCloudAction) {
-                    Button("OK", role: .cancel) {}
+                .alert(localizationManager.localize("home.alert.cloudAction"), isPresented: $viewModel.showCloudAction) {
+                    Button(localizationManager.localize("common.ok"), role: .cancel) {}
                 }
                 .navigationDestination(for: String.self) { destination in
                     switch destination {
@@ -72,9 +73,7 @@ struct LMSHomeView: View {
                         Text("Profile")
                             .navigationTitle("Profile")
                     case "settings":
-                        // TODO: Replace with SettingsView when available
-                        Text("Settings")
-                            .navigationTitle("Settings")
+                        SettingsView()
                     default:
                         EmptyView()
                     }
@@ -140,7 +139,7 @@ struct LMSHomeView: View {
         HStack {
             menuButton
             Spacer()
-            LMSLabel("Kiểm tra", style: .title, alignment: .center)
+            LMSLabel(localizationManager.localize("home.title"), style: .title, alignment: .center)
             Spacer()
             cloudButton
         }
@@ -205,7 +204,7 @@ struct LMSHomeView: View {
                 .foregroundColor(isSelected ? .accentColor : .secondary)
 
             LMSLabel(
-                tab.title,
+                localizationManager.localize(tab.title),
                 style: .subheadline,
                 color: isSelected ? .custom(Color.accentColor) : .secondary,
                 alignment: .center
@@ -259,4 +258,5 @@ struct LMSHomeView: View {
 
 #Preview {
     LMSHomeView(viewModel: LMSHomeViewModel(), onLogout: {})
+        .environmentObject(LocalizationManager.shared)
 }

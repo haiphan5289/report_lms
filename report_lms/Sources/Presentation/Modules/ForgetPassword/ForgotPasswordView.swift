@@ -10,6 +10,8 @@ import SwiftUI
 // MARK: - Forgot Password Placeholder
 
 struct ForgotPasswordView: View {
+    @EnvironmentObject private var localizationManager: LocalizationManager
+
     var body: some View {
         VStack {
             Spacer()
@@ -19,16 +21,17 @@ struct ForgotPasswordView: View {
                 .frame(width: 80, height: 80)
                 .foregroundColor(.accentColor)
                 .padding(.bottom, 16)
-            LMSLabel("Quên mật khẩu", style: .title, alignment: .center)
+            LMSLabel(localizationManager.localize("forgotPassword.title"), style: .title, alignment: .center)
                 .padding(.bottom, 8)
-            LMSLabel("Tính năng đang được phát triển.", style: .body, color: .secondary, alignment: .center)
+            LMSLabel(localizationManager.localize("forgotPassword.message"), style: .body, color: .secondary, alignment: .center)
             Spacer()
         }
         .padding()
-        .navigationTitle("Quên mật khẩu")
+        .navigationTitle(localizationManager.localize("forgotPassword.title"))
     }
 }
 
 #Preview {
     ForgotPasswordView()
+        .environmentObject(LocalizationManager.shared)
 }

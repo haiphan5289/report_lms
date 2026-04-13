@@ -28,9 +28,10 @@ struct InspectionDetailContentView: View {
     
     // MARK: - Properties
     @ObservedObject var contentViewModel: InspectionDetailContentViewModel
+    @EnvironmentObject private var localizationManager: LocalizationManager
     let onRetry: () async -> Void
     let errorMessage: String?
-    
+
     @State private var showAddCustomField = false
     @State private var showFinalReport = false
     
@@ -132,7 +133,7 @@ struct InspectionDetailContentView: View {
     }
 
     private var retryButton: some View {
-        LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary, action: {
+        LMSButton(localizationManager.localize("common.retry"), icon: "arrow.clockwise", variant: .primary, action: {
             Task {
                 await onRetry()
             }
@@ -164,7 +165,7 @@ struct InspectionDetailContentView: View {
                     .font(.system(size: Layout.actionButtonIconSize, weight: .medium))
                     .foregroundColor(LMSColor.primary)
                 
-                Text("Thêm điểm kiểm tra")
+                Text(localizationManager.localize("inspection.button.addField"))
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(LMSColor.textPrimary)
             }
@@ -191,7 +192,7 @@ struct InspectionDetailContentView: View {
                     .font(.system(size: Layout.actionButtonIconSize, weight: .medium))
                     .foregroundColor(LMSColor.white)
                 
-                Text("Hoàn tất kiểm tra")
+                Text(localizationManager.localize("inspection.button.complete"))
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(LMSColor.white)
             }

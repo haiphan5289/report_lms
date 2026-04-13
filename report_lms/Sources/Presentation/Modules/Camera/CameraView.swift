@@ -15,14 +15,11 @@ enum CameraSource {
     case inspection // Opened from inspection flow (future use)
     case general // General photo capture (future use)
 
-    var title: String {
+    var localizationKey: String {
         switch self {
-        case .errorReport:
-            return "Báo cáo lỗi"
-        case .inspection:
-            return "Chụp ảnh kiểm tra"
-        case .general:
-            return "Chụp ảnh"
+        case .errorReport: return "camera.source.errorReport"
+        case .inspection: return "camera.source.inspection"
+        case .general: return "camera.source.general"
         }
     }
 
@@ -54,6 +51,7 @@ struct CameraView: View {
 
     // MARK: - Properties
     @StateObject private var viewModel = CameraViewModel()
+    @EnvironmentObject private var localizationManager: LocalizationManager
     @Environment(\.dismiss) private var dismiss
     let source: CameraSource
     let onPhotoCaptured: ([UIImage]) -> Void
@@ -68,14 +66,14 @@ struct CameraView: View {
             .onDisappear {
                 viewModel.stopCamera()
             }
-            .alert("Quyền truy cập camera", isPresented: $viewModel.showPermissionAlert) {
-                Button("Mở Cài đặt", action: viewModel.openSettings)
-                Button("Hủy", role: .cancel) { dismiss() }
+            .alert(localizationManager.localize("camera.permission.title"), isPresented: $viewModel.showPermissionAlert) {
+                Button(localizationManager.localize("camera.permission.openSettings"), action: viewModel.openSettings)
+                Button(localizationManager.localize("common.cancel"), role: .cancel) { dismiss() }
             } message: {
-                Text("Vui lòng cấp quyền truy cập camera trong Cài đặt để sử dụng tính năng này")
+                Text(localizationManager.localize("camera.permission.message"))
             }
-            .alert("Lỗi", isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button("OK") { viewModel.errorMessage = nil }
+            .alert(localizationManager.localize("common.error"), isPresented: .constant(viewModel.errorMessage != nil)) {
+                Button(localizationManager.localize("common.ok")) { viewModel.errorMessage = nil }
             } message: {
                 if let error = viewModel.errorMessage {
                     Text(error)
@@ -87,7 +85,7 @@ struct CameraView: View {
     private var cameraView: some View {
         VStack {
             // Title
-            Text(source.title)
+            Text(localizationManager.localize(source.localizationKey))
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
                 .padding(.top, 50)
@@ -139,7 +137,7 @@ struct CameraView: View {
                     Button(action: {
                         dismiss()
                     }, label: {
-                        Text("Huỷ bỏ")
+                        Text(localizationManager.localize("camera.button.cancel"))
                             .font(.system(size: 12, weight: .regular))
                             .foregroundColor(LMSTextColor.primary.color)
                             .padding()
@@ -192,7 +190,7 @@ struct CameraView: View {
                         onPhotoCaptured(viewModel.capturedImages)
                         dismiss()
                     }, label: {
-                        Text("Hoàn thành")
+                        Text(localizationManager.localize("camera.button.done"))
                             .font(.system(size: 12, weight: .regular))
                             .foregroundColor(LMSTextColor.primary.color)
                             .padding()
@@ -241,6 +239,7 @@ struct CameraView: View {
             print("First image size: \(firstImage.size)")
         }
     }
+    .environmentObject(LocalizationManager.shared)
 }
 
 #Preview("Inspection") {
@@ -250,4 +249,5 @@ struct CameraView: View {
             print("First image size: \(firstImage.size)")
         }
     }
+    .environmentObject(LocalizationManager.shared)
 }

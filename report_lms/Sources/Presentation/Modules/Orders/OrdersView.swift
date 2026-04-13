@@ -9,6 +9,7 @@ import SwiftUI
 
 struct OrdersView: View {
     @StateObject private var viewModel: OrdersViewModel
+    @EnvironmentObject private var localizationManager: LocalizationManager
     @State private var inspectionToDelete: Inspection?
 
     init(viewModel: OrdersViewModel? = nil) {
@@ -29,15 +30,18 @@ struct OrdersView: View {
                 mainContent
             }
         }
-        .navigationTitle("Orders")
+        .navigationTitle(localizationManager.localize("orders.title"))
         .navigationBarTitleDisplayMode(.large)
         .task { await viewModel.loadOrders() }
         .refreshable { await viewModel.loadOrders() }
         .fullScreenCover(item: $inspectionToDelete) { inspection in
             DeleteConfirmationView(
-                title: "Xóa đơn hàng",
-                message: "Bạn có chắc chắn muốn xóa \"\(inspection.inspectionNumber.isEmpty ? "đơn hàng này" : inspection.inspectionNumber)\"? Hành động này không thể hoàn tác.",
-                confirmTitle: "Xóa"
+                title: localizationManager.localize("orders.delete.title"),
+                message: String(format: localizationManager.localize("orders.delete.message"),
+                    inspection.inspectionNumber.isEmpty
+                        ? localizationManager.localize("orders.delete.defaultName")
+                        : inspection.inspectionNumber),
+                confirmTitle: localizationManager.localize("orders.delete.confirm")
             ) {
                 Task { await viewModel.deleteInspection(id: inspection.id) }
             }
@@ -74,10 +78,10 @@ struct OrdersView: View {
 
     private var statsStrip: some View {
         HStack(spacing: 10) {
-            StatCard(value: viewModel.countAll, label: "Tất cả", color: .blue)
-            StatCard(value: viewModel.countPlan, label: "Kế hoạch", color: Color(.systemBlue))
-            StatCard(value: viewModel.countInProgress, label: "Đang KT", color: .orange)
-            StatCard(value: viewModel.countCompleted, label: "Hoàn thành", color: .green)
+            StatCard(value: viewModel.countAll, label: localizationManager.localize("orders.stats.all"), color: .blue)
+            StatCard(value: viewModel.countPlan, label: localizationManager.localize("orders.stats.plan"), color: Color(.systemBlue))
+            StatCard(value: viewModel.countInProgress, label: localizationManager.localize("orders.stats.inProgress"), color: .orange)
+            StatCard(value: viewModel.countCompleted, label: localizationManager.localize("orders.stats.completed"), color: .green)
         }
     }
 
@@ -88,7 +92,7 @@ struct OrdersView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
                 .font(.system(size: 16))
-            TextField("Tìm mã đơn, công ty, sản phẩm...", text: $viewModel.searchText)
+            TextField(localizationManager.localize("orders.search.placeholder"), text: $viewModel.searchText)
                 .font(.system(size: 15))
                 .autocorrectionDisabled()
             if !viewModel.searchText.isEmpty {
@@ -110,7 +114,7 @@ struct OrdersView: View {
     private var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                FilterChip(label: "Tất cả", isSelected: viewModel.selectedStatus == nil) {
+                FilterChip(label: localizationManager.localize("orders.filter.all"), isSelected: viewModel.selectedStatus == nil) {
                     viewModel.selectedStatus = nil
                 }
                 ForEach(InspectionStatus.allCases, id: \.self) { status in
@@ -146,13 +150,15 @@ struct OrdersView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.secondary.opacity(0.5))
             LMSLabel(
-                viewModel.searchText.isEmpty ? "Không có đơn hàng nào" : "Không tìm thấy kết quả",
+                viewModel.searchText.isEmpty
+                    ? localizationManager.localize("orders.empty")
+                    : localizationManager.localize("orders.empty.search"),
                 style: .body,
                 color: .secondary,
                 alignment: .center
             )
             if !viewModel.searchText.isEmpty {
-                LMSButton("Xóa bộ lọc", variant: .ghost, size: .small) {
+                LMSButton(localizationManager.localize("orders.clearFilter"), variant: .ghost, size: .small) {
                     viewModel.searchText = ""
                     viewModel.selectedStatus = nil
                 }
@@ -169,7 +175,7 @@ struct OrdersView: View {
                 .foregroundColor(.red.opacity(0.7))
             LMSLabel(message, style: .body, color: .secondary, alignment: .center)
                 .padding(.horizontal, 32)
-            LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary) {
+            LMSButton(localizationManager.localize("common.retry"), icon: "arrow.clockwise", variant: .primary) {
                 Task { await viewModel.loadOrders() }
             }
             .frame(maxWidth: 180)
@@ -364,6 +370,7 @@ private func makePreviewViewModel() -> OrdersViewModel {
     NavigationView {
         OrdersView(viewModel: makePreviewViewModel())
     }
+    .environmentObject(LocalizationManager.shared)
 }
 
 #Preview("Empty") {
@@ -373,6 +380,7 @@ private func makePreviewViewModel() -> OrdersViewModel {
             return vm
         }())
     }
+    .environmentObject(LocalizationManager.shared)
 }
 
 #Preview("Loading") {
@@ -383,4 +391,5 @@ private func makePreviewViewModel() -> OrdersViewModel {
             return vm
         }())
     }
+    .environmentObject(LocalizationManager.shared)
 }

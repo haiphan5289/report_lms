@@ -11,6 +11,8 @@ import OSLog
 
 @main
 struct report_lmsApp: App {
+    @StateObject private var localizationManager = LocalizationManager.shared
+
     init() {
         FirebaseApp.configure()
         
@@ -33,6 +35,7 @@ struct report_lmsApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environmentObject(localizationManager)
         }
     }
 }

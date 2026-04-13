@@ -20,6 +20,7 @@ struct InspectionDetailView: View {
 
     // MARK: - Properties
     @StateObject private var viewModel: InspectionDetailViewModel
+    @EnvironmentObject private var localizationManager: LocalizationManager
     @Environment(\.dismiss) private var dismiss
     @Namespace private var tabBarNamespace
 
@@ -113,7 +114,7 @@ struct InspectionDetailView: View {
                 .foregroundColor(isSelected ? .accentColor : .secondary)
 
             LMSLabel(
-                tab.title,
+                localizationManager.localize(tab.title),
                 style: .body,
                 color: isSelected ? .custom(Color.accentColor) : .secondary,
                 alignment: .center

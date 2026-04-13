@@ -10,6 +10,7 @@ import SwiftUI
 struct LMSProgressView: View {
     // MARK: - Properties
     @StateObject private var viewModel: ProgressViewModel
+    @EnvironmentObject private var localizationManager: LocalizationManager
 
     // MARK: - Initialization
     init(viewModel: ProgressViewModel? = nil) {
@@ -51,7 +52,7 @@ struct LMSProgressView: View {
 
             LMSLabel(message, style: .body, alignment: .center)
 
-            LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary, action: {
+            LMSButton(localizationManager.localize("common.retry"), icon: "arrow.clockwise", variant: .primary, action: {
                 Task {
                     await viewModel.loadInspections()
                 }
@@ -68,8 +69,8 @@ struct LMSProgressView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.secondary.opacity(0.6))
 
-            LMSLabel("Không có yêu cầu nào đang trong tiến trình", style: .body, alignment: .center)
-            LMSLabel("Các yêu cầu đang kiểm tra sẽ hiển thị tại đây", style: .subheadline, color: .secondary, alignment: .center)
+            LMSLabel(localizationManager.localize("progress.empty.title"), style: .body, alignment: .center)
+            LMSLabel(localizationManager.localize("progress.empty.subtitle"), style: .subheadline, color: .secondary, alignment: .center)
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -207,6 +208,7 @@ private let mockInProgressInspections: [Inspection] = [
         LMSProgressView(viewModel: vm)
             .task { await vm.loadInspections() }
     }
+    .environmentObject(LocalizationManager.shared)
 }
 
 #Preview("Empty state") {
@@ -215,4 +217,5 @@ private let mockInProgressInspections: [Inspection] = [
         LMSProgressView(viewModel: vm)
             .task { await vm.loadInspections() }
     }
+    .environmentObject(LocalizationManager.shared)
 }
