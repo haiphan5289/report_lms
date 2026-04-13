@@ -82,8 +82,8 @@ struct PhotoCaptureErrorReviewView: View {
                 })
             }
             .sheet(isPresented: $showingDefectTypeList) {
-                let defectData = createDefectTypeSearchableData()
-                let searchableViewModel = SearchableListViewModel(items: defectData)
+                let sections = createDefectTypeSearchableData()
+                let searchableViewModel = SearchableListViewModel(sections: sections, title: "Các loại phân lỗi")
 
                 SearchableListView(viewModel: searchableViewModel) { selectedItem in
                     handleDefectTypeSelection(selectedItem)
@@ -321,17 +321,20 @@ struct PhotoCaptureErrorReviewView: View {
     }
 
     // MARK: - Private Methods
-    private func createDefectTypeSearchableData() -> ListItemProtocol {
-        SampleListItem(
-            title: "Các loại phân lỗi",
-            datas: DefectType.allCases.map { defect in
-                ListDataItem(id: defect.hashValue, name: defect.displayName)
-            }
-        )
+    private func createDefectTypeSearchableData() -> [ListItemProtocol] {
+        ["PA", "SU", "AS", "FU", "SA", "FI", "CO", "FE", "TA"].compactMap { category in
+            let items = DefectType.allCases.filter { $0.category == category }
+            guard !items.isEmpty else { return nil }
+            return SampleListItem(
+                title: items[0].categoryDisplayName,
+                datas: items.map { ListDataItem(id: $0.rawValue.hashValue, name: $0.displayName) }
+            )
+        }
     }
 
     private func handleDefectTypeSelection(_ selectedItem: ListDataItem) {
-        if let defectType = DefectType.allCases.first(where: { $0.displayName == selectedItem.name }) {
+        let code = selectedItem.name.components(separatedBy: " - ").first ?? ""
+        if let defectType = DefectType(rawValue: code) {
             viewModel.selectedDefectType = defectType
         }
     }

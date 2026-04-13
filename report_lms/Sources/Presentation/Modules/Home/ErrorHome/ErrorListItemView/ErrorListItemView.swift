@@ -59,7 +59,7 @@ struct ErrorListItemView: View {
     let sampleImage = UIImage(systemName: "exclamationmark.triangle") ?? UIImage()
     let errorItem = ErrorItem(
         severity: .low,
-        defectType: .crack,
+        defectType: .su9,
         image: sampleImage,
         affectedCount: 3,
         actualMeasurement: 15.5,

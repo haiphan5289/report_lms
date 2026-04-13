@@ -98,7 +98,7 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
 
     // MARK: - Private Methods
     private func buildErrorInspection() -> Inspection {
-        let defectName = selectedDefectType?.displayName ?? DefectType.other.displayName
+        let defectName = selectedDefectType?.displayName ?? DefectType.su11.displayName
         let severityNote = selectedSeverity.displayName
         let note = comments.isEmpty ? defectName : comments
 

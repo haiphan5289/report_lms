@@ -13,14 +13,35 @@ public final class SearchableListViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published public var searchText = ""
     @Published public var filteredItems: ListItemProtocol?
+    @Published public var filteredSections: [ListItemProtocol] = []
     @Published public var selectedDataItems: Set<ListDataItem> = []
 
     // MARK: - Private Properties
     private var allItems: ListItemProtocol?
+    private var allSections: [ListItemProtocol] = []
+    private var customTitle: String?
+
+    // MARK: - Computed Properties
+    public var headerTitle: String {
+        customTitle ?? filteredItems?.title ?? "Select Items"
+    }
+
+    public var isTwoLayerMode: Bool {
+        allSections.count > 1
+    }
 
     // MARK: - Initialization
     public init(items: ListItemProtocol? = nil) {
         self.allItems = items
+        if let items = items {
+            self.allSections = [items]
+        }
+        filterItems()
+    }
+
+    public init(sections: [ListItemProtocol], title: String? = nil) {
+        self.allSections = sections
+        self.customTitle = title
         filterItems()
     }
 
@@ -50,25 +71,27 @@ public final class SearchableListViewModel: ObservableObject {
     private func filterItems() {
         if searchText.isEmpty {
             filteredItems = allItems
+            filteredSections = allSections
         } else {
+            // Single-item filtering (backward compat)
             if let item = allItems {
-                // Search in title
                 if let title = item.title, title.localizedCaseInsensitiveContains(searchText) {
                     filteredItems = item
-                    return
-                }
-                // Search in data item names
-                let filteredDatas = item.datas.filter { dataItem in
-                    dataItem.name.localizedCaseInsensitiveContains(searchText)
-                }
-                if !filteredDatas.isEmpty {
-                    // Create a new item with filtered datas
-                    filteredItems = FilteredListItem(originalItem: item, filteredDatas: filteredDatas)
                 } else {
-                    filteredItems = nil
+                    let filteredDatas = item.datas.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+                    filteredItems = filteredDatas.isEmpty ? nil : FilteredListItem(originalItem: item, filteredDatas: filteredDatas)
                 }
             } else {
                 filteredItems = nil
+            }
+            // Sections filtering
+            filteredSections = allSections.compactMap { section in
+                if let title = section.title, title.localizedCaseInsensitiveContains(searchText) {
+                    return section
+                }
+                let filteredDatas = section.datas.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+                guard !filteredDatas.isEmpty else { return nil }
+                return FilteredListItem(originalItem: section, filteredDatas: filteredDatas)
             }
         }
     }
