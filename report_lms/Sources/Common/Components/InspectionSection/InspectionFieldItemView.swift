@@ -56,12 +56,24 @@ struct InspectionFieldItemView: View {
                     .fill(Color(.systemGray5))
                     .frame(width: Layout.buttonSize, height: Layout.buttonSize)
 
-                if let firstImage = images.first?.image {
-                    Image(uiImage: firstImage)
-                        .resizable()
-                        .scaledToFill()
+                if let first = images.first {
+                    if let remoteURL = first.remoteURL {
+                        AsyncImage(url: remoteURL) { phase in
+                            if let img = phase.image {
+                                img.resizable().scaledToFill()
+                            } else {
+                                Color(.systemGray4)
+                            }
+                        }
                         .frame(width: Layout.buttonSize, height: Layout.buttonSize)
                         .clipShape(Circle())
+                    } else {
+                        Image(uiImage: first.image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: Layout.buttonSize, height: Layout.buttonSize)
+                            .clipShape(Circle())
+                    }
                 } else {
                     Image(systemName: hasPhoto ? "checkmark.circle.fill" : "camera.fill")
                         .font(.system(size: Layout.iconSize))

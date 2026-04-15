@@ -159,16 +159,18 @@ final class InspectionValidationViewModel: ObservableObject {
               let storageService = storageService,
               let uploadUseCase = uploadUseCase else { return }
 
-        // Upload all images in parallel — order is preserved via index
-        let uploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
-            for (index, inspectionImage) in images.enumerated() {
+        // Preserve existing remote URLs — only upload newly captured (local) images.
+        let existingRemoteURLs = images.compactMap { $0.isRemote ? $0.remoteURL?.absoluteString : nil }
+        let localImages = images.filter { !$0.isRemote }
+
+        let newlyUploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
+            for (index, inspectionImage) in localImages.enumerated() {
                 guard let imageData = inspectionImage.image.jpegData(compressionQuality: 0.8) else { continue }
                 group.addTask {
                     do {
                         let url = try await uploadUseCase.execute(imageData: imageData, inspectionId: inspectionId)
                         return (index, url)
                     } catch {
-                        print("🔴 [InspectionValidationViewModel] Failed to upload image \(index): \(error)")
                         return (index, nil)
                     }
                 }
@@ -180,6 +182,8 @@ final class InspectionValidationViewModel: ObservableObject {
             return results.sorted { $0.0 < $1.0 }.map { $0.1 }
         }
 
+        // Merge: existing remote + newly uploaded (remote first preserves original order)
+        let uploadedURLs = existingRemoteURLs + newlyUploadedURLs
         guard !uploadedURLs.isEmpty else { return }
 
         guard var inspection = storageService.getInspection(by: inspectionId) else { return }

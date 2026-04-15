@@ -38,8 +38,8 @@ struct InspectionDetailContentView: View {
     // MARK: - Body
     var body: some View {
         Group {
-            if let detail = contentViewModel.inspection {
-                sectionListView(detail: detail)
+            if contentViewModel.inspection != nil {
+                sectionListView()
             } else if let errorMessage = errorMessage {
                 errorView(message: errorMessage)
             } else {
@@ -49,11 +49,11 @@ struct InspectionDetailContentView: View {
     }
     
     // MARK: - Private Views
-    private func sectionListView(detail: Inspection) -> some View {
+    private func sectionListView() -> some View {
         ScrollView {
             LazyVStack(spacing: Layout.sectionSpacing) {
                 // Existing inspection sections
-                ForEach(detail.sections.sorted(by: { $0.order < $1.order })) { section in
+                ForEach(contentViewModel.sortedSections) { section in
                     sectionView(for: section)
                 }
                 
@@ -97,7 +97,7 @@ struct InspectionDetailContentView: View {
     }
 
     private func fieldListView(for fields: [InspectionField]) -> some View {
-        VStack(spacing: 0) {
+        LazyVStack(spacing: 0) {
             ForEach(Array(fields.enumerated()), id: \.element.id) { index, field in
                 fieldItemView(for: field)
 
@@ -171,7 +171,7 @@ struct InspectionDetailContentView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: Layout.actionButtonHeight)
-            .background(LMSColor.white)
+            .background(Color(.systemBackground))
             .overlay(
                 RoundedRectangle(cornerRadius: Layout.actionButtonCornerRadius)
                     .stroke(LMSColor.primaryBorder, lineWidth: Layout.actionButtonBorderWidth)
@@ -239,6 +239,7 @@ private struct PreviewWrapper: View {
         parentViewModel: InspectionDetailViewModel.previewWithData(),
         errorMessage: nil
     )
+    .environmentObject(LocalizationManager.shared)
 }
 
 #Preview("With Error") {
@@ -246,6 +247,7 @@ private struct PreviewWrapper: View {
         parentViewModel: InspectionDetailViewModel.previewWithError(),
         errorMessage: "Không thể tải dữ liệu. Vui lòng kiểm tra kết nối mạng."
     )
+    .environmentObject(LocalizationManager.shared)
 }
 
 #Preview("Empty State") {
@@ -256,4 +258,5 @@ private struct PreviewWrapper: View {
         ),
         errorMessage: nil
     )
+    .environmentObject(LocalizationManager.shared)
 }

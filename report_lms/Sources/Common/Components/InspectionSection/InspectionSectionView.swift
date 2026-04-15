@@ -7,26 +7,27 @@
 
 import SwiftUI
 
-/// Collapsible section for inspection forms with green chevron indicator
-struct InspectionSectionView: View {
-    // MARK: - Constants
-    private enum Layout {
-        static let horizontalPadding: CGFloat = 16
-        static let verticalPadding: CGFloat = 16
-        static let headerSpacing: CGFloat = 12
-        static let chevronSize: CGFloat = 14
-        static let animationDuration: CGFloat = 0.3
-        static let chevronCollapsedRotation: Double = -90
-        static let chevronExpandedRotation: Double = 0
-    }
+// Extracted outside the generic struct — Swift does not allow static stored
+// properties inside generic types.
+private enum InspectionSectionViewLayout {
+    static let horizontalPadding: CGFloat = 16
+    static let verticalPadding: CGFloat = 16
+    static let headerSpacing: CGFloat = 12
+    static let chevronSize: CGFloat = 14
+    static let animationDuration: CGFloat = 0.3
+    static let chevronCollapsedRotation: Double = -90
+    static let chevronExpandedRotation: Double = 0
+}
 
+/// Collapsible section for inspection forms with green chevron indicator
+struct InspectionSectionView<Content: View>: View {
     // MARK: - Properties
     let title: String
     let itemCount: Int
     let completedCount: Int
     let isExpanded: Bool
     let onToggle: () -> Void
-    let content: () -> AnyView
+    let content: () -> Content
 
     // MARK: - Computed Properties
     private var progress: Double {
@@ -41,14 +42,14 @@ struct InspectionSectionView: View {
         completedCount: Int = 0,
         isExpanded: Bool,
         onToggle: @escaping () -> Void,
-        @ViewBuilder content: @escaping () -> some View
+        @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
         self.itemCount = itemCount
         self.completedCount = completedCount
         self.isExpanded = isExpanded
         self.onToggle = onToggle
-        self.content = { AnyView(content()) }
+        self.content = content
     }
 
     // MARK: - Body
@@ -66,18 +67,18 @@ struct InspectionSectionView: View {
     // MARK: - Private Views
     private var headerView: some View {
         Button {
-            withAnimation(.easeInOut(duration: Layout.animationDuration)) {
+            withAnimation(.easeInOut(duration: InspectionSectionViewLayout.animationDuration)) {
                 onToggle()
             }
         } label: {
-            HStack(spacing: Layout.headerSpacing) {
+            HStack(spacing: InspectionSectionViewLayout.headerSpacing) {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: Layout.chevronSize, weight: .semibold))
+                    .font(.system(size: InspectionSectionViewLayout.chevronSize, weight: .semibold))
                     .foregroundColor(.green)
                     .rotationEffect(.degrees(
-                        isExpanded ? Layout.chevronExpandedRotation : Layout.chevronCollapsedRotation
+                        isExpanded ? InspectionSectionViewLayout.chevronExpandedRotation : InspectionSectionViewLayout.chevronCollapsedRotation
                     ))
-                    .animation(.easeInOut(duration: Layout.animationDuration), value: isExpanded)
+                    .animation(.easeInOut(duration: InspectionSectionViewLayout.animationDuration), value: isExpanded)
 
                 LMSLabel(
                     "\(title) (\(itemCount))",
@@ -91,8 +92,8 @@ struct InspectionSectionView: View {
                     .progressViewStyle(LinearProgressViewStyle(tint: progressColor))
                     .frame(width: 50, height: 4)
             }
-            .padding(.horizontal, Layout.horizontalPadding)
-            .padding(.vertical, Layout.verticalPadding)
+            .padding(.horizontal, InspectionSectionViewLayout.horizontalPadding)
+            .padding(.vertical, InspectionSectionViewLayout.verticalPadding)
             .background(Color(.systemGray6))
             .contentShape(Rectangle())
         }

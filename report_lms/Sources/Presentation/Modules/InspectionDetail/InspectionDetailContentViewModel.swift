@@ -37,6 +37,10 @@ final class InspectionDetailContentViewModel: ObservableObject {
     var capturedPhotos: [String: [InspectionImage]] {
         parentViewModel?.capturedPhotos ?? [:]
     }
+
+    var sortedSections: [InspectionSection] {
+        inspection?.sections.sorted(by: { $0.order < $1.order }) ?? []
+    }
     
     // Statistics
     var totalFields: Int {

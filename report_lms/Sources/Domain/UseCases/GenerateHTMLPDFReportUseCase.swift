@@ -37,28 +37,59 @@ final class GenerateHTMLPDFReportUseCase {
         location: String
     ) async throws -> Data {
         logger.log("Executing PDF generation use case for inspection #\(detail.inspectionNumber)")
-        
+
         // Validate input
         guard !detail.sections.isEmpty else {
             logger.error("Inspection has no sections")
             throw PDFGenerationError.invalidInspectionData
         }
-        
+
+        // Resolve remote images to UIImage before the synchronous PDF renderer runs.
+        let resolvedImages = await resolveRemoteImages(images)
+
         // Generate PDF
         do {
             let pdfData = try await pdfGenerator.generatePDF(
                 detail: detail,
-                images: images,
+                images: resolvedImages,
                 inspectorName: inspectorName,
                 location: location
             )
-            
+
             logger.log("PDF generation completed successfully, size: \(pdfData.count) bytes")
             return pdfData
         } catch {
             logger.error("PDF generation failed: \(error.localizedDescription)")
             throw error
         }
+    }
+
+    /// Downloads any remote images so the synchronous PDF renderer has UIImage instances.
+    private func resolveRemoteImages(_ images: [String: [InspectionImage]]) async -> [String: [InspectionImage]] {
+        var resolved: [String: [InspectionImage]] = [:]
+        await withTaskGroup(of: (String, [InspectionImage]).self) { group in
+            for (fieldId, fieldImages) in images {
+                group.addTask {
+                    var resolvedField: [InspectionImage] = []
+                    for img in fieldImages {
+                        if img.isRemote, let url = img.remoteURL {
+                            if let (data, _) = try? await URLSession.shared.data(from: url),
+                               let uiImage = UIImage(data: data) {
+                                resolvedField.append(InspectionImage(image: uiImage, description: img.description))
+                            }
+                            // Skip images that fail to download — don't break PDF for one bad image
+                        } else {
+                            resolvedField.append(img)
+                        }
+                    }
+                    return (fieldId, resolvedField)
+                }
+            }
+            for await (fieldId, fieldImages) in group {
+                resolved[fieldId] = fieldImages
+            }
+        }
+        return resolved
     }
     
     // MARK: - Builder Pattern Support
@@ -76,10 +107,13 @@ final class GenerateHTMLPDFReportUseCase {
             throw error
         }
         
+        // Resolve remote images before the synchronous PDF renderer runs
+        let resolvedImages = await resolveRemoteImages(request.capturedImages)
+
         // Generate PDF using validated request data
         let pdfData = try await pdfGenerator.generatePDF(
             detail: request.inspection,
-            images: request.capturedImages,
+            images: resolvedImages,
             inspectorName: request.inspectorName,
             location: request.inspectionLocation
         )

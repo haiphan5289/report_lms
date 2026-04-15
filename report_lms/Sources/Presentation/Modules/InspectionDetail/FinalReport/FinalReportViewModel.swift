@@ -58,7 +58,8 @@ final class FinalReportViewModel: ObservableObject {
     }
     
     var allPhotos: [UIImage] {
-        capturedPhotos.values.flatMap { $0.map { $0.image } }
+        // Remote images are already on Firebase — only save locally captured ones to the library.
+        capturedPhotos.values.flatMap { $0.compactMap { $0.isRemote ? nil : $0.image } }
     }
     
     var totalPhotosCount: Int {

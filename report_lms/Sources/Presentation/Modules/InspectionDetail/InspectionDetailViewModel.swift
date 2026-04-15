@@ -41,7 +41,6 @@ final class InspectionDetailViewModel: ObservableObject {
     private let inspectionNumber: String
     private weak var homeViewModel: LMSHomeViewModel?
     private let storageService: InspectionStorageServiceType
-    private let storageRepository: StorageRepositoryType
     private var hasLoadedOnce = false
 
     // MARK: - Initialization
@@ -50,7 +49,6 @@ final class InspectionDetailViewModel: ObservableObject {
         self.inspectionNumber = inspectionNumber
         self.homeViewModel = homeViewModel
         self.storageService = Container.shared.resolve(InspectionStorageServiceType.self)!
-        self.storageRepository = Container.shared.resolve(StorageRepositoryType.self)!
     }
 
     // MARK: - Public Methods
@@ -61,11 +59,9 @@ final class InspectionDetailViewModel: ObservableObject {
 
         isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
 
         if let loaded = storageService.getInspection(by: inspectionId) {
             inspection = loaded
-            await restoreCapturedPhotos(from: loaded)
         } else {
             inspection = Inspection.mock(
                 inspectionId: inspectionId,
@@ -73,31 +69,25 @@ final class InspectionDetailViewModel: ObservableObject {
             )
         }
 
+        // Dismiss overlay as soon as inspection data is ready — photos load lazily in the UI
+        isLoading = false
         contentViewModel.autoExpandFirstSection()
+
+        // Populate capturedPhotos with remote URLs immediately — no network download needed.
+        // Views use AsyncImage(url:) for lazy, on-demand loading.
+        if let loaded = inspection {
+            restoreCapturedPhotos(from: loaded)
+        }
     }
 
-    /// Download images from Firebase Storage URLs and populate capturedPhotos.
-    /// Skips fields that already have in-memory images to avoid overwriting
-    /// images captured in the current session.
-    private func restoreCapturedPhotos(from inspection: Inspection) async {
+    /// Wraps Firebase Storage URLs into InspectionImage.remoteURL entries synchronously.
+    /// No network call — AsyncImage handles the actual download per-view, on demand.
+    private func restoreCapturedPhotos(from inspection: Inspection) {
         for section in inspection.sections {
-            for field in section.fields {
-                guard !field.imageURLs.isEmpty else { continue }
-                // In-memory images take priority — don't overwrite with downloaded ones
-                guard capturedPhotos[field.id] == nil else { continue }
-                var fieldImages: [InspectionImage] = []
-                for urlString in field.imageURLs {
-                    do {
-                        let data = try await storageRepository.downloadImage(from: urlString)
-                        if let uiImage = UIImage(data: data) {
-                            fieldImages.append(InspectionImage(image: uiImage))
-                        }
-                    } catch {
-                        print("🔴 [InspectionDetailViewModel] Failed to download image from \(urlString): \(error)")
-                    }
-                }
-                if !fieldImages.isEmpty {
-                    capturedPhotos[field.id] = fieldImages
+            for field in section.fields where !field.imageURLs.isEmpty && capturedPhotos[field.id] == nil {
+                capturedPhotos[field.id] = field.imageURLs.compactMap { urlString in
+                    guard let url = URL(string: urlString) else { return nil }
+                    return InspectionImage(remoteURL: url)
                 }
             }
         }

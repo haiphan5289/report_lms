@@ -9,14 +9,30 @@
 import Foundation
 import UIKit
 
-/// Image with associated description for inspection validation
+/// Image with associated description for inspection validation.
+/// Supports two sources: local (camera capture) and remote (Firebase Storage URL).
 struct InspectionImage: Identifiable, Equatable {
     let id = UUID()
+    /// Non-nil for locally captured photos. Empty `UIImage()` placeholder for remote images.
     var image: UIImage
+    /// Non-nil when the image originates from Firebase Storage — used by `AsyncImage` in views.
+    var remoteURL: URL?
     var description: String
-    
+
+    /// True when this image is loaded from a remote URL rather than captured locally.
+    var isRemote: Bool { remoteURL != nil }
+
+    /// Local (camera) image — backward-compatible init.
     init(image: UIImage, description: String = "") {
         self.image = image
+        self.remoteURL = nil
+        self.description = description
+    }
+
+    /// Remote image from Firebase Storage. Views use `AsyncImage(url: remoteURL)`.
+    init(remoteURL: URL, description: String = "") {
+        self.image = UIImage()   // placeholder; never drawn directly
+        self.remoteURL = remoteURL
         self.description = description
     }
 }

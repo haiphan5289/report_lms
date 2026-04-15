@@ -21,12 +21,35 @@ struct ImageGalleryItemView: View {
         self._description = descriptionBinding
     }
     
+    @ViewBuilder
+    private var inspectionImageView: some View {
+        if let remoteURL = inspectionImage.remoteURL {
+            AsyncImage(url: remoteURL) { phase in
+                switch phase {
+                case .success(let img):
+                    img.resizable().scaledToFill()
+                case .failure:
+                    Image(systemName: "photo.slash")
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(.systemGray5))
+                case .empty:
+                    Color(.systemGray5).overlay(ProgressView())
+                @unknown default:
+                    EmptyView()
+                }
+            }
+        } else {
+            Image(uiImage: inspectionImage.image)
+                .resizable()
+                .scaledToFill()
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                Image(uiImage: inspectionImage.image)
-                    .resizable()
-                    .scaledToFill()
+                inspectionImageView
                     .frame(width: 200, height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 if isReorderMode {
