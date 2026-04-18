@@ -6,13 +6,14 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - ErrorHomeViewModel
 
 @MainActor
 final class ErrorHomeViewModel: ObservableObject {
     // MARK: - Published Properties
-    @Published var errorInspections: [Inspection] = []
+    @Published var errorInspections: [SavedErrorItem] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
 
@@ -42,13 +43,18 @@ final class ErrorHomeViewModel: ObservableObject {
         }
     }
 
-    /// Inserts a new item at the top, or replaces an existing one with the same id.
-    func upsertErrorItem(_ inspection: Inspection) {
-        if let index = errorInspections.firstIndex(where: { $0.id == inspection.id }) {
-            errorInspections[index] = inspection
+    // MARK: - Thumbnail Cache
+    @Published var thumbnailCache: [String: UIImage] = [:]
+
+    /// Inserts a new item at the top (or replaces by id), caching the first UIImage for instant display.
+    func upsertErrorItem(_ item: SavedErrorItem, thumbnails: [UIImage] = []) {
+        if let first = thumbnails.first {
+            thumbnailCache[item.id] = first
+        }
+        if let index = errorInspections.firstIndex(where: { $0.id == item.id }) {
+            errorInspections[index] = item
         } else {
-            errorInspections.insert(inspection, at: 0)
+            errorInspections.insert(item, at: 0)
         }
     }
 }
-

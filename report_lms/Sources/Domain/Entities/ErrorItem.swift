@@ -9,6 +9,71 @@
 import Foundation
 import UIKit
 
+// MARK: - ImageSource
+
+enum ImageSource: Equatable {
+    case remote(url: String)
+    case local(image: UIImage)
+
+    static func == (lhs: ImageSource, rhs: ImageSource) -> Bool {
+        switch (lhs, rhs) {
+        case (.remote(let l), .remote(let r)): return l == r
+        case (.local(let l), .local(let r)): return l === r
+        default: return false
+        }
+    }
+}
+
+// MARK: - SavedErrorItem
+
+struct SavedErrorItem: Identifiable, Hashable {
+    let id: String
+    let imageURLs: [String]
+    let severity: SeverityLevel
+    let generalCondition: Int?
+    let defectType: DefectType?
+    let comments: String
+    let createdAt: Date
+
+    init(
+        id: String = UUID().uuidString,
+        imageURLs: [String] = [],
+        severity: SeverityLevel = .low,
+        generalCondition: Int? = nil,
+        defectType: DefectType? = nil,
+        comments: String = "",
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.imageURLs = imageURLs
+        self.severity = severity
+        self.generalCondition = generalCondition
+        self.defectType = defectType
+        self.comments = comments
+        self.createdAt = createdAt
+    }
+
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "EEE, dd MMM yyyy"
+        return formatter.string(from: createdAt)
+    }
+
+    func toFirestoreData() -> [String: Any] {
+        let formatter = ISO8601DateFormatter()
+        var data: [String: Any] = [
+            "imageURLs": imageURLs,
+            "severity": severity.rawValue,
+            "comments": comments,
+            "createdAt": formatter.string(from: createdAt)
+        ]
+        if let gc = generalCondition { data["generalCondition"] = gc }
+        if let dt = defectType { data["defectType"] = dt.rawValue }
+        return data
+    }
+}
+
 // MARK: - Error Item Entity (Stub - TODO: Implement properly)
 struct ErrorItem: Identifiable {
     let id: String

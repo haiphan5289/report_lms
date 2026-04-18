@@ -12,8 +12,7 @@ import UIKit
 // MARK: - ErrorRepositoryType
 
 protocol ErrorRepositoryType {
-    func fetchErrors(for inspectionId: String) async throws -> [Inspection]
-    func fetchErrorItems(for inspectionId: String) async throws -> [Inspection]
-    func saveError(_ inspection: Inspection, for inspectionId: String) async throws
-    func saveErrorItem(_ inspection: Inspection, images: [UIImage], for inspectionId: String) async throws
+    func fetchErrorItems(for inspectionId: String) async throws -> [SavedErrorItem]
+    func saveError(_ item: SavedErrorItem, for inspectionId: String) async throws
+    func saveErrorItem(_ item: SavedErrorItem, imageSources: [ImageSource], for inspectionId: String) async throws -> SavedErrorItem
 }

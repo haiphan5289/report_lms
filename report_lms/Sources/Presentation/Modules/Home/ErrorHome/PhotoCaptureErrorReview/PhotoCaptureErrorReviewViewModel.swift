@@ -13,7 +13,7 @@ import OSLog
 @MainActor
 final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     // MARK: - Published Properties
-    @Published var images: [UIImage] = []
+    @Published var images: [ImageSource] = []
     @Published var showCamera = false
     @Published var selectedSeverity: SeverityLevel = .low
     @Published var generalConditionEnabled = false
@@ -36,7 +36,7 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
 
     // MARK: - Public Methods
     func addImages(_ newImages: [UIImage]) {
-        images.append(contentsOf: newImages)
+        images.append(contentsOf: newImages.map { .local(image: $0) })
     }
 
     func deleteImage(at index: Int) {
@@ -44,11 +44,11 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
         images.remove(at: index)
     }
 
-    func setInitialImages(_ initialImages: [UIImage]) {
+    func setInitialImages(_ initialImages: [ImageSource]) {
         images = initialImages
     }
 
-    func saveReview() async -> Inspection? {
+    func saveReview() async -> SavedErrorItem? {
         isLoading = true
         defer { isLoading = false }
 
@@ -57,29 +57,28 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
             return nil
         }
 
-        let errorRecord = buildErrorInspection()
+        let item = buildSavedErrorItem()
 
         do {
-            try await errorRepository.saveError(errorRecord, for: inspectionId)
-            return errorRecord
+            let saved = try await errorRepository.saveErrorItem(item, imageSources: images, for: inspectionId)
+            return saved
         } catch {
             errorMessage = "Không thể lưu đánh giá: \(error.localizedDescription)"
             return nil
         }
     }
 
-    func updateReview() async -> Inspection? {
+    func updateReview() async -> SavedErrorItem? {
         isLoading = true
         defer { isLoading = false }
 
-        let errorRecord = buildErrorInspection()
+        let item = buildSavedErrorItem()
         logger.debug("[updateReview] START inspectionId=\(self.inspectionId, privacy: .public) imageCount=\(self.images.count, privacy: .public)")
-        logger.debug("[updateReview] errorRecord.id=\(errorRecord.id, privacy: .public)")
 
         do {
-            try await errorRepository.saveErrorItem(errorRecord, images: images, for: inspectionId)
+            let saved = try await errorRepository.saveErrorItem(item, imageSources: images, for: inspectionId)
             logger.debug("[updateReview] ✅ saveErrorItem succeeded")
-            return errorRecord
+            return saved
         } catch {
             logger.error("[updateReview] ❌ saveErrorItem failed: \(error, privacy: .public)")
             errorMessage = "Không thể cập nhật đánh giá: \(error.localizedDescription)"
@@ -97,27 +96,23 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     }
 
     // MARK: - Private Methods
-    private func buildErrorInspection() -> Inspection {
-        let defectName = selectedDefectType?.displayName ?? DefectType.su11.displayName
-        let severityNote = selectedSeverity.displayName
-        let note = comments.isEmpty ? defectName : comments
-
-        return Inspection(
-            productName: defectName,
-            productCode: selectedSeverity.rawValue,
-            orderCode: "",
-            inspectionType: severityNote,
-            quantity: "\(images.count) ảnh",
-            factory: "",
-            productionUnit: note,
-            status: .error
+    private func buildSavedErrorItem() -> SavedErrorItem {
+        let existingURLs = images.compactMap { source -> String? in
+            if case .remote(let url) = source { return url } else { return nil }
+        }
+        return SavedErrorItem(
+            imageURLs: existingURLs,
+            severity: selectedSeverity,
+            generalCondition: generalConditionEnabled ? selectedGeneralCondition : nil,
+            defectType: selectedDefectType,
+            comments: comments
         )
     }
 }
 
 // MARK: - Inspection Review Data
 struct InspectionReviewData {
-    let images: [UIImage]
+    let images: [ImageSource]
     let severity: SeverityLevel
     let generalCondition: Int?
     let defectType: DefectType?

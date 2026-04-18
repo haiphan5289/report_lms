@@ -7,63 +7,101 @@
 
 import SwiftUI
 
-// MARK: - Error List Item View
-struct ErrorListItemView: View {
-    let error: ErrorItem
-    
+// MARK: - ErrorItemCardView
+
+struct ErrorItemCardView: View {
+    let item: SavedErrorItem
+    var cachedThumbnail: UIImage? = nil
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            LMSLabel(error.headerText, style: .headline, color: .primary)
-            
-            // Main content HStack
-            HStack(alignment: .top, spacing: 12) {
-                // Image (50x50)
-                Image(uiImage: error.image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 50, height: 50)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(LMSColor.secondaryBorder, lineWidth: 1)
-                    )
-                
-                // Information VStack
-                VStack(alignment: .leading, spacing: 4) {
-                    // Defect type name
-                    LMSLabel(error.defectDescription, style: .body, color: .primary)
-                    
-                    // HStack with severity and count
-                    HStack(spacing: 8) {
-                        LMSLabel(error.severity.displayName, style: .caption, color: .secondary)
-                        
-                        LMSLabel("•", style: .caption, color: .secondary)
-                        
-                        LMSLabel("\(error.affectedCount) ảnh bị ảnh hưởng", style: .caption, color: .secondary)
-                    }
+        HStack(alignment: .top, spacing: 12) {
+            thumbnailView
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    LMSLabel(item.defectType?.displayName ?? "Không có loại lỗi", style: .headline)
+                    Spacer()
+                    LMSLabel(item.formattedDate, style: .caption, color: .secondary)
                 }
-                
-                Spacer()
+
+                HStack(spacing: 8) {
+                    severityBadge
+                    Spacer()
+                    LMSLabel("\(item.imageURLs.count) ảnh", style: .caption, color: .secondary)
+                }
+
+                if !item.comments.isEmpty {
+                    LMSLabel(item.comments, style: .subheadline, color: .secondary)
+                        .lineLimit(2)
+                }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(color: LMSColor.Shadow.subtle, radius: 4, x: 0, y: 2)
+        .padding(12)
+    }
+
+    private var thumbnailView: some View {
+        Group {
+            if let cached = cachedThumbnail {
+                Image(uiImage: cached)
+                    .resizable()
+                    .scaledToFill()
+            } else if let firstURL = item.imageURLs.first, let url = URL(string: firstURL) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else if phase.error != nil {
+                        placeholderImage
+                    } else {
+                        ProgressView()
+                    }
+                }
+            } else {
+                placeholderImage
+            }
+        }
+        .frame(width: 72, height: 72)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .background(Color.gray.opacity(0.1))
+    }
+
+    private var placeholderImage: some View {
+        Image(systemName: "photo")
+            .font(.system(size: 24))
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.gray.opacity(0.1))
+    }
+
+    private var severityBadge: some View {
+        Text(item.severity.displayName)
+            .font(.caption)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(severityColor.opacity(0.15))
+            .foregroundColor(severityColor)
+            .cornerRadius(4)
+    }
+
+    private var severityColor: Color {
+        switch item.severity {
+        case .low: return .green
+        case .medium: return .orange
+        case .critical: return .red
+        }
     }
 }
 
 // MARK: - Preview
 #Preview("Low Severity Crack") {
-    let sampleImage = UIImage(systemName: "exclamationmark.triangle") ?? UIImage()
-    let errorItem = ErrorItem(
+    ErrorItemCardView(item: SavedErrorItem(
+        imageURLs: [],
         severity: .low,
         defectType: .su9,
-        image: sampleImage,
-        affectedCount: 3,
-        actualMeasurement: 15.5,
-        maxAllowed: 20.0
-    )
-    ErrorListItemView(error: errorItem)
+        comments: "Nứt bề mặt ở góc trái",
+        createdAt: Date()
+    ))
+    .padding()
+    .background(Color(.systemGroupedBackground))
 }

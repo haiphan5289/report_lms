@@ -31,20 +31,7 @@ final class ErrorRepository: ErrorRepositoryType {
 
     // MARK: - ErrorRepositoryType
 
-    func fetchErrors(for inspectionId: String) async throws -> [Inspection] {
-        let snapshot = try await db
-            .collection("inspections")
-            .document(inspectionId)
-            .collection("errors")
-            .order(by: "createdAt", descending: true)
-            .getDocuments()
-
-        return snapshot.documents.compactMap { document in
-            try? Inspection.fromFirestore(document.data(), id: document.documentID)
-        }
-    }
-
-    func fetchErrorItems(for inspectionId: String) async throws -> [Inspection] {
+    func fetchErrorItems(for inspectionId: String) async throws -> [SavedErrorItem] {
         logger.debug("[fetchErrorItems] inspectionId=\(inspectionId, privacy: .public)")
         let snapshot = try await db
             .collection("inspections")
@@ -53,76 +40,121 @@ final class ErrorRepository: ErrorRepositoryType {
             .order(by: "createdAt", descending: true)
             .getDocuments()
 
-        let items = snapshot.documents.compactMap { document in
-            try? Inspection.fromFirestore(document.data(), id: document.documentID)
+        let items = snapshot.documents.compactMap { doc in
+            savedErrorItem(from: doc.data(), id: doc.documentID)
         }
         logger.debug("[fetchErrorItems] fetched \(items.count, privacy: .public) items")
         return items
     }
 
-    func saveError(_ inspection: Inspection, for inspectionId: String) async throws {
+    func saveError(_ item: SavedErrorItem, for inspectionId: String) async throws {
         let docRef = db
             .collection("inspections")
             .document(inspectionId)
             .collection("errors")
-            .document(inspection.id)
-
-        let data = try inspection.toFirestoreData()
-        try await docRef.setData(data)
+            .document(item.id)
+        try await docRef.setData(item.toFirestoreData())
     }
 
-    /// Uploads images to Firebase Storage, then saves the Inspection document
-    /// (with `imageURLs`) to the `errorItems` subcollection.
+    /// Uploads local images to Firebase Storage, merges with existing remote URLs,
+    /// then saves the SavedErrorItem to the `errorItems` subcollection.
     ///
-    /// Storage path: `inspections/{inspectionId}/errors/{inspection.id}/{index}.jpg`
-    /// Firestore path: `inspections/{inspectionId}/errorItems/{inspection.id}`
-    func saveErrorItem(_ inspection: Inspection, images: [UIImage], for inspectionId: String) async throws {
-        // --- Auth state diagnostics ---
+    /// Storage path: `inspections/{inspectionId}/errors/{item.id}/{index}.jpg`
+    /// Firestore path: `inspections/{inspectionId}/errorItems/{item.id}`
+    func saveErrorItem(_ item: SavedErrorItem, imageSources: [ImageSource], for inspectionId: String) async throws -> SavedErrorItem {
         let firebaseUser = Auth.auth().currentUser
         logger.debug("[saveErrorItem] auth uid=\(firebaseUser?.uid ?? "nil", privacy: .public)")
-        logger.debug("[saveErrorItem] auth email=\(firebaseUser?.email ?? "nil", privacy: .public)")
-        logger.debug("[saveErrorItem] auth isAnonymous=\(firebaseUser?.isAnonymous ?? false, privacy: .public)")
         logger.debug("[saveErrorItem] inspectionId=\(inspectionId, privacy: .public)")
-        logger.debug("[saveErrorItem] errorId=\(inspection.id, privacy: .public)")
-        logger.debug("[saveErrorItem] imageCount=\(images.count, privacy: .public)")
+        logger.debug("[saveErrorItem] errorId=\(item.id, privacy: .public)")
 
-        // 1. Upload images and collect download URLs
         var imageURLs: [String] = []
-        for (index, image) in images.enumerated() {
+
+        // Keep existing remote URLs in order
+        for source in imageSources {
+            if case .remote(let url) = source {
+                imageURLs.append(url)
+            }
+        }
+
+        // Upload local images
+        let localImages = imageSources.compactMap { source -> UIImage? in
+            if case .local(let image) = source { return image } else { return nil }
+        }
+        logger.debug("[saveErrorItem] localImageCount=\(localImages.count, privacy: .public)")
+
+        for (index, image) in localImages.enumerated() {
             guard let imageData = image.jpegData(compressionQuality: 0.8) else {
                 logger.warning("[saveErrorItem] Skipping image[\(index, privacy: .public)] — jpegData returned nil")
                 continue
             }
-            let path = "inspections/\(inspectionId)/errors/\(inspection.id)/\(index).jpg"
-            logger.debug("[saveErrorItem] Uploading image[\(index, privacy: .public)] → Storage path: \(path, privacy: .public)")
+            let path = "inspections/\(inspectionId)/errors/\(item.id)/\(index).jpg"
+            logger.debug("[saveErrorItem] Uploading image[\(index, privacy: .public)] → \(path, privacy: .public)")
             do {
                 let url = try await storageService.uploadImage(imageData, path: path)
                 logger.debug("[saveErrorItem] Upload succeeded[\(index, privacy: .public)] url=\(url, privacy: .public)")
                 imageURLs.append(url)
             } catch {
-                logger.error("[saveErrorItem] ❌ Storage upload FAILED[\(index, privacy: .public)] path=\(path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                logger.error("[saveErrorItem] ❌ Upload FAILED[\(index, privacy: .public)] error=\(error.localizedDescription, privacy: .public)")
                 throw error
             }
         }
 
-        // 2. Build Firestore document: Inspection fields + imageURLs
-        var data = try inspection.toFirestoreData()
-        data["imageURLs"] = imageURLs
+        let savedItem = SavedErrorItem(
+            id: item.id,
+            imageURLs: imageURLs,
+            severity: item.severity,
+            generalCondition: item.generalCondition,
+            defectType: item.defectType,
+            comments: item.comments,
+            createdAt: item.createdAt
+        )
 
-        // 3. Save to new errorItems subcollection
-        let firestorePath = "inspections/\(inspectionId)/errorItems/\(inspection.id)"
+        let firestorePath = "inspections/\(inspectionId)/errorItems/\(item.id)"
         logger.debug("[saveErrorItem] Writing to Firestore: \(firestorePath, privacy: .public)")
         let docRef = db
             .collection("inspections")
             .document(inspectionId)
             .collection("errorItems")
-            .document(inspection.id)
+            .document(item.id)
         do {
-            try await docRef.setData(data)
+            try await docRef.setData(savedItem.toFirestoreData())
             logger.debug("[saveErrorItem] ✅ Firestore write succeeded: \(firestorePath, privacy: .public)")
         } catch {
             logger.error("[saveErrorItem] ❌ Firestore write FAILED: \(firestorePath, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             throw error
         }
+
+        return savedItem
+    }
+
+    // MARK: - Private Helpers
+
+    private func savedErrorItem(from data: [String: Any], id: String) -> SavedErrorItem? {
+        guard let severityRaw = data["severity"] as? String,
+              let severity = SeverityLevel(rawValue: severityRaw) else { return nil }
+
+        let imageURLs = data["imageURLs"] as? [String] ?? []
+        let comments = data["comments"] as? String ?? ""
+        let generalCondition = data["generalCondition"] as? Int
+        let defectType = (data["defectType"] as? String).flatMap(DefectType.init(rawValue:))
+
+        let createdAt: Date
+        if let timestamp = data["createdAt"] as? Timestamp {
+            createdAt = timestamp.dateValue()
+        } else if let dateStr = data["createdAt"] as? String {
+            createdAt = ISO8601DateFormatter().date(from: dateStr) ?? Date()
+        } else {
+            createdAt = Date()
+        }
+
+        return SavedErrorItem(
+            id: id,
+            imageURLs: imageURLs,
+            severity: severity,
+            generalCondition: generalCondition,
+            defectType: defectType,
+            comments: comments,
+            createdAt: createdAt
+        )
     }
 }

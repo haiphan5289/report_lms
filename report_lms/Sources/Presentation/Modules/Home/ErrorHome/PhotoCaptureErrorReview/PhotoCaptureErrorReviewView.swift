@@ -12,18 +12,18 @@ import SwiftUI
 struct PhotoCaptureErrorReviewView: View {
     @StateObject private var viewModel: PhotoCaptureErrorReviewViewModel
     @Environment(\.dismiss) private var dismiss
-    let initialImages: [UIImage]
-    let onImagesUpdated: ([UIImage]) -> Void
-    let onSaved: (Inspection) -> Void
+    let initialImages: [ImageSource]
+    let onImagesUpdated: ([ImageSource]) -> Void
+    let onSaved: (SavedErrorItem, [UIImage]) -> Void
 
     @State private var showingDefectTypeList = false
 
     // MARK: - Initialization
     init(
         inspectionId: String,
-        initialImages: [UIImage],
-        onImagesUpdated: @escaping ([UIImage]) -> Void,
-        onSaved: @escaping (Inspection) -> Void = { _ in }
+        initialImages: [ImageSource],
+        onImagesUpdated: @escaping ([ImageSource]) -> Void,
+        onSaved: @escaping (SavedErrorItem, [UIImage]) -> Void = { _, _ in }
     ) {
         _viewModel = StateObject(wrappedValue: PhotoCaptureErrorReviewViewModel(inspectionId: inspectionId))
         self.initialImages = initialImages
@@ -67,9 +67,12 @@ struct PhotoCaptureErrorReviewView: View {
                 },
                 trailing: Button("Hoàn thành") {
                     Task {
+                        let localImages = viewModel.images.compactMap { source -> UIImage? in
+                            if case .local(let img) = source { return img } else { return nil }
+                        }
                         if let saved = await viewModel.saveReview() {
                             onImagesUpdated(viewModel.images)
-                            onSaved(saved)
+                            onSaved(saved, localImages)
                             dismiss()
                         }
                     }
@@ -123,8 +126,7 @@ struct PhotoCaptureErrorReviewView: View {
             VStack(spacing: 12) {
                 ForEach(viewModel.images.indices, id: \.self) { index in
                     ZStack(alignment: .topTrailing) {
-                        Image(uiImage: viewModel.images[index])
-                            .resizable()
+                        imageView(for: viewModel.images[index])
                             .scaledToFill()
                             .frame(width: 200, height: 200)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -156,7 +158,7 @@ struct PhotoCaptureErrorReviewView: View {
         VStack(alignment: .leading, spacing: 12) {
             LMSLabel("Chụp thêm ảnh", style: .title2)
 
-            LMSButton("Chụp ảnh", icon: "camera.fill", variant: .primary) {
+            LMSButton("Chụp ảnh", icon: "camera.fill", variant: .primary, isFullWidth: true) {
                 viewModel.showCamera = true
             }
         }
@@ -285,9 +287,12 @@ struct PhotoCaptureErrorReviewView: View {
 
             LMSButton("Lưu Thay đổi", icon: "pencil", variant: .primary) {
                 Task {
+                    let localImages = viewModel.images.compactMap { source -> UIImage? in
+                        if case .local(let img) = source { return img } else { return nil }
+                    }
                     if let saved = await viewModel.updateReview() {
                         onImagesUpdated(viewModel.images)
-                        onSaved(saved)
+                        onSaved(saved, localImages)
                         dismiss()
                     }
                 }
@@ -321,14 +326,26 @@ struct PhotoCaptureErrorReviewView: View {
     }
 
     // MARK: - Private Methods
+    @ViewBuilder
+    private func imageView(for source: ImageSource) -> some View {
+        switch source {
+        case .local(let image):
+            Image(uiImage: image).resizable()
+        case .remote(let url):
+            AsyncImage(url: URL(string: url)) { phase in
+                if let img = phase.image { img.resizable() }
+                else { Color.gray.opacity(0.3) }
+            }
+        }
+    }
+
     private func createDefectTypeSearchableData() -> [ListItemProtocol] {
-        ["PA", "SU", "AS", "FU", "SA", "FI", "CO", "FE", "TA"].compactMap { category in
+        let categories: [String] = ["PA", "SU", "AS", "FU", "SA", "FI", "CO", "FE", "TA"]
+        return categories.compactMap { category -> ListItemProtocol? in
             let items = DefectType.allCases.filter { $0.category == category }
             guard !items.isEmpty else { return nil }
-            return SampleListItem(
-                title: items[0].categoryDisplayName,
-                datas: items.map { ListDataItem(id: $0.rawValue.hashValue, name: $0.displayName) }
-            )
+            let datas = items.map { ListDataItem(id: $0.rawValue.hashValue, name: $0.displayName) }
+            return SampleListItem(title: items[0].categoryDisplayName, datas: datas)
         }
     }
 
@@ -356,14 +373,12 @@ private struct SampleListItem: ListItemProtocol {
 }
 
 #Preview("With Images") {
-    // Create sample images for preview
     let sampleImage1 = UIImage(systemName: "photo") ?? UIImage()
     let sampleImage2 = UIImage(systemName: "photo.fill") ?? UIImage()
-    let sampleImage3 = UIImage(systemName: "camera") ?? UIImage()
 
     return PhotoCaptureErrorReviewView(
         inspectionId: "preview-id",
-        initialImages: [sampleImage1, sampleImage2, sampleImage3],
+        initialImages: [.local(image: sampleImage1), .local(image: sampleImage2)],
         onImagesUpdated: { _ in }
     )
 }
