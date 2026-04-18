@@ -16,6 +16,7 @@ struct ErrorHomeView: View {
     @State private var capturedImages: [UIImage] = []
     @State private var showErrorReview = false
     @State private var scrollToTopTrigger = false
+    @State private var hasLoadedOnce = false
 
     // MARK: - Initialization
     init(viewModel: ErrorHomeViewModel) {
@@ -30,9 +31,9 @@ struct ErrorHomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            Task {
-                await viewModel.loadErrorInspections()
-            }
+            guard !hasLoadedOnce else { return }
+            hasLoadedOnce = true
+            Task { await viewModel.loadErrorInspections() }
         }
         .refreshable {
             await viewModel.loadErrorInspections()
@@ -42,6 +43,21 @@ struct ErrorHomeView: View {
                 capturedImages = images
                 showErrorReview = true
             }
+        }
+        .navigationDestination(for: SavedErrorItem.self) { item in
+            PhotoCaptureErrorReviewView(
+                inspectionId: viewModel.inspectionId,
+                initialImages: item.imageURLs.map { .remote(url: $0) },
+                editingItem: item,
+                onImagesUpdated: { _ in },
+                onSaved: { saved, images in
+                    viewModel.upsertErrorItem(saved, thumbnails: images)
+                    scrollToTopTrigger.toggle()
+                },
+                onDeleted: { deletedItem in
+                    viewModel.deleteErrorItem(deletedItem)
+                }
+            )
         }
         .sheet(isPresented: $showErrorReview) {
             PhotoCaptureErrorReviewView(

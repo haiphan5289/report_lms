@@ -15,20 +15,27 @@ struct PhotoCaptureErrorReviewView: View {
     let initialImages: [ImageSource]
     let onImagesUpdated: ([ImageSource]) -> Void
     let onSaved: (SavedErrorItem, [UIImage]) -> Void
+    let onDeleted: ((SavedErrorItem) -> Void)?
+    private let editingItem: SavedErrorItem?
 
     @State private var showingDefectTypeList = false
+    @State private var showDeleteConfirmation = false
 
     // MARK: - Initialization
     init(
         inspectionId: String,
         initialImages: [ImageSource],
+        editingItem: SavedErrorItem? = nil,
         onImagesUpdated: @escaping ([ImageSource]) -> Void,
-        onSaved: @escaping (SavedErrorItem, [UIImage]) -> Void = { _, _ in }
+        onSaved: @escaping (SavedErrorItem, [UIImage]) -> Void = { _, _ in },
+        onDeleted: ((SavedErrorItem) -> Void)? = nil
     ) {
-        _viewModel = StateObject(wrappedValue: PhotoCaptureErrorReviewViewModel(inspectionId: inspectionId))
+        _viewModel = StateObject(wrappedValue: PhotoCaptureErrorReviewViewModel(inspectionId: inspectionId, editingItem: editingItem))
         self.initialImages = initialImages
+        self.editingItem = editingItem
         self.onImagesUpdated = onImagesUpdated
         self.onSaved = onSaved
+        self.onDeleted = onDeleted
     }
 
     // MARK: - Body
@@ -54,30 +61,36 @@ struct PhotoCaptureErrorReviewView: View {
                     // Comments Section
                     commentsSection
 
-                    // Action Buttons Section
-                    actionButtonsSection
+                    // Action Buttons Section (edit mode only)
+                    if viewModel.isEditMode {
+                        actionButtonsSection
+                    }
                 }
                 .padding()
             }
-            .navigationTitle("Đánh giá ảnh chụp")
+            .navigationTitle(viewModel.isEditMode ? "Chỉnh sửa lỗi" : "Đánh giá ảnh chụp")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: Button("Hủy") {
-                    dismiss()
-                },
-                trailing: Button("Hoàn thành") {
-                    Task {
-                        let localImages = viewModel.images.compactMap { source -> UIImage? in
-                            if case .local(let img) = source { return img } else { return nil }
-                        }
-                        if let saved = await viewModel.saveReview() {
-                            onImagesUpdated(viewModel.images)
-                            onSaved(saved, localImages)
-                            dismiss()
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Hủy") { dismiss() }
+                }
+                if !viewModel.isEditMode {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Hoàn thành") {
+                            Task {
+                                let localImages = viewModel.images.compactMap { source -> UIImage? in
+                                    if case .local(let img) = source { return img } else { return nil }
+                                }
+                                if let saved = await viewModel.saveReview() {
+                                    onImagesUpdated(viewModel.images)
+                                    onSaved(saved, localImages)
+                                    dismiss()
+                                }
+                            }
                         }
                     }
                 }
-            )
+            }
             .sheet(isPresented: $viewModel.showCamera) {
                 CameraView(source: .errorReport, onPhotoCaptured: { newImages in
                     viewModel.addImages(newImages)
@@ -102,6 +115,18 @@ struct PhotoCaptureErrorReviewView: View {
                 }
             } message: {
                 Text(viewModel.errorMessage ?? "")
+            }
+            .confirmationDialog(
+                "Bạn có chắc muốn xoá lỗi này không?",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Xoá lỗi", role: .destructive) {
+                    guard let item = editingItem else { return }
+                    onDeleted?(item)
+                    dismiss()
+                }
+                Button("Huỷ", role: .cancel) {}
             }
             .overlay {
                 if viewModel.isLoading {
@@ -247,18 +272,20 @@ struct PhotoCaptureErrorReviewView: View {
     private var defectTypesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let defectType = viewModel.selectedDefectType {
-                // Value selected - show title and selected value
-                VStack(alignment: .leading, spacing: 8) {
+                HStack {
                     LMSLabel("Các loại phân lỗi", style: .title2)
-                    LMSLabel(defectType.displayName, style: .body)
-                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button {
+                        viewModel.selectedDefectType = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
                 }
-
-                LMSButton("Nhấn để xoá phân loại lỗi", icon: "trash.fill", variant: .destructive) {
-                    viewModel.selectedDefectType = nil
-                }
+                LMSLabel(defectType.displayName, style: .body)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
             } else {
-                // No value selected - show clickable title with arrow
                 HStack {
                     LMSLabel("Các loại phân lỗi", style: .title2)
                     Spacer()
@@ -281,8 +308,7 @@ struct PhotoCaptureErrorReviewView: View {
     private var actionButtonsSection: some View {
         HStack(spacing: 16) {
             LMSButton("Xoá", icon: "trash.fill", variant: .destructive) {
-                viewModel.deleteReview()
-                dismiss()
+                showDeleteConfirmation = true
             }
 
             LMSButton("Lưu Thay đổi", icon: "pencil", variant: .primary) {

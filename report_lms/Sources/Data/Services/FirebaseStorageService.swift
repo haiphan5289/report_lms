@@ -30,4 +30,9 @@ final class FirebaseStorageService {
         let imageRef = storageRef.child(path)
         try await imageRef.delete()
     }
+
+    func deleteImage(fromURL url: String) async throws {
+        let imageRef = storage.reference(forURL: url)
+        try await imageRef.delete()
+    }
 }

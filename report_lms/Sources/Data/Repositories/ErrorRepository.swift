@@ -127,6 +127,27 @@ final class ErrorRepository: ErrorRepositoryType {
         return savedItem
     }
 
+    func deleteErrorItem(_ item: SavedErrorItem, for inspectionId: String) async throws {
+        logger.debug("[deleteErrorItem] START id=\(item.id, privacy: .public) imageCount=\(item.imageURLs.count, privacy: .public)")
+
+        for url in item.imageURLs {
+            do {
+                try await storageService.deleteImage(fromURL: url)
+                logger.debug("[deleteErrorItem] Deleted storage image: \(url, privacy: .public)")
+            } catch {
+                logger.warning("[deleteErrorItem] Failed to delete image (continuing): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        let docRef = db
+            .collection("inspections")
+            .document(inspectionId)
+            .collection("errorItems")
+            .document(item.id)
+        try await docRef.delete()
+        logger.debug("[deleteErrorItem] ✅ Firestore doc deleted: \(item.id, privacy: .public)")
+    }
+
     // MARK: - Private Helpers
 
     private func savedErrorItem(from data: [String: Any], id: String) -> SavedErrorItem? {

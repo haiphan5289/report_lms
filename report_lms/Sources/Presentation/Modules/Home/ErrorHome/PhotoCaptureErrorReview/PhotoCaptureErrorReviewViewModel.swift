@@ -27,11 +27,23 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     private let inspectionId: String
     private let errorRepository: ErrorRepositoryType
     private let logger = Logger(subsystem: "com.reportlms", category: "PhotoCaptureErrorReviewViewModel")
+    private var editingItemId: String?
+
+    // MARK: - Computed Properties
+    var isEditMode: Bool { editingItemId != nil }
 
     // MARK: - Initialization
-    init(inspectionId: String, errorRepository: ErrorRepositoryType? = nil) {
+    init(inspectionId: String, editingItem: SavedErrorItem? = nil, errorRepository: ErrorRepositoryType? = nil) {
         self.inspectionId = inspectionId
         self.errorRepository = errorRepository ?? Container.shared.resolve(ErrorRepositoryType.self)!
+        if let item = editingItem {
+            editingItemId = item.id
+            selectedSeverity = item.severity
+            generalConditionEnabled = item.generalCondition != nil
+            selectedGeneralCondition = item.generalCondition
+            selectedDefectType = item.defectType
+            comments = item.comments
+        }
     }
 
     // MARK: - Public Methods
@@ -101,6 +113,7 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
             if case .remote(let url) = source { return url } else { return nil }
         }
         return SavedErrorItem(
+            id: editingItemId ?? UUID().uuidString,
             imageURLs: existingURLs,
             severity: selectedSeverity,
             generalCondition: generalConditionEnabled ? selectedGeneralCondition : nil,

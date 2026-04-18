@@ -1,6 +1,6 @@
 # ErrorHome Workflow
 
-> Last updated: 2026-04-18 (updated by session: instant thumbnail + scroll-to-top after save)
+> Last updated: 2026-04-18 (updated by session: delete workflow — optimistic remove + Firebase delete + re-fetch on failure)
 
 ---
 
@@ -9,6 +9,8 @@
 ```
 ErrorHomeView
   └── ErrorHomeViewModel
+       ├── errorInspections: [SavedErrorItem]   (list state)
+       ├── thumbnailCache: [String: UIImage]     (transient, keyed by item.id)
        └── ErrorRepositoryType (protocol)
             └── ErrorRepository (impl) → Firestore + Firebase Storage
 ```
@@ -77,6 +79,7 @@ floatingButton tap → showErrorCamera = true
 ### 3. Save Review ("Hoàn thành")
 ```
 PhotoCaptureErrorReviewView "Hoàn thành" button
+  ├── capture localImages = viewModel.images.compactMap { .local → UIImage }
   └── viewModel.saveReview()
        ├── guard images not empty
        ├── buildSavedErrorItem() → SavedErrorItem (imageURLs = [])
@@ -87,25 +90,84 @@ PhotoCaptureErrorReviewView "Hoàn thành" button
             ├── merge all URLs → SavedErrorItem(imageURLs: [...])
             └── Firestore write: inspections/{inspectionId}/errorItems/{item.id}
                  └── returns SavedErrorItem with real imageURLs
-                      └── onSaved callback
-                           └── ErrorHomeView: Task { await viewModel.loadErrorInspections() }
+                      └── onSaved(saved, localImages) callback
+                           ├── ErrorHomeView: viewModel.upsertErrorItem(saved, thumbnails: localImages)
+                           │    ├── thumbnailCache[item.id] = localImages.first  ← instant thumbnail
+                           │    └── insert at index 0 (or replace by id)
+                           └── scrollToTopTrigger.toggle()
+                                └── ScrollViewReader: proxy.scrollTo("errorList-top")  ← scroll to top
 ```
 
-### 4. Update Existing Error ("Lưu Thay đổi")
+### 4. Edit Existing Error (tap item card)
+```
+NavigationLink(value: item) tap
+  └── .navigationDestination(for: SavedErrorItem.self)
+       └── PhotoCaptureErrorReviewView(
+                inspectionId: viewModel.inspectionId,
+                initialImages: item.imageURLs.map { .remote(url: $0) },
+                editingItem: item,   ← triggers edit mode
+                onSaved: upsertErrorItem + scrollToTopTrigger
+              )
+            ├── VM pre-fills: severity, generalCondition, defectType, comments
+            ├── VM stores editingItemId = item.id
+            ├── isEditMode = true
+            │    ├── navigationTitle → "Chỉnh sửa lỗi"
+            │    ├── "Hoàn thành" nav bar button hidden
+            │    └── actionButtonsSection shown ("Xoá" / "Lưu Thay đổi")
+            └── takeMorePhotosSection → showCamera = true → CameraView
+                 └── addImages(_:) → appends .local to existing .remote images
+```
+
+### 5. Save Edited Error ("Lưu Thay đổi")
 ```
 PhotoCaptureErrorReviewView "Lưu Thay đổi" button
+  ├── capture localImages = viewModel.images.compactMap { .local → UIImage }
   └── viewModel.updateReview()
-       └── same path as saveReview() above
+       └── buildSavedErrorItem() uses editingItemId (preserves original Firestore doc id)
             (existing .remote URLs preserved, new .local images uploaded)
+            └── onSaved(saved, localImages) → same upsert + scroll-to-top flow
 ```
 
-### 5. Upsert Logic (local cache)
+### 6. Delete Error ("Xoá lỗi")
+```
+PhotoCaptureErrorReviewView "Xoá" button (edit mode only)
+  └── showDeleteConfirmation = true
+       └── confirmationDialog: "Bạn có chắc muốn xoá lỗi này không?"
+            └── "Xoá lỗi" (destructive) button
+                 ├── guard let item = editingItem else { return }
+                 ├── onDeleted(item) → ErrorHomeViewModel.deleteErrorItem(item)
+                 │    ├── removeErrorItem(id:)                ← optimistic: immediate UI update
+                 │    │    ├── errorInspections.removeAll { $0.id == id }
+                 │    │    └── thumbnailCache.removeValue(forKey: id)
+                 │    └── Task (background)
+                 │         ├── errorRepository.deleteErrorItem(item, for: inspectionId)
+                 │         │    ├── storageService.deleteImage(fromURL:) for each imageURL
+                 │         │    │    └── individual image failure → warning, continue
+                 │         │    └── Firestore delete: inspections/{id}/errorItems/{item.id}
+                 │         └── on failure → loadErrorInspections()   ← re-fetch, item restores at original position
+                 └── dismiss() → pop back to ErrorHomeView
+                      └── onAppear → guard !hasLoadedOnce → skip re-fetch (list already updated)
+```
+
+### 7. Upsert + Thumbnail Cache Logic
 ```swift
-// Not used after server re-fetch, kept for reference
-func upsertErrorItem(_ item: SavedErrorItem) {
+// Called by onSaved — no server re-fetch needed
+func upsertErrorItem(_ item: SavedErrorItem, thumbnails: [UIImage] = []) {
+    if let first = thumbnails.first {
+        thumbnailCache[item.id] = first   // instant display, no AsyncImage wait
+    }
     if found by id → replace in-place
     else → insert at index 0
 }
+```
+
+### 8. Thumbnail Display in ErrorItemCardView
+```
+ErrorItemCardView(item:, cachedThumbnail:)
+  └── thumbnailView
+       ├── if cachedThumbnail != nil → Image(uiImage:)   ← zero network, same frame
+       ├── else if item.imageURLs.first → AsyncImage(url:)  ← remote load (existing items)
+       └── else → placeholderImage
 ```
 
 ---
@@ -126,17 +188,19 @@ func upsertErrorItem(_ item: SavedErrorItem) {
 | File | Role |
 |---|---|
 | `ErrorItem.swift` | `SavedErrorItem`, `ImageSource` domain models |
-| `ErrorHomeView.swift` | List UI + `ErrorItemCardView` (thumbnail card) |
-| `ErrorHomeViewModel.swift` | `[SavedErrorItem]` state, load + upsert |
-| `ErrorRepositoryType.swift` | Protocol: `fetchErrorItems`, `saveError`, `saveErrorItem` |
-| `ErrorRepository.swift` | Firestore + Storage implementation |
-| `PhotoCaptureErrorReviewView.swift` | Capture + review form |
-| `PhotoCaptureErrorReviewViewModel.swift` | `[ImageSource]` state, `saveReview`, `updateReview` |
+| `ErrorHomeView.swift` | List UI + scroll-to-top trigger (`scrollToTopTrigger`, `ScrollViewReader`) |
+| `ErrorHomeViewModel.swift` | `[SavedErrorItem]` state, `thumbnailCache`, `upsertErrorItem`, `deleteErrorItem`, `removeErrorItem` |
+| `ErrorListItemView.swift` | `ErrorItemCardView` — shows `cachedThumbnail` first, falls back to `AsyncImage` |
+| `ErrorRepositoryType.swift` | Protocol: `fetchErrorItems`, `saveErrorItem`, `deleteErrorItem` |
+| `ErrorRepository.swift` | Firestore + Storage implementation (including Storage image deletion) |
+| `FirebaseStorageService.swift` | `uploadImage`, `downloadImage`, `deleteImage(at:)`, `deleteImage(fromURL:)` |
+| `PhotoCaptureErrorReviewView.swift` | Capture + review form; `onSaved`, `onDeleted` callbacks; `confirmationDialog` |
+| `PhotoCaptureErrorReviewViewModel.swift` | `[ImageSource]` state, `saveReview`, `updateReview`, `isEditMode`, `editingItemId` |
 
 ---
 
 ## Known Issues / Follow-up
 
-- [ ] `NavigationLink(value: item)` in `ErrorHomeView` has no `.navigationDestination(for: SavedErrorItem.self)` — detail screen not wired yet
+- [x] `NavigationLink(value: item)` in `ErrorHomeView` now wired via `.navigationDestination(for: SavedErrorItem.self)` → edit flow
 - [ ] `errorView` retry button uses external `.frame` instead of `LMSButton(isFullWidth:)` 
 - [ ] `saveError` / `fetchErrors` protocol methods are dead code — can be removed

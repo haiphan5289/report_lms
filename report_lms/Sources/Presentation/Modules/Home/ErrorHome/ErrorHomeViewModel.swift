@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import OSLog
 
 // MARK: - ErrorHomeViewModel
 
@@ -22,6 +23,7 @@ final class ErrorHomeViewModel: ObservableObject {
 
     // MARK: - Private Properties
     private let errorRepository: ErrorRepositoryType
+    private let logger = Logger(subsystem: "com.reportlms", category: "ErrorHomeViewModel")
 
     // MARK: - Initialization
     init(inspectionId: String, errorRepository: ErrorRepositoryType? = nil) {
@@ -45,6 +47,24 @@ final class ErrorHomeViewModel: ObservableObject {
 
     // MARK: - Thumbnail Cache
     @Published var thumbnailCache: [String: UIImage] = [:]
+
+    func removeErrorItem(id: String) {
+        errorInspections.removeAll { $0.id == id }
+        thumbnailCache.removeValue(forKey: id)
+    }
+
+    func deleteErrorItem(_ item: SavedErrorItem) {
+        removeErrorItem(id: item.id)
+        Task {
+            do {
+                try await errorRepository.deleteErrorItem(item, for: inspectionId)
+                logger.debug("[deleteErrorItem] ✅ \(item.id, privacy: .public)")
+            } catch {
+                logger.error("[deleteErrorItem] ❌ re-fetch \(item.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                await loadErrorInspections()
+            }
+        }
+    }
 
     /// Inserts a new item at the top (or replaces by id), caching the first UIImage for instant display.
     func upsertErrorItem(_ item: SavedErrorItem, thumbnails: [UIImage] = []) {

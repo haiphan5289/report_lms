@@ -15,4 +15,5 @@ protocol ErrorRepositoryType {
     func fetchErrorItems(for inspectionId: String) async throws -> [SavedErrorItem]
     func saveError(_ item: SavedErrorItem, for inspectionId: String) async throws
     func saveErrorItem(_ item: SavedErrorItem, imageSources: [ImageSource], for inspectionId: String) async throws -> SavedErrorItem
+    func deleteErrorItem(_ item: SavedErrorItem, for inspectionId: String) async throws
 }
