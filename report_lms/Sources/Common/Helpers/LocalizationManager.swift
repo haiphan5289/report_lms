@@ -125,6 +125,37 @@ final class LocalizationManager: ObservableObject {
             "inspection.button.addField": "Thêm điểm kiểm tra",
             "inspection.button.complete": "Hoàn tất kiểm tra",
 
+            // MARK: Inspection Sections
+            "inspection.section.section1": "Thùng carton ngoài",
+            "inspection.section.section2": "Thùng carton trong",
+            "inspection.section.section3": "Sản phẩm",
+            "inspection.section.section4": "ANSI/BIFMA X5.5-2014",
+
+            // MARK: Inspection Fields - Section 1
+            "inspection.field.field1_1": "Tổng quan thùng carton",
+            "inspection.field.field1_2": "Thông tin tem/nhãn vận chuyển",
+
+            // MARK: Inspection Fields - Section 2
+            "inspection.field.field2_1": "Tổng quan thùng carton trong",
+            "inspection.field.field2_2": "Đóng gói (bảo vệ góc, lọc, phụ kiện, túi hút ẩm...)",
+
+            // MARK: Inspection Fields - Section 3
+            "inspection.field.field3_1": "Tổng quan sản phẩm",
+            "inspection.field.field3_2": "So sánh với mẫu đã duyệt (trọng lượng, kiểu dáng, hoàn thiện, độ thoải mái...)",
+            "inspection.field.field3_3": "Kích thước sản phẩm",
+            "inspection.field.field3_4": "Logo trên sản phẩm",
+            "inspection.field.field3_5": "Nhãn sản phẩm (nhãn hướng dẫn, nhãn cảnh báo)",
+            "inspection.field.field3_6": "Hướng dẫn lắp ráp",
+            "inspection.field.field3_7": "Chỉ số độ ẩm",
+            "inspection.field.field3_8": "Chỉ số độ bóng",
+            "inspection.field.field3_9": "So sánh màu sắc",
+
+            // MARK: Inspection Fields - Section 4
+            "inspection.field.field4_1": "Trọng lượng của quả cân",
+            "inspection.field.field4_2": "Ảnh quả cân cần áp dụng",
+            "inspection.field.field4_3": "Ảnh quả cân đặt trên bàn ở vị trí đúng",
+            "inspection.field.field4_4": "Dữ liệu nhập phải là lượng cân và kết quả đạt/không đạt",
+
             // MARK: Final Report
             "finalReport.title": "Hoàn tất kiểm tra",
             "finalReport.section.quantity": "Số lượng",
@@ -243,6 +274,37 @@ final class LocalizationManager: ObservableObject {
             "inspection.tab.info": "Information",
             "inspection.button.addField": "Add Inspection Point",
             "inspection.button.complete": "Complete Inspection",
+
+            // MARK: Inspection Sections
+            "inspection.section.section1": "Outer Carton",
+            "inspection.section.section2": "Inner Carton",
+            "inspection.section.section3": "Product",
+            "inspection.section.section4": "ANSI/BIFMA X5.5-2014",
+
+            // MARK: Inspection Fields - Section 1
+            "inspection.field.field1_1": "Carton overview",
+            "inspection.field.field1_2": "Shipping mark info",
+
+            // MARK: Inspection Fields - Section 2
+            "inspection.field.field2_1": "Inner carton overview",
+            "inspection.field.field2_2": "Packaging (corner protection, filter, hardware, silica gel...)",
+
+            // MARK: Inspection Fields - Section 3
+            "inspection.field.field3_1": "Product view",
+            "inspection.field.field3_2": "Compare with approved sample (weight, style, finish, comfort...)",
+            "inspection.field.field3_3": "Product dimension",
+            "inspection.field.field3_4": "Logo on product",
+            "inspection.field.field3_5": "Product label (Tip label, warning label)",
+            "inspection.field.field3_6": "Assembly instruction",
+            "inspection.field.field3_7": "Moisture Readings",
+            "inspection.field.field3_8": "Sheen Readings",
+            "inspection.field.field3_9": "Color Comparison",
+
+            // MARK: Inspection Fields - Section 4
+            "inspection.field.field4_1": "Weight of weights",
+            "inspection.field.field4_2": "Pictures of the weights to be applied",
+            "inspection.field.field4_3": "Pictures of the weights on the table in the correct position",
+            "inspection.field.field4_4": "Data to enter should be the amount of weight and pass/fail",
 
             // MARK: Final Report
             "finalReport.title": "Complete Inspection",

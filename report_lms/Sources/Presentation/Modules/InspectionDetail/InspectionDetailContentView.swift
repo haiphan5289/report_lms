@@ -111,7 +111,7 @@ struct InspectionDetailContentView: View {
 
     private func sectionView(for section: InspectionSection) -> some View {
         InspectionSectionView(
-            title: section.title,
+            title: section.localizedTitle(using: localizationManager),
             itemCount: section.itemCount,
             isExpanded: contentViewModel.isExpanded(section.id),
             onToggle: { contentViewModel.toggleSection(section.id) },
@@ -136,7 +136,7 @@ struct InspectionDetailContentView: View {
 
     private func fieldItemView(for field: InspectionField) -> some View {
         InspectionFieldItemView(
-            fieldName: field.label,
+            fieldName: field.localizedLabel(using: localizationManager),
             hasPhoto: contentViewModel.hasPhoto(for: field.id),
             images: contentViewModel.getImages(for: field.id),
             onTextTap: { contentViewModel.openValidationView(for: field.id) },

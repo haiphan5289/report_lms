@@ -156,6 +156,24 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
     }
 }
 
+// MARK: - Localization Extensions
+
+extension InspectionSection {
+    func localizedTitle(using manager: LocalizationManager) -> String {
+        let key = "inspection.section.\(id)"
+        let resolved = manager.localize(key)
+        return resolved == key ? title : resolved
+    }
+}
+
+extension InspectionField {
+    func localizedLabel(using manager: LocalizationManager) -> String {
+        let key = "inspection.field.\(id)"
+        let resolved = manager.localize(key)
+        return resolved == key ? label : resolved
+    }
+}
+
 // MARK: - Mock Data Extension
 //
 
