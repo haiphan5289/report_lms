@@ -147,7 +147,8 @@ struct InspectionDetailView: View {
                 InspectionDetailContentView(
                     contentViewModel: viewModel.contentViewModel,
                     onRetry: { await viewModel.loadInspectionDetail() },
-                    errorMessage: viewModel.errorMessage
+                    errorMessage: viewModel.errorMessage,
+                    onSwitchToErrorTab: { viewModel.selectedTab = .error }
                 )
             case .error:
                 errorTabContent

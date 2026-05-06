@@ -31,21 +31,22 @@ struct InspectionFieldItemView: View {
     // MARK: - Body
     var body: some View {
         HStack(spacing: Layout.itemSpacing) {
-            Button(action: onTextTap) {
-                LMSLabel(
-                    fieldName,
-                    style: .body,
-                    color: .primary
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
+            LMSLabel(
+                fieldName,
+                style: .body,
+                color: .primary
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             cameraButton
         }
         .padding(.horizontal, Layout.horizontalPadding)
         .padding(.vertical, Layout.verticalPadding)
         .background(Color(.systemBackground))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTextTap()
+        }
     }
 
     // MARK: - Private Views

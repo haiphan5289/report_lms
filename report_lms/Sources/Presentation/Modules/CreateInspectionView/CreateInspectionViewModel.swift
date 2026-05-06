@@ -263,7 +263,8 @@ extension InputFieldType {
     var inputType: ProductInfoInputType {
         switch self {
         case .productName, .productCode, .orderCode: return .required
-        case .inspectionForm, .inspectionType, .samplingMethod, .factory, .productionUnit: return .dropdown
+        case .inspectionForm, .inspectionType, .samplingMethod: return .dropdown
+        case .factory, .productionUnit: return .required
         case .quantity: return .quantity
         }
     }

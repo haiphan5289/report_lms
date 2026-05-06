@@ -31,19 +31,44 @@ struct InspectionDetailContentView: View {
     @EnvironmentObject private var localizationManager: LocalizationManager
     let onRetry: () async -> Void
     let errorMessage: String?
+    let onSwitchToErrorTab: () -> Void
 
     @State private var showAddCustomField = false
     @State private var showFinalReport = false
-    
+    @State private var showErrorCamera = false
+    @State private var capturedErrorImages: [UIImage] = []
+    @State private var showErrorReview = false
+
     // MARK: - Body
     var body: some View {
         Group {
             if contentViewModel.inspection != nil {
-                sectionListView()
+                ZStack(alignment: .bottomTrailing) {
+                    sectionListView()
+                    floatingButton
+                }
             } else if let errorMessage = errorMessage {
                 errorView(message: errorMessage)
             } else {
                 loadingPlaceholder
+            }
+        }
+        .navigationDestination(isPresented: $showErrorCamera) {
+            CameraView(source: .errorReport) { images in
+                capturedErrorImages = images
+                showErrorReview = true
+            }
+        }
+        .sheet(isPresented: $showErrorReview) {
+            if let inspectionId = contentViewModel.inspection?.id {
+                PhotoCaptureErrorReviewView(
+                    inspectionId: inspectionId,
+                    initialImages: capturedErrorImages.map { .local(image: $0) },
+                    onImagesUpdated: { _ in },
+                    onSaved: { _, _ in
+                        onSwitchToErrorTab()
+                    }
+                )
             }
         }
     }
@@ -154,6 +179,21 @@ struct InspectionDetailContentView: View {
         .background(Color(.systemGroupedBackground))
     }
     
+    // MARK: - Floating Button
+
+    private var floatingButton: some View {
+        Button(action: { showErrorCamera = true }) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .frame(width: 56, height: 56)
+        .background(Circle().fill(Color.orange))
+        .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
+        .padding(.trailing, 24)
+        .padding(.bottom, 24)
+    }
+
     // MARK: - New Action Buttons
     
     private func addCustomFieldButton() -> some View {
@@ -229,7 +269,8 @@ private struct PreviewWrapper: View {
         InspectionDetailContentView(
             contentViewModel: parentViewModel.contentViewModel,
             onRetry: {},
-            errorMessage: errorMessage
+            errorMessage: errorMessage,
+            onSwitchToErrorTab: {}
         )
     }
 }
