@@ -29,124 +29,93 @@ final class LoginViewModel: ObservableObject {
         self.loginUseCase = loginUseCase
         self.userManager = userManager
         checkBiometricAvailability()
-        loadStoredCredentials()
+        loadStoredUsername()
     }
 
     // MARK: - Public Methods
+    @MainActor
     func login() async {
-        await MainActor.run {
-            isLoginLoading = true
-            errorMessage = nil
-        }
-        defer {
-            Task { @MainActor in
-                isLoginLoading = false
-            }
-        }
+        isLoginLoading = true
+        errorMessage = nil
         do {
             let request = LoginRequest(username: username, password: password)
             let session = try await loginUseCase.execute(request: request)
-            await MainActor.run {
-                userSession = session
-                userManager.login(user: session)
-                isLoginSuccessful = true
-                storeCredentials() // Store credentials for biometric login
-            }
+            userSession = session
+            userManager.login(user: session)
+            KeychainManager.saveUsername(username)
+            isLoginSuccessful = true
         } catch {
-            await MainActor.run {
-                errorMessage = error.localizedDescription
-                isLoginSuccessful = false
-            }
+            errorMessage = error.localizedDescription
+            isLoginSuccessful = false
         }
+        isLoginLoading = false
     }
 
     // MARK: - Biometric Authentication
     func checkBiometricAvailability() {
         let context = LAContext()
         var error: NSError?
-
         let canEvaluate = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
         biometricType = context.biometryType
         isBiometricAvailable = canEvaluate
     }
 
+    @MainActor
     func biometricLogin() async {
-        await MainActor.run {
-            isBiometricLoading = true
-            errorMessage = nil
-        }
-        defer {
-            Task { @MainActor in
-                isBiometricLoading = false
-            }
-        }
+        isBiometricLoading = true
+        errorMessage = nil
 
         let context = LAContext()
-        let reason = biometricType == .faceID ? "Xác thực bằng Face ID để đăng nhập" : "Xác thực bằng Touch ID để đăng nhập"
+        let reason = biometricType == .faceID
+            ? "Xác thực bằng Face ID để đăng nhập"
+            : "Xác thực bằng Touch ID để đăng nhập"
 
         do {
             let success = try await context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason)
             if success {
-                // Biometric authentication successful, now login with stored credentials
-                await performLoginWithStoredCredentials()
+                await performBiometricLoginWithSession()
             }
         } catch {
-            await MainActor.run {
-                switch error {
-                case LAError.userCancel, LAError.userFallback, LAError.systemCancel:
-                    errorMessage = "Xác thực đã bị hủy"
-                case LAError.biometryNotAvailable:
-                    errorMessage = "Thiết bị không hỗ trợ xác thực sinh trắc học"
-                case LAError.biometryNotEnrolled:
-                    errorMessage = "Chưa thiết lập \(biometricType == .faceID ? "Face ID" : "Touch ID")"
-                case LAError.biometryLockout:
-                    errorMessage = "\(biometricType == .faceID ? "Face ID" : "Touch ID") đã bị khóa tạm thời"
-                default:
-                    errorMessage = "Lỗi xác thực sinh trắc học"
-                }
+            switch error {
+            case LAError.userCancel, LAError.userFallback, LAError.systemCancel:
+                errorMessage = "Xác thực đã bị hủy"
+            case LAError.biometryNotAvailable:
+                errorMessage = "Thiết bị không hỗ trợ xác thực sinh trắc học"
+            case LAError.biometryNotEnrolled:
+                errorMessage = "Chưa thiết lập \(biometricType == .faceID ? "Face ID" : "Touch ID")"
+            case LAError.biometryLockout:
+                errorMessage = "\(biometricType == .faceID ? "Face ID" : "Touch ID") đã bị khóa tạm thời"
+            default:
+                errorMessage = "Lỗi xác thực sinh trắc học"
             }
         }
+        isBiometricLoading = false
     }
 
-    private func performLoginWithStoredCredentials() async {
-        // Retrieve stored credentials
-        guard let storedUsername = KeychainManager.getStoredUsername(),
-              let storedPassword = KeychainManager.getStoredPassword() else {
-            await MainActor.run {
-                errorMessage = "Không tìm thấy thông tin đăng nhập đã lưu"
-            }
-            return
-        }
-
+    // Uses the existing Firebase session — no stored password needed.
+    @MainActor
+    private func performBiometricLoginWithSession() async {
         do {
-            let request = LoginRequest(username: storedUsername, password: storedPassword)
-            let session = try await loginUseCase.execute(request: request)
-            await MainActor.run {
+            let session = try await loginUseCase.refreshSession()
+            if let storedUsername = KeychainManager.getStoredUsername() {
                 username = storedUsername
-                password = storedPassword
-                userSession = session
-                userManager.login(user: session)
-                isLoginSuccessful = true
             }
+            userSession = session
+            userManager.login(user: session)
+            isLoginSuccessful = true
         } catch {
-            await MainActor.run {
-                errorMessage = error.localizedDescription
-                isLoginSuccessful = false
-            }
+            errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
+            isLoginSuccessful = false
         }
     }
 
-    private func loadStoredCredentials() {
+    private func loadStoredUsername() {
         if let storedUsername = KeychainManager.getStoredUsername() {
             username = storedUsername
         }
     }
 
-    private func storeCredentials() {
-        KeychainManager.saveCredentials(username: username, password: password)
-    }
-
-    /// Logs out the current user by clearing session data and removing stored token
+    @MainActor
     func logout() {
         userSession = nil
         userManager.logout()
@@ -154,12 +123,10 @@ final class LoginViewModel: ObservableObject {
         username = ""
         password = ""
         errorMessage = nil
-        // Clear stored credentials from Keychain for security
         KeychainManager.deleteCredentials()
     }
 
-    /// Checks if user has a valid stored authentication token
     var isLoggedIn: Bool {
-        return userManager.isLoggedIn
+        userManager.isLoggedIn
     }
 }

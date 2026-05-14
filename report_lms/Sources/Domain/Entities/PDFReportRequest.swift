@@ -17,6 +17,7 @@ struct PDFReportRequest {
     let capturedImages: [String: [InspectionImage]]
     let inspectorName: String
     let inspectionLocation: String
+    let defectCounts: (critical: Int, major: Int, minor: Int)
     
     // MARK: - Validation
     
@@ -67,7 +68,8 @@ extension PDFReportRequest {
             inspection: .mock(inspectionId: "1", inspectionNumber: "001"),
             capturedImages: [:],
             inspectorName: "John Doe",
-            inspectionLocation: "Factory A"
+            inspectionLocation: "Factory A",
+            defectCounts: (critical: 0, major: 0, minor: 0)
         )
     }
 }

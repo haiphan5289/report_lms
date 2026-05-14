@@ -9,4 +9,5 @@ import Foundation
 
 protocol AuthRepositoryType {
     func login(request: LoginRequest) async throws -> UserSession
+    func refreshSession() async throws -> UserSession
 }

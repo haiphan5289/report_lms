@@ -7,12 +7,10 @@
 
 import SwiftUI
 
-/// Root view that determines whether to show login screen or main app based on authentication state
 struct RootView: View {
     @StateObject private var userManager: UserManager
     @StateObject private var loginViewModel: LoginViewModel
     @StateObject private var lmsHomeViewModel: LMSHomeViewModel
-    @State private var shouldLogout = false
 
     init() {
         let userManager = Container.shared.resolve(UserManager.self)!
@@ -25,20 +23,12 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if userManager.isLoggedIn && !shouldLogout {
-                // User is logged in, show main app
+            if userManager.isLoggedIn {
                 LMSHomeView(viewModel: lmsHomeViewModel, onLogout: {
-                    shouldLogout = true
-                    userManager.logout()
+                    loginViewModel.logout()
                 })
             } else {
-                // User needs to login
                 LoginView(viewModel: loginViewModel)
-                    .onChange(of: loginViewModel.isLoginSuccessful) { _, newValue in
-                        if newValue {
-                            shouldLogout = false
-                        }
-                    }
             }
         }
     }

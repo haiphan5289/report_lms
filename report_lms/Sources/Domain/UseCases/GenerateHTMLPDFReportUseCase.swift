@@ -34,28 +34,26 @@ final class GenerateHTMLPDFReportUseCase {
         detail: Inspection,
         images: [String: [InspectionImage]],
         inspectorName: String,
-        location: String
+        location: String,
+        defectCounts: (critical: Int, major: Int, minor: Int) = (0, 0, 0)
     ) async throws -> Data {
         logger.log("Executing PDF generation use case for inspection #\(detail.inspectionNumber)")
 
-        // Validate input
         guard !detail.sections.isEmpty else {
             logger.error("Inspection has no sections")
             throw PDFGenerationError.invalidInspectionData
         }
 
-        // Resolve remote images to UIImage before the synchronous PDF renderer runs.
         let resolvedImages = await resolveRemoteImages(images)
 
-        // Generate PDF
         do {
             let pdfData = try await pdfGenerator.generatePDF(
                 detail: detail,
                 images: resolvedImages,
                 inspectorName: inspectorName,
-                location: location
+                location: location,
+                defectCounts: defectCounts
             )
-
             logger.log("PDF generation completed successfully, size: \(pdfData.count) bytes")
             return pdfData
         } catch {
@@ -110,12 +108,12 @@ final class GenerateHTMLPDFReportUseCase {
         // Resolve remote images before the synchronous PDF renderer runs
         let resolvedImages = await resolveRemoteImages(request.capturedImages)
 
-        // Generate PDF using validated request data
         let pdfData = try await pdfGenerator.generatePDF(
             detail: request.inspection,
             images: resolvedImages,
             inspectorName: request.inspectorName,
-            location: request.inspectionLocation
+            location: request.inspectionLocation,
+            defectCounts: request.defectCounts
         )
         
         logger.log("PDF generated successfully from request, size: \(pdfData.count) bytes")

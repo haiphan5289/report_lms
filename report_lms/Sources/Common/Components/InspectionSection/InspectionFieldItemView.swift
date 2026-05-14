@@ -59,7 +59,7 @@ struct InspectionFieldItemView: View {
 
                 if let first = images.first {
                     if let remoteURL = first.remoteURL {
-                        AsyncImage(url: remoteURL) { phase in
+                        CachedAsyncImage(url: remoteURL) { phase in
                             if let img = phase.image {
                                 img.resizable().scaledToFill()
                             } else {

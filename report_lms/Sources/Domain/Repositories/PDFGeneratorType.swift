@@ -10,19 +10,12 @@ import UIKit
 
 /// Protocol defining PDF generation capabilities
 protocol PDFGeneratorType {
-    /// Generate PDF from inspection detail and captured images
-    /// - Parameters:
-    ///   - detail: The inspection detail containing sections and fields
-    ///   - images: Dictionary mapping field IDs to their captured images
-    ///   - inspectorName: Name of the inspector
-    ///   - location: Inspection location
-    /// - Returns: PDF data
-    /// - Throws: PDFGenerationError if generation fails
     func generatePDF(
         detail: Inspection,
         images: [String: [InspectionImage]],
         inspectorName: String,
-        location: String
+        location: String,
+        defectCounts: (critical: Int, major: Int, minor: Int)
     ) async throws -> Data
 }
 

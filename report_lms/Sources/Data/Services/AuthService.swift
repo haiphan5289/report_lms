@@ -25,4 +25,16 @@ final class AuthService: AuthServiceType {
             )
         }
     }
+
+    func refreshSession() async throws -> UserSession {
+        guard let user = Auth.auth().currentUser else {
+            throw NSError(
+                domain: "FirebaseAuth",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No active session. Please log in again."]
+            )
+        }
+        let token = try await user.getIDToken(forcingRefresh: true)
+        return UserSession(id: user.uid, username: user.email ?? "", token: token)
+    }
 }

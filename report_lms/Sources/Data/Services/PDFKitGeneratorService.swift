@@ -49,7 +49,8 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         detail: Inspection,
         images: [String: [InspectionImage]],
         inspectorName: String,
-        location: String
+        location: String,
+        defectCounts: (critical: Int, major: Int, minor: Int)
     ) async throws -> Data {
         logger.log("Starting PDFKit native generation for inspection #\(detail.inspectionNumber)")
         
@@ -88,7 +89,7 @@ final class PDFKitGeneratorService: PDFGeneratorType {
             yPosition = drawDate(at: yPosition)
             yPosition += Layout.sectionSpacing
             
-            yPosition = drawSummarySection(for: detail, at: yPosition)
+            yPosition = drawSummarySection(defectCounts: defectCounts, at: yPosition)
             yPosition += Layout.sectionSpacing
             
             // Sections with images
@@ -189,7 +190,7 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         var currentY = yPosition
         
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "th.MM dd, yyyy"
+        dateFormatter.dateFormat = "dd/MM/yyyy"
         dateFormatter.locale = Locale(identifier: "vi_VN")
         
         let inspectionDateFormatter = DateFormatter()
@@ -329,31 +330,26 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         return yPosition + lineHeight + 6
     }
     
-    private func drawSummarySection(for detail: Inspection, at yPosition: CGFloat) -> CGFloat {
+    private func drawSummarySection(defectCounts: (critical: Int, major: Int, minor: Int), at yPosition: CGFloat) -> CGFloat {
         var currentY = yPosition
-        
-        // Section title
+
         let sectionTitle = "Tóm tắt lỗi"
         let titleFont = UIFont.boldSystemFont(ofSize: Layout.subheadingFontSize)
         let titleAttributes: [NSAttributedString.Key: Any] = [
             .font: titleFont,
             .foregroundColor: UIColor.black
         ]
-        
+
         let titleSize = sectionTitle.size(withAttributes: titleAttributes)
-        sectionTitle.draw(
-            at: CGPoint(x: Layout.margin, y: currentY),
-            withAttributes: titleAttributes
-        )
+        sectionTitle.draw(at: CGPoint(x: Layout.margin, y: currentY), withAttributes: titleAttributes)
         currentY += titleSize.height + 12
-        
-        // Draw summary table
-        let defectCounts = calculateDefectCounts(from: detail.sections)
-        currentY = drawSummaryTable(critical: defectCounts.critical,
-                                    major: defectCounts.major,
-                                    minor: defectCounts.minor,
-                                    at: currentY)
-        
+
+        currentY = drawSummaryTable(
+            critical: defectCounts.critical,
+            major: defectCounts.major,
+            minor: defectCounts.minor,
+            at: currentY
+        )
         return currentY
     }
     
@@ -495,7 +491,6 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         
         for (index, inspectionImage) in images.enumerated() {
             let image = inspectionImage.image
-            let description = inspectionImage.description
             // Check if need new page
             if currentY + Layout.imageHeight > Layout.pageHeight - Layout.margin {
                 context.beginPage()
@@ -589,9 +584,4 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         }
     }
     
-    private func calculateDefectCounts(from sections: [InspectionSection]) -> (critical: Int, major: Int, minor: Int) {
-        // TODO: Implement actual defect counting logic
-        // For now, returning sample data
-        return (critical: 0, major: 1, minor: 1)
-    }
 }

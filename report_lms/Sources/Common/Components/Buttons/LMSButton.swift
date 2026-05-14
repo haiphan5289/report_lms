@@ -76,10 +76,7 @@ struct LMSButton: View {
 
     var body: some View {
         if variant == .iconOnly {
-            Button(action: {
-                guard !isLoading && !isDisabled else { return }
-                action()
-            }, label: {
+            Button(action: action, label: {
                 contentView
             })
             .buttonStyle(IconOnlyButtonStyle(variant: variant, isDisabled: isDisabled || isLoading))
@@ -89,10 +86,7 @@ struct LMSButton: View {
             .accessibilityHint(isLoading ? "Loading" : "")
             .accessibilityAddTraits(isDisabled ? .isButton : [.isButton])
         } else {
-            Button(action: {
-                guard !isLoading && !isDisabled else { return }
-                action()
-            }, label: {
+            Button(action: action, label: {
                 if isFullWidth {
                     contentView
                         .frame(maxWidth: .infinity, alignment: contentAlignment)

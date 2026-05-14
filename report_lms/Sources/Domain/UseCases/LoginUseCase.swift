@@ -17,4 +17,8 @@ final class LoginUseCase {
     func execute(request: LoginRequest) async throws -> UserSession {
         try await repository.login(request: request)
     }
+
+    func refreshSession() async throws -> UserSession {
+        try await repository.refreshSession()
+    }
 }

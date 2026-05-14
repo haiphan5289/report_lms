@@ -18,4 +18,8 @@ final class AuthRepository: AuthRepositoryType {
         let response = try await service.login(username: request.username, password: request.password)
         return response.toEntity()
     }
+
+    func refreshSession() async throws -> UserSession {
+        try await service.refreshSession()
+    }
 }

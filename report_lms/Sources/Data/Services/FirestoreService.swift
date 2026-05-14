@@ -17,8 +17,12 @@ final class FirestoreService {
         try await docRef.setData(data)
     }
 
-    func fetchInspections() async throws -> [Inspection] {
-        let snapshot = try await firestoreDatabase.collection("inspections").getDocuments()
+    func fetchInspections(limit: Int = 50) async throws -> [Inspection] {
+        let snapshot = try await firestoreDatabase
+            .collection("inspections")
+            .order(by: "createdAt", descending: true)
+            .limit(to: limit)
+            .getDocuments()
         return snapshot.documents.compactMap { document in
             try? Inspection.fromFirestore(document.data(), id: document.documentID)
         }

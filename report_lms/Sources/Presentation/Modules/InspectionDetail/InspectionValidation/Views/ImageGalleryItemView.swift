@@ -24,7 +24,7 @@ struct ImageGalleryItemView: View {
     @ViewBuilder
     private var inspectionImageView: some View {
         if let remoteURL = inspectionImage.remoteURL {
-            AsyncImage(url: remoteURL) { phase in
+            CachedAsyncImage(url: remoteURL) { phase in
                 switch phase {
                 case .success(let img):
                     img.resizable().scaledToFill()

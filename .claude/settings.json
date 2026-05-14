@@ -1,4 +1,21 @@
 {
+  "permissions": {
+    "allow": [
+      "Edit(/.claude/skills/swiftui-design-system/**)",
+      "Bash(sed -i '' 's/                CDSDivider\\(\\)$/                Divider\\(\\).background\\(theme.border.borderDivider\\)/g' \"/Users/hai.phan/Desktop/haiphan/ct-ios-app--v3/.claude/skills/swiftui-design-system/references/review-code-swiftUI.md\")",
+      "Bash(__NEW_LINE_d5aa2bf25acf2988__ sed:*)",
+      "Bash(find /Users/hai.phan/Desktop/haiphan/ct-ios-app--v3 -name *.xcassets -path */CTCorePayment/*)",
+      "Edit(/.claude/skills/review-code/**)",
+      "Bash(swiftlint lint:*)",
+      "Skill(ct-alternative-approaches)",
+      "Skill(ct-alternative-approaches:*)",
+      "Skill(review-code)",
+      "Skill(review-code:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/hai.phan/Library/Developer/Xcode/DerivedData"
+    ]
+  },
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -37,19 +54,6 @@
           }
         ]
       }
-    ]
-  },
-  "permissions": {
-    "allow": [
-      "Edit(/.claude/skills/swiftui-design-system/**)",
-      "Bash(sed -i '' 's/                CDSDivider\\(\\)$/                Divider\\(\\).background\\(theme.border.borderDivider\\)/g' \"/Users/hai.phan/Desktop/haiphan/ct-ios-app--v3/.claude/skills/swiftui-design-system/references/review-code-swiftUI.md\")",
-      "Bash(__NEW_LINE_d5aa2bf25acf2988__ sed:*)",
-      "Bash(find /Users/hai.phan/Desktop/haiphan/ct-ios-app--v3 -name *.xcassets -path */CTCorePayment/*)",
-      "Edit(/.claude/skills/review-code/**)",
-      "Bash(swiftlint lint:*)"
-    ],
-    "additionalDirectories": [
-      "/Users/hai.phan/Library/Developer/Xcode/DerivedData"
     ]
   }
 }

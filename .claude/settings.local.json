@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild -project report_lms.xcodeproj -scheme report_lms -destination 'generic/platform=iOS Simulator' -configuration Debug build)"
+    ]
+  }
+}

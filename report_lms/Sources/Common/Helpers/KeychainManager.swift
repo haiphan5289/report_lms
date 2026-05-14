@@ -89,48 +89,22 @@ final class KeychainManager {
 
     // MARK: - Credentials Management
 
-    /// Saves the login credentials (username and password) to Keychain
-    /// - Parameters:
-    ///   - username: The username to store
-    ///   - password: The password to store
-    static func saveCredentials(username: String, password: String) {
-        guard let usernameData = username.data(using: .utf8),
-              let passwordData = password.data(using: .utf8) else {
-            print("Error: Failed to convert credentials to UTF-8 data")
-            return
-        }
+    /// Saves the username to Keychain for convenience pre-fill on next login.
+    /// Passwords are never stored — biometric auth re-uses the active Firebase session.
+    static func saveUsername(_ username: String) {
+        guard let usernameData = username.data(using: .utf8) else { return }
 
-        // Save username
-        let usernameQuery: [String: Any] = [
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: usernameKey,
             kSecValueData as String: usernameData,
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
         ]
-
-        // Save password
-        let passwordQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: passwordKey,
-            kSecValueData as String: passwordData,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
-        ]
-
-        // Delete existing credentials first
-        SecItemDelete(usernameQuery as CFDictionary)
-        SecItemDelete(passwordQuery as CFDictionary)
-
-        // Add new credentials
-        let usernameStatus = SecItemAdd(usernameQuery as CFDictionary, nil)
-        let passwordStatus = SecItemAdd(passwordQuery as CFDictionary, nil)
-
-        if usernameStatus != errSecSuccess {
-            print("Error saving username to Keychain: \(usernameStatus)")
-        }
-        if passwordStatus != errSecSuccess {
-            print("Error saving password to Keychain: \(passwordStatus)")
+        SecItemDelete(query as CFDictionary)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status != errSecSuccess {
+            print("Error saving username to Keychain: \(status)")
         }
     }
 
@@ -157,57 +131,20 @@ final class KeychainManager {
         return nil
     }
 
-    /// Retrieves the stored password from Keychain
-    /// - Returns: The stored password, or nil if not found
-    static func getStoredPassword() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: passwordKey,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        if status == errSecSuccess,
-           let data = result as? Data,
-           let password = String(data: data, encoding: .utf8) {
-            return password
-        }
-
-        return nil
-    }
-
-    /// Removes the stored credentials from Keychain
+    /// Removes the stored username from Keychain (call on logout)
     static func deleteCredentials() {
-        let usernameQuery: [String: Any] = [
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: usernameKey
         ]
-
-        let passwordQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: passwordKey
-        ]
-
-        let usernameStatus = SecItemDelete(usernameQuery as CFDictionary)
-        let passwordStatus = SecItemDelete(passwordQuery as CFDictionary)
-
-        if usernameStatus != errSecSuccess && usernameStatus != errSecItemNotFound {
-            print("Error deleting username from Keychain: \(usernameStatus)")
-        }
-        if passwordStatus != errSecSuccess && passwordStatus != errSecItemNotFound {
-            print("Error deleting password from Keychain: \(passwordStatus)")
+        let status = SecItemDelete(query as CFDictionary)
+        if status != errSecSuccess && status != errSecItemNotFound {
+            print("Error deleting username from Keychain: \(status)")
         }
     }
 
-    /// Checks if login credentials exist in Keychain
-    /// - Returns: True if both username and password exist, false otherwise
     static func hasStoredCredentials() -> Bool {
-        return getStoredUsername() != nil && getStoredPassword() != nil
+        getStoredUsername() != nil
     }
 }

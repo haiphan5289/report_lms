@@ -358,7 +358,7 @@ struct PhotoCaptureErrorReviewView: View {
         case .local(let image):
             Image(uiImage: image).resizable()
         case .remote(let url):
-            AsyncImage(url: URL(string: url)) { phase in
+            CachedAsyncImage(url: URL(string: url)) { phase in
                 if let img = phase.image { img.resizable() }
                 else { Color.gray.opacity(0.3) }
             }

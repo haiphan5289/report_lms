@@ -17,19 +17,6 @@ final class LMSHomeViewModel: ObservableObject {
     @Published var selectedTab: Tab = .plan
     @Published var navigationPath = NavigationPath()
     @Published var dataRefreshTrigger = 0
-    
-    // MARK: - Private Properties
-    private var cancellables = Set<AnyCancellable>()
-    
-    // MARK: - Initialization
-    init() {
-        setupNotificationObservers()
-    }
-    
-    // MARK: - Private Methods
-    private func setupNotificationObservers() {
-        // No active observers
-    }
 
     // MARK: - Public Methods
     func showMenuAction() {
@@ -64,37 +51,16 @@ final class LMSHomeViewModel: ObservableObject {
     }
 
     func handleNewInspectionCreated(_ inspection: Inspection) {
-        // Trigger data refresh in Plan tab
         dataRefreshTrigger += 1
     }
-    
+
     func navigateToReportTab() {
-        // Pop back to home by clearing navigation path
         navigationPath = NavigationPath()
-        
-        // Switch to report tab (which shows InformationPurchaseView)
         selectedTab = .report
     }
 
     func handleNavigationBack(from oldValue: NavigationPath, to newValue: NavigationPath) {
-        // Handle navigation back event
-        if oldValue.count > newValue.count {
-            // User navigated back to LMSHome
-            handleNavigationBack()
-        }
-    }
-
-    // MARK: - Private Methods
-    private func handleNavigationBack() {
-        // Handle event when user navigates back to LMSHome
-        // You can add any logic here when navigation comes back
-        // For example: refresh data, show success message, update UI state, etc.
-
-        // Example: Switch to a specific tab or show a toast message
-        // selectedTab = .report
-
-        // Example: Show success feedback
-        // showSuccessMessage = true
+        // Reserved for back-navigation side-effects (e.g. refresh, snackbar)
     }
 }
 

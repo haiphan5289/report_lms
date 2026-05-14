@@ -17,6 +17,7 @@ final class PDFReportRequestBuilder {
     private var capturedImages: [String: [InspectionImage]] = [:]
     private var inspectorName: String?
     private var inspectionLocation: String?
+    private var defectCounts: (critical: Int, major: Int, minor: Int) = (0, 0, 0)
     
     // MARK: - Builder Methods
     
@@ -47,6 +48,13 @@ final class PDFReportRequestBuilder {
         self.inspectionLocation = location
         return self
     }
+
+    /// Set defect counts by severity (from error items)
+    @discardableResult
+    func with(defectCounts: (critical: Int, major: Int, minor: Int)) -> Self {
+        self.defectCounts = defectCounts
+        return self
+    }
     
     /// Build the final request with validation
     /// - Returns: Validated PDFReportRequest
@@ -68,23 +76,21 @@ final class PDFReportRequestBuilder {
             inspection: inspectionData,
             capturedImages: capturedImages,
             inspectorName: inspector,
-            inspectionLocation: location
+            inspectionLocation: location,
+            defectCounts: defectCounts
         )
     }
-    
-    /// Build request with default values for missing optional fields
-    /// - Returns: PDFReportRequest with defaults applied
-    /// - Throws: Only throws if critical required fields are missing
+
     func buildWithDefaults() throws -> PDFReportRequest {
         guard let inspectionData = inspection else {
             throw PDFReportBuilderError.missingInspection
         }
-        
         return PDFReportRequest(
             inspection: inspectionData,
             capturedImages: capturedImages,
             inspectorName: inspectorName ?? "Unknown Inspector",
-            inspectionLocation: inspectionLocation ?? "Unknown Location"
+            inspectionLocation: inspectionLocation ?? "Unknown Location",
+            defectCounts: defectCounts
         )
     }
     
@@ -94,6 +100,7 @@ final class PDFReportRequestBuilder {
         capturedImages = [:]
         inspectorName = nil
         inspectionLocation = nil
+        defectCounts = (0, 0, 0)
     }
 }
 

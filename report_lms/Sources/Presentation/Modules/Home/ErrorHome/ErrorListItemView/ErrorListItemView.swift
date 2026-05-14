@@ -46,7 +46,7 @@ struct ErrorItemCardView: View {
                     .resizable()
                     .scaledToFill()
             } else if let firstURL = item.imageURLs.first, let url = URL(string: firstURL) {
-                AsyncImage(url: url) { phase in
+                CachedAsyncImage(url: url) { phase in
                     if let image = phase.image {
                         image
                             .resizable()

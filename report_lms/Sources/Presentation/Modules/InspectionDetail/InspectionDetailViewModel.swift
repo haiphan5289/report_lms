@@ -44,11 +44,19 @@ final class InspectionDetailViewModel: ObservableObject {
     private var hasLoadedOnce = false
 
     // MARK: - Initialization
-    init(inspectionId: String, inspectionNumber: String, homeViewModel: LMSHomeViewModel? = nil) {
+    init(
+        inspectionId: String,
+        inspectionNumber: String,
+        homeViewModel: LMSHomeViewModel? = nil,
+        storageService: InspectionStorageServiceType? = nil
+    ) {
         self.inspectionId = inspectionId
         self.inspectionNumber = inspectionNumber
         self.homeViewModel = homeViewModel
-        self.storageService = Container.shared.resolve(InspectionStorageServiceType.self)!
+        guard let service = storageService ?? Container.shared.resolve(InspectionStorageServiceType.self) else {
+            fatalError("InspectionStorageServiceType must be registered in DI container")
+        }
+        self.storageService = service
     }
 
     // MARK: - Public Methods
@@ -152,20 +160,38 @@ final class InspectionDetailViewModel: ObservableObject {
     }
 
     func submitInspection() async {
-        // Implement submission logic
-        // Validate required fields
-        // Upload photos
-        // Submit form data
+        guard var current = inspection else {
+            errorMessage = "Không có dữ liệu kiểm tra để nộp"
+            return
+        }
+
         isLoading = true
-        defer { isLoading = false }
+        errorMessage = nil
+
+        // Persist remote image URLs captured in this session back into the model
+        for sectionIndex in current.sections.indices {
+            for fieldIndex in current.sections[sectionIndex].fields.indices {
+                let fieldId = current.sections[sectionIndex].fields[fieldIndex].id
+                let remoteURLs = capturedPhotos[fieldId]?
+                    .compactMap { $0.remoteURL?.absoluteString } ?? []
+                if !remoteURLs.isEmpty {
+                    current.sections[sectionIndex].fields[fieldIndex].imageURLs = remoteURLs
+                }
+            }
+        }
+
+        current.status = .inProgress
 
         do {
-            // Add actual submission implementation
-            try await Task.sleep(nanoseconds: 1_000_000_000) // Simulate network call
+            try await storageService.updateInspection(current)
+            inspection = current
             isSubmitted = true
+            snackbarMessage = "Đã nộp báo cáo thành công!"
         } catch {
             errorMessage = error.localizedDescription
         }
+
+        isLoading = false
     }
 }
 
