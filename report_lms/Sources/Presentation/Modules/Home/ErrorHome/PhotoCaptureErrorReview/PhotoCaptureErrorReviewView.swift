@@ -10,8 +10,26 @@ import SwiftUI
 
 // MARK: - Photo Capture Error Review View
 struct PhotoCaptureErrorReviewView: View {
+    // MARK: - Constants
+    private enum Layout {
+        static let outerSpacing: CGFloat = 24
+        static let sectionSpacing: CGFloat = 16
+        static let innerSpacing: CGFloat = 12
+        static let cornerRadius: CGFloat = 8
+        static let shadowRadius: CGFloat = 2
+        static let imageGridSpacing: CGFloat = 8
+        static let textEditorMinHeight: CGFloat = 100
+        static let textEditorPadding: CGFloat = 12
+        static let sectionPadding: CGFloat = 16
+        static let numberChipHPadding: CGFloat = 12
+        static let numberChipVPadding: CGFloat = 8
+    }
+
+    // MARK: - Properties
     @StateObject private var viewModel: PhotoCaptureErrorReviewViewModel
+    @EnvironmentObject private var localizationManager: LocalizationManager
     @Environment(\.dismiss) private var dismiss
+
     let initialImages: [ImageSource]
     let onImagesUpdated: ([ImageSource]) -> Void
     let onSaved: (SavedErrorItem, [UIImage]) -> Void
@@ -20,6 +38,19 @@ struct PhotoCaptureErrorReviewView: View {
 
     @State private var showingDefectTypeList = false
     @State private var showDeleteConfirmation = false
+    @State private var defectTypeSearchableVM: SearchableListViewModel?
+
+    // Image action menu
+    @State private var selectedImageIndex: Int?
+    @State private var showImageMenu = false
+    @State private var showImageEditor = false
+    @State private var editingUIImage: UIImage?
+    @State private var sharingImage: UIImage?
+    @State private var showShareSheet = false
+
+    // Animation
+    @State private var heroVisible = false
+    @State private var floatOffset: CGFloat = -6
 
     // MARK: - Initialization
     init(
@@ -40,50 +71,51 @@ struct PhotoCaptureErrorReviewView: View {
 
     // MARK: - Body
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
-                    // Images Section
+                VStack(spacing: Layout.outerSpacing) {
                     imagesSection
-
-                    // Take More Photos Section
+                        .opacity(heroVisible ? 1 : 0)
+                        .offset(y: heroVisible ? 0 : 16)
+                        .animation(.easeOut(duration: 0.4), value: heroVisible)
                     takeMorePhotosSection
-
-                    // Severity Level Section
+                        .opacity(heroVisible ? 1 : 0)
+                        .offset(y: heroVisible ? 0 : 16)
+                        .animation(.easeOut(duration: 0.4).delay(0.08), value: heroVisible)
                     severityLevelSection
-
-                    // General Condition Section
+                        .opacity(heroVisible ? 1 : 0)
+                        .offset(y: heroVisible ? 0 : 16)
+                        .animation(.easeOut(duration: 0.4).delay(0.16), value: heroVisible)
                     generalConditionSection
-
-                    // Defect Types Section
+                        .opacity(heroVisible ? 1 : 0)
+                        .offset(y: heroVisible ? 0 : 16)
+                        .animation(.easeOut(duration: 0.4).delay(0.24), value: heroVisible)
                     defectTypesSection
-
-                    // Comments Section
+                        .opacity(heroVisible ? 1 : 0)
+                        .offset(y: heroVisible ? 0 : 16)
+                        .animation(.easeOut(duration: 0.4).delay(0.32), value: heroVisible)
                     commentsSection
-
-                    // Action Buttons Section (edit mode only)
-                    if viewModel.isEditMode {
-                        actionButtonsSection
-                    }
+                        .opacity(heroVisible ? 1 : 0)
+                        .offset(y: heroVisible ? 0 : 16)
+                        .animation(.easeOut(duration: 0.4).delay(0.40), value: heroVisible)
                 }
                 .padding()
             }
-            .navigationTitle(viewModel.isEditMode ? "Chỉnh sửa lỗi" : "Đánh giá ảnh chụp")
+            .navigationTitle(
+                localizationManager.localize(viewModel.isEditMode ? "errorReview.title.edit" : "errorReview.title.new")
+            )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Hủy") { dismiss() }
+                    Button(localizationManager.localize("common.cancel")) { dismiss() }
                 }
                 if !viewModel.isEditMode {
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Hoàn thành") {
+                        Button(localizationManager.localize("common.done")) {
                             Task {
-                                let localImages = viewModel.images.compactMap { source -> UIImage? in
-                                    if case .local(let img) = source { return img } else { return nil }
-                                }
                                 if let saved = await viewModel.saveReview() {
                                     onImagesUpdated(viewModel.images)
-                                    onSaved(saved, localImages)
+                                    onSaved(saved, viewModel.localImages)
                                     dismiss()
                                 }
                             }
@@ -92,117 +124,172 @@ struct PhotoCaptureErrorReviewView: View {
                 }
             }
             .sheet(isPresented: $viewModel.showCamera) {
-                CameraView(source: .errorReport, onPhotoCaptured: { newImages in
+                CameraView(source: .errorReport) { newImages in
                     viewModel.addImages(newImages)
                     onImagesUpdated(viewModel.images)
-                })
+                }
+                .environmentObject(localizationManager)
             }
             .sheet(isPresented: $showingDefectTypeList) {
-                let sections = createDefectTypeSearchableData()
-                let searchableViewModel = SearchableListViewModel(sections: sections, title: "Các loại phân lỗi")
-
-                SearchableListView(viewModel: searchableViewModel) { selectedItem in
-                    handleDefectTypeSelection(selectedItem)
-                    showingDefectTypeList = false
+                if let searchableVM = defectTypeSearchableVM {
+                    SearchableListView(viewModel: searchableVM) { selectedItem in
+                        viewModel.selectDefectType(from: selectedItem)
+                        showingDefectTypeList = false
+                    }
                 }
             }
             .onAppear {
                 viewModel.setInitialImages(initialImages)
             }
-            .alert("Lỗi", isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button("OK") {
-                    viewModel.errorMessage = nil
-                }
+            .task {
+                withAnimation { heroVisible = true }
+            }
+            .alert(
+                localizationManager.localize("common.error"),
+                isPresented: Binding(
+                    get: { viewModel.errorMessage != nil },
+                    set: { if !$0 { viewModel.errorMessage = nil } }
+                )
+            ) {
+                Button(localizationManager.localize("common.ok")) { viewModel.errorMessage = nil }
             } message: {
                 Text(viewModel.errorMessage ?? "")
             }
             .confirmationDialog(
-                "Bạn có chắc muốn xoá lỗi này không?",
+                localizationManager.localize("errorReview.delete.title"),
                 isPresented: $showDeleteConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Xoá lỗi", role: .destructive) {
+                Button(localizationManager.localize("errorReview.delete.confirm"), role: .destructive) {
                     guard let item = editingItem else { return }
                     onDeleted?(item)
                     dismiss()
                 }
-                Button("Huỷ", role: .cancel) {}
+                Button(localizationManager.localize("common.cancel"), role: .cancel) {}
             }
             .overlay {
-                if viewModel.isLoading {
+                if viewModel.isLoading || viewModel.isDownloading {
                     LMSLoadingOverlay()
                 }
+            }
+            .confirmationDialog("", isPresented: $showImageMenu) {
+                Button(localizationManager.localize("imageEditor.menu.edit")) {
+                    Task { await handleEditImage() }
+                }
+                Button(localizationManager.localize("imageEditor.menu.share")) {
+                    Task { await handleShareImage() }
+                }
+                Button(localizationManager.localize("imageEditor.menu.delete"), role: .destructive) {
+                    if let index = selectedImageIndex {
+                        viewModel.deleteImage(at: index)
+                        onImagesUpdated(viewModel.images)
+                    }
+                }
+                Button(localizationManager.localize("common.cancel"), role: .cancel) {}
+            }
+            .sheet(isPresented: $showImageEditor) {
+                if let image = editingUIImage, let index = selectedImageIndex {
+                    ImageEditorView(image: image) { editedImage in
+                        viewModel.replaceImage(at: index, with: editedImage)
+                        onImagesUpdated(viewModel.images)
+                    }
+                    .environmentObject(localizationManager)
+                }
+            }
+            .sheet(isPresented: $showShareSheet) {
+                if let image = sharingImage {
+                    ShareSheet(items: [image])
+                }
+            }
+            .lmsSnackbar(message: $viewModel.snackbarMessage, type: .error)
+        }
+        .safeAreaInset(edge: .bottom) {
+            if viewModel.isEditMode {
+                actionButtonsSection
+                    .opacity(heroVisible ? 1 : 0)
+                    .offset(y: heroVisible ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4).delay(0.48), value: heroVisible)
             }
         }
     }
 
     // MARK: - Images Section
     private var imagesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LMSLabel("Ảnh đã chụp", style: .title2)
+        VStack(alignment: .leading, spacing: Layout.innerSpacing) {
+            LMSLabel(localizationManager.localize("errorReview.section.images"), style: .title2)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if viewModel.images.isEmpty {
-                Text("Chưa có ảnh nào")
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 40)
+                VStack(spacing: Layout.innerSpacing) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(LMSColor.textTertiary)
+                        .offset(y: floatOffset)
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                                floatOffset = 6
+                            }
+                        }
+                    LMSLabel(localizationManager.localize("errorReview.images.empty"), style: .body)
+                        .foregroundColor(LMSTextColor.secondary.color)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
             } else {
-            VStack(spacing: 12) {
-                ForEach(viewModel.images.indices, id: \.self) { index in
-                    ZStack(alignment: .topTrailing) {
-                        imageView(for: viewModel.images[index])
-                            .scaledToFill()
-                            .frame(width: 200, height: 200)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                        Button(action: {
-                            viewModel.deleteImage(at: index)
-                            onImagesUpdated(viewModel.images)
-                        }, label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.white)
-                                .background(Color.black.opacity(0.6))
-                                .clipShape(Circle())
-                                .padding(4)
-                        })
+                LazyVGrid(
+                    columns: [GridItem(.flexible()), GridItem(.flexible())],
+                    spacing: Layout.imageGridSpacing
+                ) {
+                    ForEach(viewModel.images.indices, id: \.self) { index in
+                        ImageThumbnailCell(
+                            source: viewModel.images[index],
+                            cornerRadius: Layout.cornerRadius
+                        ) {
+                            selectedImageIndex = index
+                            showImageMenu = true
+                        }
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
         }
-        }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(radius: 2)
+        .padding(Layout.sectionPadding)
+        .background(LMSColor.background)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
     }
 
     // MARK: - Take More Photos Section
     private var takeMorePhotosSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LMSLabel("Chụp thêm ảnh", style: .title2)
+        VStack(alignment: .leading, spacing: Layout.innerSpacing) {
+            LMSLabel(localizationManager.localize("errorReview.section.takeMorePhotos"), style: .title2)
 
-            LMSButton("Chụp ảnh", icon: "camera.fill", variant: .primary, isFullWidth: true) {
+            LMSButton(
+                localizationManager.localize("errorReview.button.takePhoto"),
+                icon: "camera.fill",
+                variant: .primary,
+                isFullWidth: true
+            ) {
                 viewModel.showCamera = true
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(radius: 2)
+        .padding(Layout.sectionPadding)
+        .background(LMSColor.background)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
     }
 
     // MARK: - Severity Level Section
     private var severityLevelSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            LMSLabel("Mức độ nặng nhẹ", style: .title2)
+        VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
+            LMSLabel(localizationManager.localize("errorReview.section.severity"), style: .title2)
 
-            VStack(spacing: 12) {
+            VStack(spacing: Layout.innerSpacing) {
                 ForEach(SeverityLevel.allCases, id: \.self) { level in
                     HStack {
                         Image(systemName: viewModel.selectedSeverity == level ? "circle.inset.filled" : "circle")
-                            .foregroundColor(viewModel.selectedSeverity == level ? .blue : .gray)
+                            .foregroundColor(
+                                viewModel.selectedSeverity == level ? LMSColor.primary : LMSColor.textTertiary
+                            )
                         LMSLabel(level.displayName, style: .body)
                         Spacer()
                     }
@@ -213,17 +300,17 @@ struct PhotoCaptureErrorReviewView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(radius: 2)
+        .padding(Layout.sectionPadding)
+        .background(LMSColor.background)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
     }
 
     // MARK: - General Condition Section
     private var generalConditionSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
             HStack {
-                LMSLabel("Tình trạng chung", style: .title2)
+                LMSLabel(localizationManager.localize("errorReview.section.generalCondition"), style: .title2)
                 Spacer()
                 Toggle("", isOn: $viewModel.generalConditionEnabled)
                     .labelsHidden()
@@ -231,25 +318,20 @@ struct PhotoCaptureErrorReviewView: View {
 
             if viewModel.generalConditionEnabled {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHGrid(rows: [GridItem(.flexible())], spacing: 16) {
+                    LazyHGrid(rows: [GridItem(.flexible())], spacing: Layout.sectionSpacing) {
                         ForEach(1...10, id: \.self) { number in
+                            let isSelected = viewModel.selectedGeneralCondition == number
                             LMSLabel("\(number)", style: .body)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
+                                .padding(.horizontal, Layout.numberChipHPadding)
+                                .padding(.vertical, Layout.numberChipVPadding)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(
-                                            viewModel.selectedGeneralCondition == number
-                                                ? Color.blue.opacity(0.1)
-                                                : Color.gray.opacity(0.1)
-                                        )
+                                    RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                                        .fill(isSelected ? LMSColor.primaryLight : LMSColor.backgroundSecondary)
                                 )
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
+                                    RoundedRectangle(cornerRadius: Layout.cornerRadius)
                                         .stroke(
-                                            viewModel.selectedGeneralCondition == number
-                                                ? Color.blue
-                                                : Color.gray,
+                                            isSelected ? LMSColor.primary : LMSColor.secondary,
                                             lineWidth: 1
                                         )
                                 )
@@ -262,93 +344,143 @@ struct PhotoCaptureErrorReviewView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(radius: 2)
+        .padding(Layout.sectionPadding)
+        .background(LMSColor.background)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
     }
 
     // MARK: - Defect Types Section
     private var defectTypesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Layout.innerSpacing) {
             if let defectType = viewModel.selectedDefectType {
                 HStack {
-                    LMSLabel("Các loại phân lỗi", style: .title2)
+                    LMSLabel(localizationManager.localize("errorReview.section.defectTypes"), style: .title2)
                     Spacer()
-                    Button {
+                    Button(action: {
                         viewModel.selectedDefectType = nil
-                    } label: {
+                    }, label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
-                    }
+                            .foregroundColor(LMSColor.textTertiary)
+                    })
                 }
                 LMSLabel(defectType.displayName, style: .body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(LMSTextColor.secondary.color)
                     .lineLimit(2)
             } else {
                 HStack {
-                    LMSLabel("Các loại phân lỗi", style: .title2)
+                    LMSLabel(localizationManager.localize("errorReview.section.defectTypes"), style: .title2)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .foregroundColor(.gray)
+                        .foregroundColor(LMSColor.textTertiary)
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
+                    defectTypeSearchableVM = SearchableListViewModel(
+                        sections: viewModel.defectTypeSearchableData(),
+                        title: localizationManager.localize("errorReview.section.defectTypes")
+                    )
                     showingDefectTypeList = true
                 }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(radius: 2)
+        .padding(Layout.sectionPadding)
+        .background(LMSColor.background)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
+    }
+
+    // MARK: - Comments Section
+    private var commentsSection: some View {
+        VStack(alignment: .leading, spacing: Layout.innerSpacing) {
+            LMSLabel(localizationManager.localize("errorReview.section.comments"), style: .title2)
+
+            TextEditor(text: $viewModel.comments)
+                .frame(minHeight: Layout.textEditorMinHeight)
+                .padding(Layout.textEditorPadding)
+                .background(LMSColor.backgroundSecondary)
+                .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                        .stroke(LMSColor.secondary, lineWidth: 1)
+                )
+        }
+        .padding(Layout.sectionPadding)
+        .background(LMSColor.background)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
     }
 
     // MARK: - Action Buttons Section
     private var actionButtonsSection: some View {
-        HStack(spacing: 16) {
-            LMSButton("Xoá", icon: "trash.fill", variant: .destructive) {
+        HStack(spacing: Layout.sectionSpacing) {
+            LMSButton(
+                localizationManager.localize("errorReview.button.delete"),
+                icon: "trash.fill",
+                variant: .destructive
+            ) {
                 showDeleteConfirmation = true
             }
 
-            LMSButton("Lưu Thay đổi", icon: "pencil", variant: .primary) {
+            LMSButton(
+                localizationManager.localize("errorReview.button.saveChanges"),
+                icon: "pencil",
+                variant: .primary
+            ) {
                 Task {
-                    let localImages = viewModel.images.compactMap { source -> UIImage? in
-                        if case .local(let img) = source { return img } else { return nil }
-                    }
                     if let saved = await viewModel.updateReview() {
                         onImagesUpdated(viewModel.images)
-                        onSaved(saved, localImages)
+                        onSaved(saved, viewModel.localImages)
                         dismiss()
                     }
                 }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(radius: 2)
+        .padding(Layout.sectionPadding)
+        .background(LMSColor.background)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
+        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
     }
 
-    // MARK: - Comments Section
-    private var commentsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LMSLabel("Viết nhận xét tại đây", style: .title2)
-
-            TextEditor(text: $viewModel.comments)
-                .frame(minHeight: 100)
-                .padding(12)
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(.systemGray4), lineWidth: 1)
-                )
+    // MARK: - Image Action Handlers
+    private func handleEditImage() async {
+        guard let index = selectedImageIndex else { return }
+        switch viewModel.images[index] {
+        case .local(let img):
+            editingUIImage = img
+            showImageEditor = true
+        case .remote(let url):
+            viewModel.isDownloading = true
+            do {
+                let img = try await viewModel.downloadImage(from: url)
+                viewModel.isDownloading = false
+                editingUIImage = img
+                showImageEditor = true
+            } catch {
+                viewModel.isDownloading = false
+                viewModel.snackbarMessage = localizationManager.localize("imageEditor.error.downloadFailed")
+            }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(8)
-        .shadow(radius: 2)
+    }
+
+    private func handleShareImage() async {
+        guard let index = selectedImageIndex else { return }
+        switch viewModel.images[index] {
+        case .local(let img):
+            sharingImage = img
+            showShareSheet = true
+        case .remote(let url):
+            viewModel.isDownloading = true
+            do {
+                let img = try await viewModel.downloadImage(from: url)
+                viewModel.isDownloading = false
+                sharingImage = img
+                showShareSheet = true
+            } catch {
+                viewModel.isDownloading = false
+                viewModel.snackbarMessage = localizationManager.localize("imageEditor.error.downloadFailed")
+            }
+        }
     }
 
     // MARK: - Private Methods
@@ -360,33 +492,69 @@ struct PhotoCaptureErrorReviewView: View {
         case .remote(let url):
             CachedAsyncImage(url: URL(string: url)) { phase in
                 if let img = phase.image { img.resizable() }
-                else { Color.gray.opacity(0.3) }
+                else { LMSColor.backgroundSecondary }
             }
-        }
-    }
-
-    private func createDefectTypeSearchableData() -> [ListItemProtocol] {
-        let categories: [String] = ["PA", "SU", "AS", "FU", "SA", "FI", "CO", "FE", "TA"]
-        return categories.compactMap { category -> ListItemProtocol? in
-            let items = DefectType.allCases.filter { $0.category == category }
-            guard !items.isEmpty else { return nil }
-            let datas = items.map { ListDataItem(id: $0.rawValue.hashValue, name: $0.displayName) }
-            return SampleListItem(title: items[0].categoryDisplayName, datas: datas)
-        }
-    }
-
-    private func handleDefectTypeSelection(_ selectedItem: ListDataItem) {
-        let code = selectedItem.name.components(separatedBy: " - ").first ?? ""
-        if let defectType = DefectType(rawValue: code) {
-            viewModel.selectedDefectType = defectType
         }
     }
 }
 
-// MARK: - Sample List Item for Searchable Data
-private struct SampleListItem: ListItemProtocol {
-    let title: String?
-    let datas: [ListDataItem]
+// MARK: - Image Thumbnail Cell
+
+private struct ImageThumbnailCell: View {
+    let source: ImageSource
+    let cornerRadius: CGFloat
+    let onMenu: () -> Void
+
+    @GestureState private var isPressed = false
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            imageContent
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .aspectRatio(1, contentMode: .fill)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+
+            Button(action: onMenu, label: {
+                Image(systemName: "ellipsis.circle.fill")
+                    .foregroundColor(LMSColor.white)
+                    .background(LMSColor.black.opacity(0.6))
+                    .clipShape(Circle())
+                    .padding(4)
+            })
+        }
+        .scaleEffect(isPressed ? 0.95 : 1.0)
+        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .updating($isPressed) { _, state, _ in state = true }
+        )
+    }
+
+    @ViewBuilder
+    private var imageContent: some View {
+        switch source {
+        case .local(let image):
+            Image(uiImage: image).resizable()
+        case .remote(let url):
+            CachedAsyncImage(url: URL(string: url)) { phase in
+                if let img = phase.image { img.resizable() }
+                else { LMSColor.backgroundSecondary }
+            }
+        }
+    }
+}
+
+// MARK: - Share Sheet
+
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Preview
@@ -396,6 +564,7 @@ private struct SampleListItem: ListItemProtocol {
         initialImages: [],
         onImagesUpdated: { _ in }
     )
+    .environmentObject(LocalizationManager.shared)
 }
 
 #Preview("With Images") {
@@ -407,4 +576,5 @@ private struct SampleListItem: ListItemProtocol {
         initialImages: [.local(image: sampleImage1), .local(image: sampleImage2)],
         onImagesUpdated: { _ in }
     )
+    .environmentObject(LocalizationManager.shared)
 }

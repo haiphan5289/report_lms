@@ -9,25 +9,19 @@
 import AVFoundation
 import UIKit
 
-/// Controls AVFoundation camera session, input/output, and photo capture
-///
-/// Responsibilities:
-/// - AVCaptureSession management
-/// - Device input configuration (front/back camera)
-/// - Photo output handling
-/// - Flash and zoom controls
 final class CameraController: NSObject {
     // MARK: - Properties
     private let captureSession = AVCaptureSession()
     private var videoDeviceInput: AVCaptureDeviceInput?
     private let photoOutput = AVCapturePhotoOutput()
+    private let sessionQueue = DispatchQueue(label: "com.reportlms.camera.session")
     private var captureCompletion: ((Result<UIImage, Error>) -> Void)?
 
-    var previewLayer: AVCaptureVideoPreviewLayer {
+    private(set) lazy var previewLayer: AVCaptureVideoPreviewLayer = {
         let layer = AVCaptureVideoPreviewLayer(session: captureSession)
         layer.videoGravity = .resizeAspectFill
         return layer
-    }
+    }()
 
     var currentCameraPosition: AVCaptureDevice.Position {
         videoDeviceInput?.device.position ?? .back
@@ -39,50 +33,78 @@ final class CameraController: NSObject {
 
     // MARK: - Session Management
     func setupSession() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionQueue.async { [weak self] in
+                guard let self else { return }
+                do {
+                    try self.configureSession()
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private func configureSession() throws {
         captureSession.beginConfiguration()
         captureSession.sessionPreset = .photo
 
-        // Add video input
         guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            captureSession.commitConfiguration()
             throw CameraError.deviceNotAvailable
         }
 
         let videoInput = try AVCaptureDeviceInput(device: videoDevice)
 
         guard captureSession.canAddInput(videoInput) else {
+            captureSession.commitConfiguration()
             throw CameraError.cannotAddInput
         }
 
         captureSession.addInput(videoInput)
         videoDeviceInput = videoInput
 
-        // Add photo output
         guard captureSession.canAddOutput(photoOutput) else {
+            captureSession.commitConfiguration()
             throw CameraError.cannotAddOutput
         }
 
         captureSession.addOutput(photoOutput)
         photoOutput.isHighResolutionCaptureEnabled = true
-
         captureSession.commitConfiguration()
     }
 
     func startSession() {
-        guard !captureSession.isRunning else { return }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.captureSession.startRunning()
+        sessionQueue.async { [weak self] in
+            guard let self, !self.captureSession.isRunning else { return }
+            self.captureSession.startRunning()
         }
     }
 
     func stopSession() {
-        guard captureSession.isRunning else { return }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.captureSession.stopRunning()
+        sessionQueue.async { [weak self] in
+            guard let self, self.captureSession.isRunning else { return }
+            self.captureSession.stopRunning()
         }
     }
 
     // MARK: - Camera Controls
     func switchCamera() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionQueue.async { [weak self] in
+                guard let self else { return }
+                do {
+                    try self.switchCameraSync()
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private func switchCameraSync() throws {
         let newPosition: AVCaptureDevice.Position = currentCameraPosition == .back ? .front : .back
 
         guard let newDevice = AVCaptureDevice.default(
@@ -102,23 +124,13 @@ final class CameraController: NSObject {
         }
 
         guard captureSession.canAddInput(newInput) else {
+            captureSession.commitConfiguration()
             throw CameraError.cannotAddInput
         }
 
         captureSession.addInput(newInput)
         videoDeviceInput = newInput
-
         captureSession.commitConfiguration()
-    }
-
-    func setFlashMode(_ mode: AVCaptureDevice.FlashMode) throws {
-        guard let device = videoDeviceInput?.device, device.hasFlash else {
-            throw CameraError.flashNotAvailable
-        }
-
-        try device.lockForConfiguration()
-        device.flashMode = mode
-        device.unlockForConfiguration()
     }
 
     func setZoom(_ factor: CGFloat) throws {
@@ -132,33 +144,39 @@ final class CameraController: NSObject {
     }
 
     // MARK: - Capture Photo
-    func capturePhoto(completion: @escaping (Result<UIImage, Error>) -> Void) {
-        let settings = AVCapturePhotoSettings()
-        settings.flashMode = videoDeviceInput?.device.flashMode ?? .off
-
+    func capturePhoto(flashMode: AVCaptureDevice.FlashMode, completion: @escaping (Result<UIImage, Error>) -> Void) {
+        // Set completion on the calling thread (main actor from ViewModel) before dispatching.
+        // The delegate always routes back to main before invoking it, so access is serialised.
         captureCompletion = completion
-        photoOutput.capturePhoto(with: settings, delegate: self)
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            let settings = AVCapturePhotoSettings()
+            if let device = self.videoDeviceInput?.device, device.hasFlash {
+                settings.flashMode = flashMode
+            }
+            self.photoOutput.capturePhoto(with: settings, delegate: self)
+        }
     }
 }
 
 // MARK: - AVCapturePhotoCaptureDelegate
 extension CameraController: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        let result: Result<UIImage, Error>
+
         if let error = error {
-            captureCompletion?(.failure(error))
-            return
+            result = .failure(error)
+        } else if let imageData = photo.fileDataRepresentation(),
+                  let image = UIImage(data: imageData) {
+            result = .success(image)
+        } else {
+            result = .failure(CameraError.imageCreationFailed)
         }
 
-        guard let imageData = photo.fileDataRepresentation(),
-              let image = UIImage(data: imageData) else {
-            captureCompletion?(.failure(CameraError.imageCreationFailed))
-            return
+        DispatchQueue.main.async { [weak self] in
+            self?.captureCompletion?(result)
+            self?.captureCompletion = nil
         }
-
-        captureCompletion?(.success(image))
-
-        // Ensure session continues running after capture
-        startSession()
     }
 }
 

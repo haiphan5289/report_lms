@@ -108,6 +108,31 @@ final class LocalizationManager: ObservableObject {
             "progress.empty.title": "Không có yêu cầu nào đang trong tiến trình",
             "progress.empty.subtitle": "Các yêu cầu đang kiểm tra sẽ hiển thị tại đây",
 
+            // MARK: Error Review
+            "errorReview.title.new": "Đánh giá ảnh chụp",
+            "errorReview.title.edit": "Chỉnh sửa lỗi",
+            "errorReview.section.images": "Ảnh đã chụp",
+            "errorReview.images.empty": "Chưa có ảnh nào",
+            "errorReview.section.takeMorePhotos": "Chụp thêm ảnh",
+            "errorReview.button.takePhoto": "Chụp ảnh",
+            "errorReview.section.severity": "Mức độ nặng nhẹ",
+            "errorReview.section.generalCondition": "Tình trạng chung",
+            "errorReview.section.defectTypes": "Các loại phân lỗi",
+            "errorReview.section.comments": "Viết nhận xét tại đây",
+            "errorReview.button.delete": "Xoá",
+            "errorReview.button.saveChanges": "Lưu thay đổi",
+            "errorReview.delete.title": "Bạn có chắc muốn xoá lỗi này không?",
+            "errorReview.delete.confirm": "Xoá lỗi",
+
+            // MARK: Image Editor
+            "imageEditor.title": "Chỉnh sửa ảnh",
+            "imageEditor.addText.title": "Thêm chú thích",
+            "imageEditor.addText.placeholder": "Nhập nội dung...",
+            "imageEditor.menu.edit": "Chỉnh sửa",
+            "imageEditor.menu.share": "Chia sẻ",
+            "imageEditor.menu.delete": "Xoá bỏ",
+            "imageEditor.error.downloadFailed": "Không thể tải ảnh. Vui lòng thử lại.",
+
             // MARK: Camera
             "camera.source.errorReport": "Báo cáo lỗi",
             "camera.source.inspection": "Chụp ảnh kiểm tra",
@@ -257,6 +282,31 @@ final class LocalizationManager: ObservableObject {
             // MARK: Progress
             "progress.empty.title": "No requests in progress",
             "progress.empty.subtitle": "Requests being inspected will appear here",
+
+            // MARK: Error Review
+            "errorReview.title.new": "Review Photos",
+            "errorReview.title.edit": "Edit Error",
+            "errorReview.section.images": "Captured Photos",
+            "errorReview.images.empty": "No photos yet",
+            "errorReview.section.takeMorePhotos": "Take More Photos",
+            "errorReview.button.takePhoto": "Take Photo",
+            "errorReview.section.severity": "Severity Level",
+            "errorReview.section.generalCondition": "General Condition",
+            "errorReview.section.defectTypes": "Defect Types",
+            "errorReview.section.comments": "Add comments here",
+            "errorReview.button.delete": "Delete",
+            "errorReview.button.saveChanges": "Save Changes",
+            "errorReview.delete.title": "Are you sure you want to delete this error?",
+            "errorReview.delete.confirm": "Delete Error",
+
+            // MARK: Image Editor
+            "imageEditor.title": "Edit Image",
+            "imageEditor.addText.title": "Add Annotation",
+            "imageEditor.addText.placeholder": "Enter text...",
+            "imageEditor.menu.edit": "Edit",
+            "imageEditor.menu.share": "Share",
+            "imageEditor.menu.delete": "Delete",
+            "imageEditor.error.downloadFailed": "Could not download image. Please try again.",
 
             // MARK: Camera
             "camera.source.errorReport": "Error Report",

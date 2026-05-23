@@ -54,7 +54,7 @@ struct PlanLMSHomeView: View {
     // MARK: - Private Views
     private var contentView: some View {
         Group {
-            if viewModel.isLoading {
+            if viewModel.isLoading || !viewModel.isCacheReady {
                 LMSLoadingView()
             } else if let errorMessage = viewModel.errorMessage {
                 errorView(message: errorMessage)
@@ -275,6 +275,7 @@ private func createPreviewViewModel() -> PlanLMSHomeViewModel {
         storageService: mockStorageService,
         groupInspectionsByWeekUseCase: mockGroupUseCase
     )
+    viewModel.isCacheReady = true
 
     return viewModel
 }

@@ -9,13 +9,6 @@
 import SwiftUI
 import AVFoundation
 
-/// ViewModel for camera functionality with permission handling and capture controls
-///
-/// Manages:
-/// - Camera session lifecycle
-/// - Permission requests
-/// - Flash, zoom, and camera switching
-/// - Photo capture and preview
 @MainActor
 final class CameraViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -24,28 +17,34 @@ final class CameraViewModel: ObservableObject {
     @Published var zoomFactor: CGFloat = 1.0
     @Published var errorMessage: String?
     @Published var showPermissionAlert = false
+    @Published private(set) var isFlashAvailable = false
     @Published var cameraPermissionStatus: AVAuthorizationStatus = .notDetermined
 
     // MARK: - Private Properties
-    let cameraController = CameraController()
+    private let cameraController = CameraController()
+    private let source: CameraSource
     private var isSessionSetup = false
+
+    var previewLayer: AVCaptureVideoPreviewLayer { cameraController.previewLayer }
+
+    // MARK: - Init
+    init(source: CameraSource) {
+        self.source = source
+    }
 
     // MARK: - Computed Properties
     var flashIcon: String {
         switch flashMode {
-        case .off:
-            return "bolt.slash.fill"
-        case .on:
-            return "bolt.fill"
-        case .auto:
-            return "bolt.badge.automatic.fill"
-        @unknown default:
-            return "bolt.slash.fill"
+        case .off: return "bolt.slash.fill"
+        case .on: return "bolt.fill"
+        case .auto: return "bolt.badge.automatic.fill"
+        @unknown default: return "bolt.slash.fill"
         }
     }
 
     // MARK: - Lifecycle
     func setupCamera() async {
+        flashMode = .off
         await checkCameraPermission()
 
         guard cameraPermissionStatus == .authorized else {
@@ -58,6 +57,7 @@ final class CameraViewModel: ObservableObject {
         do {
             try await cameraController.setupSession()
             isSessionSetup = true
+            isFlashAvailable = cameraController.isFlashAvailable
             cameraController.startSession()
         } catch {
             errorMessage = error.localizedDescription
@@ -85,14 +85,15 @@ final class CameraViewModel: ObservableObject {
 
     // MARK: - Camera Actions
     func capturePhoto() {
-        cameraController.capturePhoto { [weak self] result in
-            Task { @MainActor in
-                switch result {
-                case .success(let image):
-                    self?.capturedImages.append(image)
-                case .failure(let error):
-                    self?.errorMessage = error.localizedDescription
-                }
+        guard source.allowsMultiplePhotos || capturedImages.isEmpty else { return }
+
+        cameraController.capturePhoto(flashMode: flashMode) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let image):
+                self.capturedImages.append(image)
+            case .failure(let error):
+                self.errorMessage = error.localizedDescription
             }
         }
     }
@@ -106,6 +107,7 @@ final class CameraViewModel: ObservableObject {
         Task {
             do {
                 try await cameraController.switchCamera()
+                isFlashAvailable = cameraController.isFlashAvailable
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -115,22 +117,12 @@ final class CameraViewModel: ObservableObject {
     func toggleFlash() {
         let nextMode: AVCaptureDevice.FlashMode
         switch flashMode {
-        case .off:
-            nextMode = .on
-        case .on:
-            nextMode = .auto
-        case .auto:
-            nextMode = .off
-        @unknown default:
-            nextMode = .off
+        case .off: nextMode = .on
+        case .on: nextMode = .auto
+        case .auto: nextMode = .off
+        @unknown default: nextMode = .off
         }
-
-        do {
-            try cameraController.setFlashMode(nextMode)
-            flashMode = nextMode
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        flashMode = nextMode
     }
 
     func updateZoom(_ factor: CGFloat) {

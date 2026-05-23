@@ -13,6 +13,7 @@ final class PlanLMSHomeViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var weeklyInspections: [WeekSection] = []
     @Published var isLoading = true
+    @Published var isCacheReady = false
     @Published var errorMessage: String?
 
     // MARK: - Private Properties
@@ -33,6 +34,7 @@ final class PlanLMSHomeViewModel: ObservableObject {
             NotificationCenter.default.publisher(for: .inspectionCacheDidLoad)
                 .sink { [weak self] _ in
                     Task { @MainActor in
+                        self?.isCacheReady = true
                         await self?.loadInspections()
                     }
                 }
