@@ -14,7 +14,7 @@ import FirebaseAuth
 
 // MARK: - ErrorRepository
 
-final class ErrorRepository: ErrorRepositoryType {
+actor ErrorRepository: ErrorRepositoryType {
 
     private let logger = Logger(subsystem: "com.reportlms", category: "ErrorRepository")
 

@@ -144,7 +144,9 @@ struct PhotoCaptureErrorReviewView: View {
             print("   - EditMode: \(viewModel.isEditMode)")
             print("   - InspectionId: \(viewModel.inspectionId)")
             print("   - EditingItem: \(editingItem?.id ?? "nil")")
-            viewModel.setInitialImages(initialImages)
+            Task {
+                await viewModel.setInitialImages(initialImages)
+            }
         }
         .onDisappear {
             print("🔍 [PhotoCaptureErrorReviewView] onDisappear")

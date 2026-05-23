@@ -8,7 +8,7 @@
 import Foundation
 import FirebaseStorage
 
-final class FirebaseStorageService {
+actor FirebaseStorageService {
     private let storage = Storage.storage()
 
     func uploadImage(_ imageData: Data, path: String) async throws -> String {

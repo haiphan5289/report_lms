@@ -48,6 +48,14 @@ struct LMSColor {
 
     /// Color for destructive actions (delete, remove, etc.)
     static let destructive = Color.red
+    
+    // MARK: - Status Colors
+    
+    /// Color for success states and positive feedback
+    static let success = Color.green
+    
+    /// Color for warnings and attention-requiring elements
+    static let warning = Color.orange
 
     // MARK: - Neutral Colors
 

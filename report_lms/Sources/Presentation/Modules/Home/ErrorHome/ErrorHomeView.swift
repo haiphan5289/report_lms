@@ -11,6 +11,7 @@ import SwiftUI
 
 struct ErrorHomeView: View {
     // MARK: - Properties
+    @EnvironmentObject private var localizationManager: LocalizationManager
     @StateObject private var viewModel: ErrorHomeViewModel
     @State private var showErrorCamera = false
     @State private var capturedImages: [UIImage] = []
@@ -104,7 +105,7 @@ struct ErrorHomeView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(UIColor.systemBackground))
-                        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+                        .shadow(color: LMSColor.shadow, radius: 4, x: 0, y: 2)
                 )
                 .padding(.horizontal, 16)
             }
@@ -119,11 +120,11 @@ struct ErrorHomeView: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
-                .foregroundColor(.red)
+                .foregroundColor(LMSColor.destructive)
 
             LMSLabel(message, style: .body, alignment: .center)
 
-            LMSButton("Thử lại", icon: "arrow.clockwise", variant: .primary, action: {
+            LMSButton(localizationManager.localize("common.retry"), icon: "arrow.clockwise", variant: .primary, action: {
                 Task {
                     await viewModel.loadErrorInspections()
                 }
@@ -139,15 +140,15 @@ struct ErrorHomeView: View {
             Spacer()
             Image(systemName: "checkmark.circle")
                 .font(.system(size: 56))
-                .foregroundColor(.green.opacity(0.6))
+                .foregroundColor(LMSColor.success.opacity(0.6))
                 .offset(y: floatOffset)
                 .onAppear {
                     withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
                         floatOffset = 6
                     }
                 }
-            LMSLabel("Không có lỗi nào được phát hiện", style: .body, alignment: .center)
-            LMSLabel("Tất cả kiểm tra đang diễn ra tốt", style: .subheadline, color: .secondary, alignment: .center)
+            LMSLabel(localizationManager.localize("errorHome.empty.title"), style: .body, alignment: .center)
+            LMSLabel(localizationManager.localize("errorHome.empty.subtitle"), style: .subheadline, color: .secondary, alignment: .center)
                 .multilineTextAlignment(.center)
             Spacer()
         }
@@ -209,8 +210,8 @@ struct ErrorHomeView: View {
                 .foregroundColor(.white)
         }
         .frame(width: 56, height: 56)
-        .background(Circle().fill(Color.orange))
-        .shadow(color: Color.orange.opacity(0.45), radius: 14, x: 0, y: 6)
+        .background(Circle().fill(LMSColor.warning))
+        .shadow(color: LMSColor.warning.opacity(0.45), radius: 14, x: 0, y: 6)
         .padding(.trailing, 24)
         .padding(.bottom, 24)
     }

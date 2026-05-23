@@ -65,8 +65,40 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
         images.remove(at: index)
     }
 
-    func setInitialImages(_ initialImages: [ImageWithNote]) {
+    func setInitialImages(_ initialImages: [ImageWithNote]) async {
         images = initialImages
+        
+        // AC-14: Auto-download remote images in edit mode
+        if isEditMode {
+            // Check if there are any remote images to download
+            let remoteImages = images.filter { 
+                if case .remote = $0.source { return true }
+                return false
+            }
+            
+            guard !remoteImages.isEmpty else {
+                print("🔍 [PhotoCaptureErrorReviewVM] No remote images to download - all images are local ✅")
+                return
+            }
+            
+            print("🔍 [PhotoCaptureErrorReviewVM] Auto-downloading \(remoteImages.count) remote images in edit mode")
+            isDownloading = true
+            
+            for (index, imageWithNote) in images.enumerated() {
+                if case .remote(let url) = imageWithNote.source {
+                    do {
+                        let downloadedImage = try await downloadImage(from: url)
+                        images[index] = ImageWithNote(source: .local(image: downloadedImage), note: imageWithNote.note)
+                        print("   - Downloaded image \(index + 1)/\(remoteImages.count)")
+                    } catch {
+                        print("   - Failed to download image \(index): \(error)")
+                    }
+                }
+            }
+            
+            isDownloading = false
+            print("   - Auto-download complete ✅")
+        }
     }
 
     func replaceImage(at index: Int, with image: UIImage) {
@@ -88,12 +120,25 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
             print("   - ❌ Bad URL")
             throw URLError(.badURL)
         }
-        let (data, _) = try await URLSession.shared.data(from: imageURL)
-        print("   - Downloaded \(data.count) bytes")
-        guard let image = UIImage(data: data) else {
-            print("   - ❌ Cannot decode image")
-            throw URLError(.cannotDecodeContentData)
+        
+        // ✅ Use ImageCacheActor for cached download
+        let image: UIImage
+        if let cached = await ImageCacheActor.shared.image(for: imageURL) {
+            print("   - ✅ Cache hit")
+            image = cached
+        } else {
+            print("   - 📥 Downloading from network")
+            let (data, _) = try await URLSession.shared.data(from: imageURL)
+            print("   - Downloaded \(data.count) bytes")
+            guard let downloaded = UIImage(data: data) else {
+                print("   - ❌ Cannot decode image")
+                throw URLError(.cannotDecodeContentData)
+            }
+            // Store in cache for future use
+            await ImageCacheActor.shared.store(downloaded, for: imageURL)
+            image = downloaded
         }
+        
         print("   - Original image size: \(image.size)")
         print("   - Original image scale: \(image.scale)")
         

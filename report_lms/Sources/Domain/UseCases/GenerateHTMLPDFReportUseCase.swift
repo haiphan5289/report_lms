@@ -71,8 +71,13 @@ final class GenerateHTMLPDFReportUseCase {
                     var resolvedField: [InspectionImage] = []
                     for img in fieldImages {
                         if img.isRemote, let url = img.remoteURL {
-                            if let (data, _) = try? await URLSession.shared.data(from: url),
-                               let uiImage = UIImage(data: data) {
+                            // ✅ Use ImageCacheActor for cached download
+                            if let cachedImage = await ImageCacheActor.shared.image(for: url) {
+                                resolvedField.append(InspectionImage(image: cachedImage, description: img.description))
+                            } else if let (data, _) = try? await URLSession.shared.data(from: url),
+                                      let uiImage = UIImage(data: data) {
+                                // Store in cache for future use
+                                await ImageCacheActor.shared.store(uiImage, for: url)
                                 resolvedField.append(InspectionImage(image: uiImage, description: img.description))
                             }
                             // Skip images that fail to download — don't break PDF for one bad image
