@@ -20,6 +20,8 @@ struct CreateInspectionView: View {
     @StateObject private var viewModel: CreateInspectionViewModel
     @State private var showingSearchableList = false
     @State private var currentDropdownField: InputFieldType?
+    @State private var formVisible = false
+    @State private var buttonVisible = false
 
     var onInspectionCreated: ((Inspection) -> Void)?
 
@@ -42,7 +44,13 @@ struct CreateInspectionView: View {
                 }
                 .padding()
             }
+            .opacity(formVisible ? 1 : 0)
+            .offset(y: formVisible ? 0 : 16)
+            .animation(.easeOut(duration: 0.4), value: formVisible)
             createButtonSection
+                .opacity(buttonVisible ? 1 : 0)
+                .offset(y: buttonVisible ? 0 : 12)
+                .animation(.easeOut(duration: 0.35), value: buttonVisible)
         }
         .navigationTitle("Tạo kiểm tra")
         .navigationBarTitleDisplayMode(.inline)
@@ -71,6 +79,11 @@ struct CreateInspectionView: View {
             }
         } message: {
             Text("Đã tạo báo cáo kiểm tra thành công!")
+        }
+        .task {
+            withAnimation(.easeOut(duration: 0.4)) { formVisible = true }
+            try? await Task.sleep(for: .milliseconds(150))
+            withAnimation(.easeOut(duration: 0.35)) { buttonVisible = true }
         }
     }
 

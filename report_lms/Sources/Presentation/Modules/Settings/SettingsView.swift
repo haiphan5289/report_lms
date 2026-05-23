@@ -12,6 +12,7 @@ import SwiftUI
 struct SettingsView: View {
 
     @EnvironmentObject private var localizationManager: LocalizationManager
+    @State private var contentVisible = false
 
     // MARK: - Body
 
@@ -21,6 +22,12 @@ struct SettingsView: View {
         }
         .navigationTitle(localizationManager.localize("settings.title"))
         .navigationBarTitleDisplayMode(.large)
+        .opacity(contentVisible ? 1 : 0)
+        .offset(y: contentVisible ? 0 : 16)
+        .animation(.easeOut(duration: 0.4), value: contentVisible)
+        .task {
+            withAnimation(.easeOut(duration: 0.4)) { contentVisible = true }
+        }
     }
 
     // MARK: - Language Section

@@ -8,6 +8,11 @@
 import Foundation
 import SwiftUI
 
+struct ValidationFieldSelection: Hashable {
+    let id: String
+    let label: String
+}
+
 @MainActor
 final class InspectionDetailViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -19,11 +24,21 @@ final class InspectionDetailViewModel: ObservableObject {
     @Published var showCamera = false
     @Published var selectedFieldId: String?
     @Published var isSubmitted = false
-    @Published var showValidation = false
-    @Published var selectedValidationField: (id: String, label: String)?
+    @Published var selectedValidationField: ValidationFieldSelection?
     @Published var selectedTab: Tab = .inspectionDetail
+    @Published var selectedErrorItem: SavedErrorItem? = nil {
+        didSet {
+            print("🔍 [InspectionDetailVM] selectedErrorItem changed:")
+            print("   - Old: \(oldValue?.id ?? "nil")")
+            print("   - New: \(selectedErrorItem?.id ?? "nil")")
+        }
+    }
 
     // MARK: - Child ViewModels
+    private(set) lazy var errorHomeViewModel: ErrorHomeViewModel = {
+        ErrorHomeViewModel(inspectionId: inspectionId)
+    }()
+
     private(set) lazy var contentViewModel: InspectionDetailContentViewModel = {
         InspectionDetailContentViewModel(
             parentViewModel: self,
@@ -117,8 +132,7 @@ final class InspectionDetailViewModel: ObservableObject {
 
     func openValidationView(for fieldId: String) {
         let fieldLabel = findFieldLabel(for: fieldId)
-        selectedValidationField = (id: fieldId, label: fieldLabel)
-        showValidation = true
+        selectedValidationField = ValidationFieldSelection(id: fieldId, label: fieldLabel)
     }
     
     func openCamera(for fieldId: String) {
@@ -128,7 +142,6 @@ final class InspectionDetailViewModel: ObservableObject {
     
     func handleValidationSave(_ validation: FieldValidation) {
         capturedPhotos[validation.id] = validation.images
-        showValidation = false
         selectedValidationField = nil
     }
     

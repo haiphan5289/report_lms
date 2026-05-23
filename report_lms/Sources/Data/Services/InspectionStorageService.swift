@@ -14,14 +14,20 @@ extension Notification.Name {
     static let inspectionDidUpdate = Notification.Name("inspectionDidUpdate")
 }
 
-/// Local storage service for inspections with in-memory caching
-/// Stores all inspections in a single JSON file: Documents/inspections.json
+/// Local-disk implementation of `InspectionStorageServiceType`.
+///
+/// Persists all inspections as a single JSON file at `Documents/inspections.json`.
+/// Reads are served from `cache` after `loadCache()` completes.
 final class InspectionStorageService: InspectionStorageServiceType {
     // MARK: - Properties
     private let logger = Logger(subsystem: "com.reportlms.storage", category: "inspection")
     private let fileManager = FileManager.default
     private let fileName = "inspections.json"
-    
+
+    /// Flips to `true` when `loadCache()` finishes (success or failure).
+    /// Stays `true` for the app lifetime; survives logout/login.
+    private(set) var isCacheLoaded = false
+
     /// In-memory cache for fast access
     @MainActor
     private var cache: [Inspection] = []
@@ -60,7 +66,7 @@ final class InspectionStorageService: InspectionStorageServiceType {
                 await MainActor.run {
                     cache = []
                 }
-                // Notify that cache is ready (empty but ready)
+                isCacheLoaded = true
                 NotificationCenter.default.post(name: .inspectionCacheDidLoad, object: nil)
                 return
             }
@@ -77,8 +83,7 @@ final class InspectionStorageService: InspectionStorageServiceType {
             }
             
             logger.log("Loaded \(inspections.count) inspections into cache")
-            
-            // Notify that cache is ready
+            isCacheLoaded = true
             NotificationCenter.default.post(name: .inspectionCacheDidLoad, object: nil)
         } catch {
             logger.error("Failed to load cache: \(error.localizedDescription)")

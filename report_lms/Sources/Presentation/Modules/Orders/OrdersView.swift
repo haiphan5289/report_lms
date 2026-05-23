@@ -12,6 +12,10 @@ struct OrdersView: View {
     @EnvironmentObject private var localizationManager: LocalizationManager
     @State private var inspectionToDelete: Inspection?
 
+    // Animation
+    @State private var listVisible = false
+    @State private var floatOffset: CGFloat = -6
+
     init(viewModel: OrdersViewModel? = nil) {
         _viewModel = StateObject(
             wrappedValue: viewModel ?? Container.shared.resolve(OrdersViewModel.self)!
@@ -33,6 +37,7 @@ struct OrdersView: View {
         .navigationTitle(localizationManager.localize("orders.title"))
         .navigationBarTitleDisplayMode(.large)
         .task { await viewModel.loadOrders() }
+        .onAppear { withAnimation(.easeOut(duration: 0.4)) { listVisible = true } }
         .refreshable { await viewModel.loadOrders() }
         .fullScreenCover(item: $inspectionToDelete) { inspection in
             DeleteConfirmationView(
@@ -56,6 +61,9 @@ struct OrdersView: View {
                 statsStrip
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
+                    .opacity(listVisible ? 1 : 0)
+                    .offset(y: listVisible ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4), value: listVisible)
 
                 searchBar
                     .padding(.horizontal, 16)
@@ -133,11 +141,17 @@ struct OrdersView: View {
 
     private var orderList: some View {
         LazyVStack(spacing: 12) {
-            ForEach(viewModel.filteredInspections) { inspection in
+            ForEach(Array(viewModel.filteredInspections.enumerated()), id: \.element.id) { index, inspection in
                 OrderCardView(inspection: inspection) {
                     inspectionToDelete = inspection
                 }
                 .padding(.horizontal, 16)
+                .opacity(listVisible ? 1 : 0)
+                .offset(y: listVisible ? 0 : 16)
+                .animation(
+                    .easeOut(duration: 0.35).delay(Double(min(index, 6)) * 0.08),
+                    value: listVisible
+                )
             }
         }
     }
@@ -149,6 +163,12 @@ struct OrdersView: View {
             Image(systemName: viewModel.searchText.isEmpty ? "cart" : "magnifyingglass")
                 .font(.system(size: 48))
                 .foregroundColor(.secondary.opacity(0.5))
+                .offset(y: floatOffset)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                        floatOffset = 6
+                    }
+                }
             LMSLabel(
                 viewModel.searchText.isEmpty
                     ? localizationManager.localize("orders.empty")

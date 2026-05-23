@@ -7,13 +7,24 @@ import Foundation
 import OSLog
 import FirebaseAuth
 
-/// Firestore-backed implementation of InspectionStorageServiceType.
-/// Fetches from Firestore on loadCache(), then serves reads from an in-memory cache.
-/// Writes are committed to Firestore first, then reflected in cache on success.
+/// Firestore-backed implementation of `InspectionStorageServiceType`.
+///
+/// All reads are served from `cache` (fast, synchronous). `cache` is populated once
+/// by `loadCache()` on app launch and updated in-place by every write operation.
+///
+/// ## Thread safety
+/// `cache` is `@MainActor`-isolated. `isCacheLoaded` is a plain `Bool` written only
+/// from `loadCache()` (which runs off the main actor) after the `MainActor.run` block
+/// completes, then read on `@MainActor` in ViewModels — safe in practice because the
+/// write happens exactly once before any ViewModel is created.
 final class FirestoreInspectionStorageService: InspectionStorageServiceType {
     // MARK: - Properties
     private let logger = Logger(subsystem: "com.reportlms.storage", category: "firestore")
     private let firestoreService: FirestoreService
+
+    /// Flips to `true` when `loadCache()` finishes (success or failure).
+    /// Stays `true` for the app lifetime; survives logout/login.
+    private(set) var isCacheLoaded = false
 
     @MainActor
     private var cache: [Inspection] = []
@@ -33,10 +44,12 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
         do {
             let inspections = try await firestoreService.fetchInspections()
             await MainActor.run { cache = inspections }
+            isCacheLoaded = true
             logger.log("Loaded \(inspections.count) inspections from Firestore")
             NotificationCenter.default.post(name: .inspectionCacheDidLoad, object: nil)
         } catch {
             logger.error("Failed to load from Firestore: \(error.localizedDescription)")
+            isCacheLoaded = true
             // Post notification so the UI doesn't hang indefinitely
             NotificationCenter.default.post(name: .inspectionCacheDidLoad, object: nil)
             throw InspectionStorageError.networkError

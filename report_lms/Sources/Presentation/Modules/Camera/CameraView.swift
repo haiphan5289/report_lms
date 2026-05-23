@@ -55,6 +55,8 @@ struct CameraView: View {
     @EnvironmentObject private var localizationManager: LocalizationManager
     @Environment(\.dismiss) private var dismiss
     @State private var highlightedIndex: Int?
+    @State private var controlsVisible = false
+    @GestureState private var capturePressed = false
     let source: CameraSource
     let onPhotoCaptured: ([UIImage]) -> Void
 
@@ -70,6 +72,7 @@ struct CameraView: View {
             .ignoresSafeArea()
             .task {
                 await viewModel.setupCamera()
+                withAnimation(.easeOut(duration: 0.5)) { controlsVisible = true }
             }
             .onDisappear {
                 viewModel.stopCamera()
@@ -105,8 +108,10 @@ struct CameraView: View {
 
             if !viewModel.capturedImages.isEmpty {
                 imageList
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+        .animation(.easeInOut(duration: 0.35), value: viewModel.capturedImages.isEmpty)
     }
 
     private var bottomControls: some View {
@@ -172,6 +177,12 @@ struct CameraView: View {
                     }
                 })
                 .buttonStyle(.plain)
+                .scaleEffect(capturePressed ? 0.93 : 1.0)
+                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: capturePressed)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .updating($capturePressed) { _, state, _ in state = true }
+                )
                 .shadow(color: LMSTextColor.primary.color.opacity(0.18), radius: 8, x: 0, y: 4)
 
                 Spacer()
@@ -198,6 +209,9 @@ struct CameraView: View {
                 }
             }
         }
+        .opacity(controlsVisible ? 1 : 0)
+        .offset(y: controlsVisible ? 0 : 24)
+        .animation(.easeOut(duration: 0.5), value: controlsVisible)
     }
 
     private var imageList: some View {

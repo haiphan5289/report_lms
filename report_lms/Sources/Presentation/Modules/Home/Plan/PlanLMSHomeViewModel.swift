@@ -8,6 +8,25 @@
 import Foundation
 import Combine
 
+/// ViewModel for the Plan tab in the home screen.
+///
+/// ## Loading state machine
+///
+/// The skeleton is shown while `isLoading || !isCacheReady`.
+///
+/// | State | `isLoading` | `isCacheReady` | UI |
+/// |---|---|---|---|
+/// | Awaiting Firestore | `true` | `false` | skeleton |
+/// | Firestore done, rendering | `true` | `true` | skeleton (one frame) |
+/// | Data shown | `false` | `true` | list / empty |
+///
+/// ## isCacheReady lifecycle
+///
+/// - Set to `true` by the `.inspectionCacheDidLoad` notification (first app launch).
+/// - Set to `true` in `init` when `storageService.isCacheLoaded == true` (re-login):
+///   after logout → login the notification already fired, so the subscriber never
+///   triggers again; checking the flag at creation time is the fallback.
+/// - Never set inside `loadInspections()` — that function only reads data.
 @MainActor
 final class PlanLMSHomeViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -31,6 +50,13 @@ final class PlanLMSHomeViewModel: ObservableObject {
 
         // Subscribe to cache loaded notification
         Task { @MainActor in
+            // If the service already finished loading before this VM was created
+            // (e.g. after logout → login), mark ready immediately so the skeleton
+            // doesn't wait for a notification that will never fire again.
+            if storageService.isCacheLoaded {
+                isCacheReady = true
+            }
+
             NotificationCenter.default.publisher(for: .inspectionCacheDidLoad)
                 .sink { [weak self] _ in
                     Task { @MainActor in

@@ -14,7 +14,20 @@
       "Bash(mkdir -p /Users/hai.phan/Desktop/haiphan/report_lms/.claude/skills/pa-premium-ui/spec)",
       "Edit(/.claude/skills/pa-premium-ui/**)",
       "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16' build)",
-      "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 15 Pro' build)"
+      "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 15 Pro' build)",
+      "Bash(cp -r /Users/hai.phan/Desktop/haiphan/knowledge-ai/.claude/skills/ct-swiftui-expert-skill /Users/hai.phan/Desktop/haiphan/report_lms/.claude/skills/)",
+      "Bash(cp -r /Users/hai.phan/Desktop/haiphan/knowledge-ai/.claude/skills/review-code /Users/hai.phan/Desktop/haiphan/report_lms/.claude/skills/)",
+      "Bash(cp -r /Users/hai.phan/Desktop/haiphan/knowledge-ai/.claude/skills/ui-score /Users/hai.phan/Desktop/haiphan/report_lms/.claude/skills/)",
+      "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16' -quiet)",
+      "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 15 Pro' -quiet)",
+      "Bash(xcodebuild -project report_lms.xcodeproj -scheme report_lms -destination 'generic/platform=iOS Simulator' -quiet)",
+      "Bash(xcodebuild -project report_lms.xcodeproj -scheme report_lms -destination 'generic/platform=iOS Simulator')",
+      "Bash(xcodebuild -scheme report_lms -destination 'generic/platform=iOS Simulator' -configuration Debug build)",
+      "Bash(xcodebuild -scheme report_lms -destination \"generic/platform=iOS Simulator\" -configuration Debug build)",
+      "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16' -quiet build)",
+      "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build)",
+      "Bash(xcodebuild -scheme report_lms -destination 'id=F47B6A31-94AD-48E9-AC2D-CB6E920D739F' build)",
+      "Bash(git -C /Users/hai.phan/Desktop/haiphan/report_lms rev-parse --abbrev-ref HEAD)"
     ],
     "additionalDirectories": [
       "/Users/hai.phan/Library/Developer/Xcode/DerivedData",

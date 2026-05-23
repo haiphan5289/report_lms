@@ -13,7 +13,7 @@ import OSLog
 @MainActor
 final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     // MARK: - Published Properties
-    @Published var images: [ImageSource] = []
+    @Published var images: [ImageWithNote] = []
     @Published var showCamera = false
     @Published var selectedSeverity: SeverityLevel = .low
     @Published var generalConditionEnabled = false
@@ -26,7 +26,7 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     @Published var snackbarMessage: String?
 
     // MARK: - Private Properties
-    private let inspectionId: String
+    let inspectionId: String  // Internal for debug access
     private let errorRepository: ErrorRepositoryType
     private let logger = Logger(subsystem: "com.reportlms", category: "PhotoCaptureErrorReviewViewModel")
     private var editingItemId: String?
@@ -35,7 +35,7 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     var isEditMode: Bool { editingItemId != nil }
 
     var localImages: [UIImage] {
-        images.compactMap { if case .local(let img) = $0 { return img } else { return nil } }
+        images.compactMap { if case .local(let img) = $0.source { return img } else { return nil } }
     }
 
     // MARK: - Initialization
@@ -57,7 +57,7 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
 
     // MARK: - Image Management
     func addImages(_ newImages: [UIImage]) {
-        images.append(contentsOf: newImages.map { .local(image: $0) })
+        images.append(contentsOf: newImages.map { ImageWithNote(source: .local(image: $0)) })
     }
 
     func deleteImage(at index: Int) {
@@ -65,13 +65,13 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
         images.remove(at: index)
     }
 
-    func setInitialImages(_ initialImages: [ImageSource]) {
+    func setInitialImages(_ initialImages: [ImageWithNote]) {
         images = initialImages
     }
 
     func replaceImage(at index: Int, with image: UIImage) {
         guard index >= 0 && index < images.count else { return }
-        images[index] = .local(image: image)
+        images[index].source = .local(image: image)
     }
 
     func downloadImage(from url: String) async throws -> UIImage {
@@ -111,7 +111,7 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
         logger.debug("[saveReview] START inspectionId=\(self.inspectionId, privacy: .public) imageCount=\(self.images.count, privacy: .public)")
 
         do {
-            let saved = try await errorRepository.saveErrorItem(item, imageSources: images, for: inspectionId)
+            let saved = try await errorRepository.saveErrorItem(item, imageSources: images.map { $0.source }, for: inspectionId)
             logger.debug("[saveReview] ✅ saveErrorItem succeeded")
             return saved
         } catch {
@@ -129,7 +129,7 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
         logger.debug("[updateReview] START inspectionId=\(self.inspectionId, privacy: .public) imageCount=\(self.images.count, privacy: .public)")
 
         do {
-            let saved = try await errorRepository.saveErrorItem(item, imageSources: images, for: inspectionId)
+            let saved = try await errorRepository.saveErrorItem(item, imageSources: images.map { $0.source }, for: inspectionId)
             logger.debug("[updateReview] ✅ saveErrorItem succeeded")
             return saved
         } catch {
@@ -141,12 +141,13 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
 
     // MARK: - Private Methods
     private func buildSavedErrorItem() -> SavedErrorItem {
-        let existingURLs = images.compactMap { source -> String? in
-            if case .remote(let url) = source { return url } else { return nil }
+        let existingURLs = images.compactMap { item -> String? in
+            if case .remote(let url) = item.source { return url } else { return nil }
         }
         return SavedErrorItem(
             id: editingItemId ?? UUID().uuidString,
             imageURLs: existingURLs,
+            imageNotes: images.map { $0.note },
             severity: selectedSeverity,
             generalCondition: generalConditionEnabled ? selectedGeneralCondition : nil,
             defectType: selectedDefectType,

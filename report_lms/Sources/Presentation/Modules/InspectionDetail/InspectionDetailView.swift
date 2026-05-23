@@ -23,6 +23,8 @@ struct InspectionDetailView: View {
     @EnvironmentObject private var localizationManager: LocalizationManager
     @Environment(\.dismiss) private var dismiss
     @Namespace private var tabBarNamespace
+    @State private var tabBarVisible = false
+    @GestureState private var submitPressed = false
 
     // MARK: - Initialization
     init(inspectionId: String, inspectionNumber: String, homeViewModel: LMSHomeViewModel? = nil) {
@@ -55,29 +57,55 @@ struct InspectionDetailView: View {
                 submitButton
             }
         }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.4).delay(0.1)) { tabBarVisible = true }
+        }
         .task {
             await viewModel.loadInspectionDetail()
         }
-        .navigationDestination(isPresented: $viewModel.showCamera) {
+        .fullScreenCover(isPresented: $viewModel.showCamera) {
             CameraView(source: .inspection) { images in
                 viewModel.handlePhotoSelection(images)
             }
         }
-        .navigationDestination(isPresented: $viewModel.showValidation) {
-            if let field = viewModel.selectedValidationField {
-                InspectionValidationView(
-                    fieldId: field.id,
-                    fieldLabel: field.label,
-                    initialImages: viewModel.getImages(for: field.id),
-                    inspectionId: viewModel.inspection?.id,
-                    onSave: { validation in
-                        viewModel.handleValidationSave(validation)
-                    },
-                    onUploadComplete: {
-                        viewModel.refreshInspection()
-                        viewModel.snackbarMessage = "Ảnh đã được lưu thành công!"
-                    }
-                )
+        .navigationDestination(item: $viewModel.selectedValidationField) { field in
+            InspectionValidationView(
+                fieldId: field.id,
+                fieldLabel: field.label,
+                initialImages: viewModel.getImages(for: field.id),
+                inspectionId: viewModel.inspection?.id,
+                onSave: { validation in
+                    viewModel.handleValidationSave(validation)
+                },
+                onUploadComplete: {
+                    viewModel.refreshInspection()
+                    viewModel.snackbarMessage = "Ảnh đã được lưu thành công!"
+                }
+            )
+        }
+        .navigationDestination(item: $viewModel.selectedErrorItem) { item in
+            PhotoCaptureErrorReviewView(
+                inspectionId: viewModel.inspectionId,
+                initialImages: item.imageURLs.enumerated().map { index, url in
+                    ImageWithNote(
+                        source: .remote(url: url),
+                        note: index < item.imageNotes.count ? item.imageNotes[index] : ""
+                    )
+                },
+                editingItem: item,
+                onImagesUpdated: { _ in },
+                onSaved: { saved, images in
+                    print("🔍 [InspectionDetailView] onSaved callback triggered")
+                    viewModel.errorHomeViewModel.upsertErrorItem(saved, thumbnails: images)
+                    viewModel.errorHomeViewModel.scrollToTopTrigger += 1
+                },
+                onDeleted: { deletedItem in
+                    print("🔍 [InspectionDetailView] onDeleted callback triggered")
+                    viewModel.errorHomeViewModel.deleteErrorItem(deletedItem)
+                }
+            )
+            .onAppear {
+                print("🔍 [InspectionDetailView] navigationDestination appeared for item: \(item.id)")
             }
         }
     }
@@ -92,6 +120,8 @@ struct InspectionDetailView: View {
         .background(Color(.systemBackground))
         .overlay(Divider(), alignment: .bottom)
         .padding(.bottom, Layout.tabBottomPadding)
+        .opacity(tabBarVisible ? 1 : 0)
+        .animation(.easeOut(duration: 0.4), value: tabBarVisible)
     }
     
     private func tabButton(for tab: InspectionDetailViewModel.Tab) -> some View {
@@ -158,12 +188,18 @@ struct InspectionDetailView: View {
         }
         .frame(maxWidth: .infinity, minHeight: Layout.minContentHeight)
         .background(Color(.systemGroupedBackground))
-        .animation(.easeInOut, value: viewModel.selectedTab)
     }
     
     private var errorTabContent: some View {
         ErrorHomeView(
-            viewModel: ErrorHomeViewModel(inspectionId: viewModel.inspectionId)
+            viewModel: viewModel.errorHomeViewModel,
+            onItemTapped: { item in
+                print("🔍 [InspectionDetailView] errorTabContent onItemTapped callback")
+                print("   - Item ID: \(item.id)")
+                print("   - Setting selectedErrorItem...")
+                viewModel.selectedErrorItem = item
+                print("   - selectedErrorItem set ✅")
+            }
         )
     }
     
@@ -181,6 +217,12 @@ struct InspectionDetailView: View {
                 .foregroundColor(.green)
                 .font(.system(size: Layout.toolbarIconSize))
         })
+        .scaleEffect(submitPressed ? 0.88 : 1.0)
+        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: submitPressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .updating($submitPressed) { _, state, _ in state = true }
+        )
     }
 }
 

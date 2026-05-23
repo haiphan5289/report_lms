@@ -23,6 +23,11 @@ struct InspectionValidationView: View {
     // MARK: - Properties
     @StateObject private var viewModel: InspectionValidationViewModel
     @Environment(\.dismiss) private var dismiss
+
+    // Animation
+    @State private var contentVisible = false
+    @GestureState private var passPressed = false
+    @GestureState private var naPressed = false
     
     // MARK: - Initialization
     init(
@@ -50,17 +55,24 @@ struct InspectionValidationView: View {
         ZStack(alignment: .bottom) {
             ScrollView {
                 VStack(spacing: Layout.sectionSpacing) {
-                    // Section 1: Header with title and camera button
                     headerSection
-                    // Section 2: Status and Comments
+                        .opacity(contentVisible ? 1 : 0)
+                        .offset(y: contentVisible ? 0 : 16)
+                        .animation(.easeOut(duration: 0.35), value: contentVisible)
                     statusSection
-                    // Section 3: Image Gallery
+                        .opacity(contentVisible ? 1 : 0)
+                        .offset(y: contentVisible ? 0 : 16)
+                        .animation(.easeOut(duration: 0.35).delay(0.08), value: contentVisible)
                     if viewModel.hasImages {
                         imageGallerySection
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 16)
+                            .animation(.easeOut(duration: 0.35).delay(0.16), value: contentVisible)
                     }
-                    // Section 4: Action Buttons
                     actionsSection
-                    // Add bottom padding for fixed buttons
+                        .opacity(contentVisible ? 1 : 0)
+                        .offset(y: contentVisible ? 0 : 16)
+                        .animation(.easeOut(duration: 0.35).delay(0.24), value: contentVisible)
                     Spacer()
                         .frame(height: Layout.bottomButtonHeight + 20)
                 }
@@ -77,6 +89,9 @@ struct InspectionValidationView: View {
         }
         .navigationTitle(viewModel.fieldLabel)
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            withAnimation(.easeOut(duration: 0.35)) { contentVisible = true }
+        }
         .sheet(isPresented: $viewModel.showCamera) {
             CameraView(source: .inspection) { images in
                 viewModel.appendImages(images)
@@ -260,18 +275,24 @@ struct InspectionValidationView: View {
                         Circle()
                             .fill(Color.green.opacity(0.1))
                             .frame(width: 60, height: 60)
-                        
+
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: Layout.buttonIconSize))
                             .foregroundColor(.green)
                     }
                 }
-                
+                .scaleEffect(passPressed ? 0.92 : 1.0)
+                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: passPressed)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .updating($passPressed) { _, state, _ in state = true }
+                )
+
                 Text("Đã kiểm tra")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.primary)
             }
-            
+
             // Button 2: Không áp dụng (Not Applicable)
             VStack(spacing: 8) {
                 Button(action: {
@@ -281,13 +302,19 @@ struct InspectionValidationView: View {
                         Circle()
                             .fill(Color.gray.opacity(0.1))
                             .frame(width: 60, height: 60)
-                        
+
                         Image(systemName: "slash.circle.fill")
                             .font(.system(size: Layout.buttonIconSize))
                             .foregroundColor(.gray)
                     }
                 }
-                
+                .scaleEffect(naPressed ? 0.92 : 1.0)
+                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: naPressed)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .updating($naPressed) { _, state, _ in state = true }
+                )
+
                 Text("Không áp dụng")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.primary)

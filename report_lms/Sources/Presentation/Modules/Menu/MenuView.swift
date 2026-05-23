@@ -22,6 +22,8 @@ struct MenuView: View {
     @EnvironmentObject private var localizationManager: LocalizationManager
     let onAction: (MenuAction) -> Void
 
+    @State private var menuVisible = false
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -32,6 +34,9 @@ struct MenuView: View {
             .padding(.horizontal, 20)
             .padding(.top, 24)
             .padding(.bottom, 16)
+            .opacity(menuVisible ? 1 : 0)
+            .offset(y: menuVisible ? 0 : -8)
+            .animation(.easeOut(duration: 0.3), value: menuVisible)
 
             Divider()
 
@@ -58,8 +63,13 @@ struct MenuView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .opacity(menuVisible ? 1 : 0)
+            .animation(.easeOut(duration: 0.35).delay(0.08), value: menuVisible)
         }
         .background(Color(.systemBackground))
+        .task {
+            withAnimation(.easeOut(duration: 0.3)) { menuVisible = true }
+        }
     }
 }
 

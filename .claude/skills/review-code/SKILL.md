@@ -6,6 +6,8 @@ argument-hint: "[file path or code to review] [focus area: DS Components | Color
 
 # SwiftUI Code Review Skill
 
+> **Anti-Hallucination:** Verify every symbol, token, path, and identifier against the codebase before generating code. See [ct-anti-hallucination](.claude/skills/ct-anti-hallucination/SKILL.md).
+
 Full code review for SwiftUI files in the **Chợ Tốt iOS** app.
 
 **Last synced:** 2026-03-25

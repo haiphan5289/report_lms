@@ -47,6 +47,7 @@ final class ErrorHomeViewModel: ObservableObject {
 
     // MARK: - Thumbnail Cache
     @Published var thumbnailCache: [String: UIImage] = [:]
+    @Published var scrollToTopTrigger: Int = 0
 
     func removeErrorItem(id: String) {
         errorInspections.removeAll { $0.id == id }

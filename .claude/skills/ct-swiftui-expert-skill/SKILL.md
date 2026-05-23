@@ -8,6 +8,8 @@ argument-hint: "[component or token type]"
 
 # CT SwiftUI Expert Skill
 
+> **Anti-Hallucination:** Verify every symbol, token, path, and identifier against the codebase before generating code. See [ct-anti-hallucination](.claude/skills/ct-anti-hallucination/SKILL.md).
+
 This skill is the definitive guide for SwiftUI development at ChoTot, grounded in the `CTDesignSystemSwiftUI` core package.
 
 ## How to Use This Skill

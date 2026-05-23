@@ -16,18 +16,25 @@ struct PlanLMSHomeView: View {
     let refreshTrigger: Int
     let onQuickInspection: () -> Void
     let onLogout: () -> Void
+    let onInspectionTapped: (Inspection) -> Void
+
+    // Animation
+    @State private var listAppeared = false
+    @State private var floatOffset: CGFloat = -6
 
     // MARK: - Initialization
     init(
         viewModel: PlanLMSHomeViewModel? = nil,
         refreshTrigger: Int = 0,
         onQuickInspection: @escaping () -> Void = {},
-        onLogout: @escaping () -> Void = {}
+        onLogout: @escaping () -> Void = {},
+        onInspectionTapped: @escaping (Inspection) -> Void = { _ in }
     ) {
         _viewModel = StateObject(wrappedValue: viewModel ?? Container.shared.resolve(PlanLMSHomeViewModel.self)!)
         self.refreshTrigger = refreshTrigger
         self.onQuickInspection = onQuickInspection
         self.onLogout = onLogout
+        self.onInspectionTapped = onInspectionTapped
     }
 
     // MARK: - Body
@@ -53,17 +60,45 @@ struct PlanLMSHomeView: View {
 
     // MARK: - Private Views
     private var contentView: some View {
-        Group {
+        ZStack {
             if viewModel.isLoading || !viewModel.isCacheReady {
-                LMSLoadingView()
+                planSkeletonView
+                    .transition(.opacity)
             } else if let errorMessage = viewModel.errorMessage {
                 errorView(message: errorMessage)
+                    .transition(.opacity)
             } else if viewModel.weeklyInspections.isEmpty {
                 emptyStateView
+                    .transition(.opacity)
             } else {
                 inspectionListView
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+        .animation(.easeInOut(duration: 0.35), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.35), value: viewModel.isCacheReady)
+        .animation(.easeInOut(duration: 0.35), value: viewModel.weeklyInspections.isEmpty)
+    }
+
+    private var planSkeletonView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                RoundedRectangle(cornerRadius: 8).fill(Color(.systemFill))
+                    .frame(width: 80, height: 14)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            VStack(spacing: 0) {
+                ForEach(0..<4, id: \.self) { _ in
+                    LMSInspectionCardSkeleton()
+                }
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
     }
 
     private func errorView(message: String) -> some View {
@@ -87,32 +122,39 @@ struct PlanLMSHomeView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: 24) {
-            VStack(spacing: 8) {
+            Spacer()
+
+            VStack(spacing: 12) {
                 Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 48))
-                    .foregroundColor(.secondary.opacity(0.6))
+                    .font(.system(size: 56))
+                    .foregroundColor(.secondary.opacity(0.5))
+                    .offset(y: floatOffset)
+                    .onAppear {
+                        withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                            floatOffset = 6
+                        }
+                    }
                 LMSLabel(localizationManager.localize("plan.empty.title"), style: .body, alignment: .center)
                 LMSLabel(localizationManager.localize("plan.empty.subtitle"), style: .subheadline, color: .secondary, alignment: .center)
+                    .multilineTextAlignment(.center)
             }
-            .padding()
+            .padding(24)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(UIColor.systemBackground))
+                    .shadow(color: LMSColor.Shadow.subtle, radius: 8, x: 0, y: 3)
             )
 
             LMSButton(localizationManager.localize("plan.loadMore"), icon: "arrow.clockwise", variant: .primary, action: {
-                Task {
-                    await viewModel.loadInspections()
-                }
+                Task { await viewModel.loadInspections() }
             })
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: 50)
 
             Spacer()
         }
-        .multilineTextAlignment(.center)
-        .padding()
+        .padding(.horizontal, 20)
     }
 
     private var inspectionListView: some View {
@@ -124,8 +166,8 @@ struct PlanLMSHomeView: View {
                             let visibleInspections = viewModel.visibleInspections(for: section)
 
                             ForEach(Array(visibleInspections.enumerated()), id: \.element.id) { index, inspection in
-                                NavigationLink(value: inspection) {
-                                InspectionCardView(
+                                Button(action: { onInspectionTapped(inspection) }) {
+                                    InspectionCardView(
                                         inspection: inspection,
                                         isLastIndex: index == visibleInspections.count - 1,
                                         onDelete: {
@@ -149,9 +191,16 @@ struct PlanLMSHomeView: View {
                                 )
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 4)
+                                .opacity(listAppeared ? 1 : 0)
+                                .offset(y: listAppeared ? 0 : 16)
+                                .animation(
+                                    .easeOut(duration: 0.35).delay(Double(min(index, 6)) * 0.08),
+                                    value: listAppeared
+                                )
                             }
                         }
                         .padding(.vertical, 12)
+                        .onAppear { listAppeared = true }
                     } header: {
                         sectionHeader(for: section)
                     }
@@ -187,8 +236,8 @@ struct PlanLMSHomeView: View {
                     .foregroundColor(.white)
             }
             .frame(width: 56, height: 56)
-            .background(Circle().fill(Color.blue))
-            .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
+            .background(Circle().fill(LMSColor.primary))
+            .shadow(color: LMSColor.primary.opacity(0.4), radius: 12, x: 0, y: 6)
             .padding([.bottom, .trailing], 24)
         }
     }
@@ -199,6 +248,7 @@ struct PlanLMSHomeView: View {
 // Mock storage service that returns preview data
 private final class PreviewInspectionStorageService: InspectionStorageServiceType {
     private var mockInspections: [Inspection]
+    let isCacheLoaded: Bool = true
 
     init(inspections: [Inspection]) {
         self.mockInspections = inspections

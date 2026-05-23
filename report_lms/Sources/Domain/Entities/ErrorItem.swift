@@ -24,11 +24,30 @@ enum ImageSource: Equatable {
     }
 }
 
+// MARK: - ImageWithNote
+
+struct ImageWithNote: Identifiable, Equatable {
+    let id: UUID
+    var source: ImageSource
+    var note: String
+
+    init(source: ImageSource, note: String = "") {
+        self.id = UUID()
+        self.source = source
+        self.note = note
+    }
+
+    static func == (lhs: ImageWithNote, rhs: ImageWithNote) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
 // MARK: - SavedErrorItem
 
 struct SavedErrorItem: Identifiable, Hashable {
     let id: String
     let imageURLs: [String]
+    let imageNotes: [String]
     let severity: SeverityLevel
     let generalCondition: Int?
     let defectType: DefectType?
@@ -38,6 +57,7 @@ struct SavedErrorItem: Identifiable, Hashable {
     init(
         id: String = UUID().uuidString,
         imageURLs: [String] = [],
+        imageNotes: [String] = [],
         severity: SeverityLevel = .low,
         generalCondition: Int? = nil,
         defectType: DefectType? = nil,
@@ -46,6 +66,7 @@ struct SavedErrorItem: Identifiable, Hashable {
     ) {
         self.id = id
         self.imageURLs = imageURLs
+        self.imageNotes = imageNotes
         self.severity = severity
         self.generalCondition = generalCondition
         self.defectType = defectType
@@ -64,6 +85,7 @@ struct SavedErrorItem: Identifiable, Hashable {
         let formatter = ISO8601DateFormatter()
         var data: [String: Any] = [
             "imageURLs": imageURLs,
+            "imageNotes": imageNotes,
             "severity": severity.rawValue,
             "comments": comments,
             "createdAt": formatter.string(from: createdAt)

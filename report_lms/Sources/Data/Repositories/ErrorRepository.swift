@@ -102,6 +102,7 @@ final class ErrorRepository: ErrorRepositoryType {
         let savedItem = SavedErrorItem(
             id: item.id,
             imageURLs: imageURLs,
+            imageNotes: item.imageNotes,
             severity: item.severity,
             generalCondition: item.generalCondition,
             defectType: item.defectType,
@@ -155,6 +156,7 @@ final class ErrorRepository: ErrorRepositoryType {
               let severity = SeverityLevel(rawValue: severityRaw) else { return nil }
 
         let imageURLs = data["imageURLs"] as? [String] ?? []
+        let imageNotes = data["imageNotes"] as? [String] ?? []
         let comments = data["comments"] as? String ?? ""
         let generalCondition = data["generalCondition"] as? Int
         let defectType = (data["defectType"] as? String).flatMap(DefectType.init(rawValue:))
@@ -171,6 +173,7 @@ final class ErrorRepository: ErrorRepositoryType {
         return SavedErrorItem(
             id: id,
             imageURLs: imageURLs,
+            imageNotes: imageNotes,
             severity: severity,
             generalCondition: generalCondition,
             defectType: defectType,

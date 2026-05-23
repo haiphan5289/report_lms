@@ -11,85 +11,100 @@ import SwiftUI
 struct InformationPurchaseView: View {
     // MARK: - Properties
     @StateObject private var viewModel = InformationPurchaseViewModel()
-    
+
+    // Animation
+    @State private var section1Visible = false
+    @State private var section2Visible = false
+
     // MARK: - Body
     var body: some View {
         ScrollView {
             contentView
         }
+        .task {
+            withAnimation(.easeOut(duration: 0.4)) { section1Visible = true }
+            try? await Task.sleep(for: .milliseconds(150))
+            withAnimation(.easeOut(duration: 0.4)) { section2Visible = true }
+        }
     }
-    
+
     // MARK: - Private Views
     private var contentView: some View {
-        VStack(alignment: .leading, spacing: 32) {
+        VStack(alignment: .leading, spacing: 20) {
             section1View
+                .opacity(section1Visible ? 1 : 0)
+                .offset(y: section1Visible ? 0 : 16)
+
             section2View
+                .opacity(section2Visible ? 1 : 0)
+                .offset(y: section2Visible ? 0 : 16)
         }
-        .padding()
+        .padding(16)
     }
-    
+
     private var section1View: some View {
         VStack(alignment: .leading, spacing: 16) {
-            LMSLabel(viewModel.productName, style: .title)
-            HStack {
-                LMSLabel("Đơn đặt hàng:", style: .body)
-                Spacer()
-                LMSLabel(viewModel.orderNumber, style: .body)
+            // Accent header
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LMSColor.primary)
+                    .frame(width: 3, height: 20)
+                LMSLabel(viewModel.productName, style: .title)
             }
-            HStack {
-                LMSLabel("Sản phẩm:", style: .body)
-                Spacer()
-                LMSLabel(viewModel.productCode, style: .body)
-            }
+            Divider()
+            infoRow(label: "Đơn đặt hàng:", value: viewModel.orderNumber)
+            infoRow(label: "Sản phẩm:", value: viewModel.productCode)
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-        .overlay(
+        .padding(16)
+        .background(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                .fill(Color(UIColor.systemBackground))
+                .shadow(color: LMSColor.Shadow.subtle, radius: 6, x: 0, y: 3)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(LMSColor.Border.subtle, lineWidth: 1)
+                )
         )
     }
-    
+
     private var section2View: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                LMSLabel("Tên sản phẩm:", style: .body)
-                Spacer()
-                LMSLabel(viewModel.productName, style: .body)
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LMSColor.primary)
+                    .frame(width: 3, height: 20)
+                LMSLabel("Thông tin kiểm hàng", style: .headline)
             }
+            Divider()
+            infoRow(label: "Tên sản phẩm:", value: viewModel.productName)
+            infoRow(label: "Tổng số lượng:", value: viewModel.totalQuantity)
+            infoRow(label: "Số lượng mẫu cần kiếm:", value: viewModel.sampleQuantity)
             HStack {
-                LMSLabel("Tổng số lượng", style: .body)
+                LMSLabel("Số lượng thùng cần kiếm:", style: .body)
                 Spacer()
-                LMSLabel(viewModel.totalQuantity, style: .body)
+                LMSLabel(viewModel.boxQuantity, style: .body, color: .custom(.green))
             }
-            HStack {
-                LMSLabel("Số lượng mẫu cần kiếm", style: .body)
-                Spacer()
-                LMSLabel(viewModel.sampleQuantity, style: .body)
-            }
-            HStack {
-                LMSLabel("Số lượng thùng cần kiếm", style: .body)
-                Spacer()
-                Text(viewModel.boxQuantity)
-                    .foregroundColor(.green)
-            }
-            HStack {
-                LMSLabel("Tên nhà máy", style: .body)
-                Spacer()
-                LMSLabel(viewModel.factoryName, style: .body)
-            }
-            HStack {
-                LMSLabel("Ngày dự kiến kiểm hàng:", style: .body)
-                Spacer()
-                LMSLabel(viewModel.inspectionDate, style: .body)
-            }
-            HStack {
-                LMSLabel("Nhà máy", style: .body)
-                Spacer()
-                LMSLabel(viewModel.factoryLocation, style: .body)
-            }
+            infoRow(label: "Tên nhà máy:", value: viewModel.factoryName)
+            infoRow(label: "Ngày dự kiến kiểm hàng:", value: viewModel.inspectionDate)
+            infoRow(label: "Nhà máy:", value: viewModel.factoryLocation)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(UIColor.systemBackground))
+                .shadow(color: LMSColor.Shadow.subtle, radius: 6, x: 0, y: 3)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(LMSColor.Border.subtle, lineWidth: 1)
+                )
+        )
+    }
+
+    private func infoRow(label: String, value: String) -> some View {
+        HStack {
+            LMSLabel(label, style: .body)
+            Spacer()
+            LMSLabel(value, style: .body, color: .secondary)
         }
     }
 }

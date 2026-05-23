@@ -30,8 +30,8 @@ struct PhotoCaptureErrorReviewView: View {
     @EnvironmentObject private var localizationManager: LocalizationManager
     @Environment(\.dismiss) private var dismiss
 
-    let initialImages: [ImageSource]
-    let onImagesUpdated: ([ImageSource]) -> Void
+    let initialImages: [ImageWithNote]
+    let onImagesUpdated: ([ImageWithNote]) -> Void
     let onSaved: (SavedErrorItem, [UIImage]) -> Void
     let onDeleted: ((SavedErrorItem) -> Void)?
     private let editingItem: SavedErrorItem?
@@ -55,9 +55,9 @@ struct PhotoCaptureErrorReviewView: View {
     // MARK: - Initialization
     init(
         inspectionId: String,
-        initialImages: [ImageSource],
+        initialImages: [ImageWithNote],
         editingItem: SavedErrorItem? = nil,
-        onImagesUpdated: @escaping ([ImageSource]) -> Void,
+        onImagesUpdated: @escaping ([ImageWithNote]) -> Void,
         onSaved: @escaping (SavedErrorItem, [UIImage]) -> Void = { _, _ in },
         onDeleted: ((SavedErrorItem) -> Void)? = nil
     ) {
@@ -71,138 +71,143 @@ struct PhotoCaptureErrorReviewView: View {
 
     // MARK: - Body
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: Layout.outerSpacing) {
-                    imagesSection
-                        .opacity(heroVisible ? 1 : 0)
-                        .offset(y: heroVisible ? 0 : 16)
-                        .animation(.easeOut(duration: 0.4), value: heroVisible)
-                    takeMorePhotosSection
-                        .opacity(heroVisible ? 1 : 0)
-                        .offset(y: heroVisible ? 0 : 16)
-                        .animation(.easeOut(duration: 0.4).delay(0.08), value: heroVisible)
-                    severityLevelSection
-                        .opacity(heroVisible ? 1 : 0)
-                        .offset(y: heroVisible ? 0 : 16)
-                        .animation(.easeOut(duration: 0.4).delay(0.16), value: heroVisible)
-                    generalConditionSection
-                        .opacity(heroVisible ? 1 : 0)
-                        .offset(y: heroVisible ? 0 : 16)
-                        .animation(.easeOut(duration: 0.4).delay(0.24), value: heroVisible)
-                    defectTypesSection
-                        .opacity(heroVisible ? 1 : 0)
-                        .offset(y: heroVisible ? 0 : 16)
-                        .animation(.easeOut(duration: 0.4).delay(0.32), value: heroVisible)
-                    commentsSection
-                        .opacity(heroVisible ? 1 : 0)
-                        .offset(y: heroVisible ? 0 : 16)
-                        .animation(.easeOut(duration: 0.4).delay(0.40), value: heroVisible)
-                }
-                .padding()
+        ScrollView {
+            VStack(spacing: Layout.outerSpacing) {
+                imagesSection
+                    .opacity(heroVisible ? 1 : 0)
+                    .offset(y: heroVisible ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4), value: heroVisible)
+                takeMorePhotosSection
+                    .opacity(heroVisible ? 1 : 0)
+                    .offset(y: heroVisible ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4).delay(0.08), value: heroVisible)
+                severityLevelSection
+                    .opacity(heroVisible ? 1 : 0)
+                    .offset(y: heroVisible ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4).delay(0.16), value: heroVisible)
+                generalConditionSection
+                    .opacity(heroVisible ? 1 : 0)
+                    .offset(y: heroVisible ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4).delay(0.24), value: heroVisible)
+                defectTypesSection
+                    .opacity(heroVisible ? 1 : 0)
+                    .offset(y: heroVisible ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4).delay(0.32), value: heroVisible)
+                commentsSection
+                    .opacity(heroVisible ? 1 : 0)
+                    .offset(y: heroVisible ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4).delay(0.40), value: heroVisible)
             }
-            .navigationTitle(
-                localizationManager.localize(viewModel.isEditMode ? "errorReview.title.edit" : "errorReview.title.new")
-            )
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .padding()
+        }
+        .navigationTitle(
+            localizationManager.localize(viewModel.isEditMode ? "errorReview.title.edit" : "errorReview.title.new")
+        )
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !viewModel.isEditMode {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(localizationManager.localize("common.cancel")) { dismiss() }
                 }
-                if !viewModel.isEditMode {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(localizationManager.localize("common.done")) {
-                            Task {
-                                if let saved = await viewModel.saveReview() {
-                                    onImagesUpdated(viewModel.images)
-                                    onSaved(saved, viewModel.localImages)
-                                    dismiss()
-                                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(localizationManager.localize("common.done")) {
+                        Task {
+                            if let saved = await viewModel.saveReview() {
+                                onImagesUpdated(viewModel.images)
+                                onSaved(saved, viewModel.localImages)
+                                dismiss()
                             }
                         }
                     }
                 }
             }
-            .sheet(isPresented: $viewModel.showCamera) {
-                CameraView(source: .errorReport) { newImages in
-                    viewModel.addImages(newImages)
+        }
+        .sheet(isPresented: $viewModel.showCamera) {
+            CameraView(source: .errorReport) { newImages in
+                viewModel.addImages(newImages)
+                onImagesUpdated(viewModel.images)
+            }
+            .environmentObject(localizationManager)
+        }
+        .sheet(isPresented: $showingDefectTypeList) {
+            if let searchableVM = defectTypeSearchableVM {
+                SearchableListView(viewModel: searchableVM) { selectedItem in
+                    viewModel.selectDefectType(from: selectedItem)
+                    showingDefectTypeList = false
+                }
+            }
+        }
+        .onAppear {
+            print("🔍 [PhotoCaptureErrorReviewView] onAppear")
+            print("   - EditMode: \(viewModel.isEditMode)")
+            print("   - InspectionId: \(viewModel.inspectionId)")
+            print("   - EditingItem: \(editingItem?.id ?? "nil")")
+            viewModel.setInitialImages(initialImages)
+        }
+        .onDisappear {
+            print("🔍 [PhotoCaptureErrorReviewView] onDisappear")
+        }
+        .task {
+            withAnimation { heroVisible = true }
+        }
+        .alert(
+            localizationManager.localize("common.error"),
+            isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )
+        ) {
+            Button(localizationManager.localize("common.ok")) { viewModel.errorMessage = nil }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
+        .confirmationDialog(
+            localizationManager.localize("errorReview.delete.title"),
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(localizationManager.localize("errorReview.delete.confirm"), role: .destructive) {
+                guard let item = editingItem else { return }
+                onDeleted?(item)
+                dismiss()
+            }
+            Button(localizationManager.localize("common.cancel"), role: .cancel) {}
+        }
+        .overlay {
+            if viewModel.isLoading || viewModel.isDownloading {
+                LMSLoadingOverlay()
+            }
+        }
+        .confirmationDialog("", isPresented: $showImageMenu) {
+            Button(localizationManager.localize("imageEditor.menu.edit")) {
+                Task { await handleEditImage() }
+            }
+            Button(localizationManager.localize("imageEditor.menu.share")) {
+                Task { await handleShareImage() }
+            }
+            Button(localizationManager.localize("imageEditor.menu.delete"), role: .destructive) {
+                if let index = selectedImageIndex {
+                    viewModel.deleteImage(at: index)
+                    onImagesUpdated(viewModel.images)
+                }
+            }
+            Button(localizationManager.localize("common.cancel"), role: .cancel) {}
+        }
+        .sheet(isPresented: $showImageEditor) {
+            if let image = editingUIImage, let index = selectedImageIndex {
+                ImageEditorView(image: image) { editedImage in
+                    viewModel.replaceImage(at: index, with: editedImage)
                     onImagesUpdated(viewModel.images)
                 }
                 .environmentObject(localizationManager)
             }
-            .sheet(isPresented: $showingDefectTypeList) {
-                if let searchableVM = defectTypeSearchableVM {
-                    SearchableListView(viewModel: searchableVM) { selectedItem in
-                        viewModel.selectDefectType(from: selectedItem)
-                        showingDefectTypeList = false
-                    }
-                }
-            }
-            .onAppear {
-                viewModel.setInitialImages(initialImages)
-            }
-            .task {
-                withAnimation { heroVisible = true }
-            }
-            .alert(
-                localizationManager.localize("common.error"),
-                isPresented: Binding(
-                    get: { viewModel.errorMessage != nil },
-                    set: { if !$0 { viewModel.errorMessage = nil } }
-                )
-            ) {
-                Button(localizationManager.localize("common.ok")) { viewModel.errorMessage = nil }
-            } message: {
-                Text(viewModel.errorMessage ?? "")
-            }
-            .confirmationDialog(
-                localizationManager.localize("errorReview.delete.title"),
-                isPresented: $showDeleteConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button(localizationManager.localize("errorReview.delete.confirm"), role: .destructive) {
-                    guard let item = editingItem else { return }
-                    onDeleted?(item)
-                    dismiss()
-                }
-                Button(localizationManager.localize("common.cancel"), role: .cancel) {}
-            }
-            .overlay {
-                if viewModel.isLoading || viewModel.isDownloading {
-                    LMSLoadingOverlay()
-                }
-            }
-            .confirmationDialog("", isPresented: $showImageMenu) {
-                Button(localizationManager.localize("imageEditor.menu.edit")) {
-                    Task { await handleEditImage() }
-                }
-                Button(localizationManager.localize("imageEditor.menu.share")) {
-                    Task { await handleShareImage() }
-                }
-                Button(localizationManager.localize("imageEditor.menu.delete"), role: .destructive) {
-                    if let index = selectedImageIndex {
-                        viewModel.deleteImage(at: index)
-                        onImagesUpdated(viewModel.images)
-                    }
-                }
-                Button(localizationManager.localize("common.cancel"), role: .cancel) {}
-            }
-            .sheet(isPresented: $showImageEditor) {
-                if let image = editingUIImage, let index = selectedImageIndex {
-                    ImageEditorView(image: image) { editedImage in
-                        viewModel.replaceImage(at: index, with: editedImage)
-                        onImagesUpdated(viewModel.images)
-                    }
-                    .environmentObject(localizationManager)
-                }
-            }
-            .sheet(isPresented: $showShareSheet) {
-                if let image = sharingImage {
-                    ShareSheet(items: [image])
-                }
-            }
-            .lmsSnackbar(message: $viewModel.snackbarMessage, type: .error)
         }
+        .sheet(isPresented: $showShareSheet) {
+            if let image = sharingImage {
+                ShareSheet(items: [image])
+            }
+        }
+        .lmsSnackbar(message: $viewModel.snackbarMessage, type: .error)
         .safeAreaInset(edge: .bottom) {
             if viewModel.isEditMode {
                 actionButtonsSection
@@ -236,13 +241,16 @@ struct PhotoCaptureErrorReviewView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
             } else {
-                LazyVGrid(
-                    columns: [GridItem(.flexible()), GridItem(.flexible())],
-                    spacing: Layout.imageGridSpacing
-                ) {
-                    ForEach(viewModel.images.indices, id: \.self) { index in
-                        ImageThumbnailCell(
-                            source: viewModel.images[index],
+                LazyVStack(spacing: Layout.imageGridSpacing) {
+                    ForEach(Array(viewModel.images.enumerated()), id: \.element.id) { index, imageWithNote in
+                        ImageRowCard(
+                            source: imageWithNote.source,
+                            index: index,
+                            total: viewModel.images.count,
+                            note: Binding(
+                                get: { viewModel.images[index].note },
+                                set: { viewModel.images[index].note = $0 }
+                            ),
                             cornerRadius: Layout.cornerRadius
                         ) {
                             selectedImageIndex = index
@@ -445,7 +453,7 @@ struct PhotoCaptureErrorReviewView: View {
     // MARK: - Image Action Handlers
     private func handleEditImage() async {
         guard let index = selectedImageIndex else { return }
-        switch viewModel.images[index] {
+        switch viewModel.images[index].source {
         case .local(let img):
             editingUIImage = img
             showImageEditor = true
@@ -465,7 +473,7 @@ struct PhotoCaptureErrorReviewView: View {
 
     private func handleShareImage() async {
         guard let index = selectedImageIndex else { return }
-        switch viewModel.images[index] {
+        switch viewModel.images[index].source {
         case .local(let img):
             sharingImage = img
             showShareSheet = true
@@ -483,51 +491,70 @@ struct PhotoCaptureErrorReviewView: View {
         }
     }
 
-    // MARK: - Private Methods
-    @ViewBuilder
-    private func imageView(for source: ImageSource) -> some View {
-        switch source {
-        case .local(let image):
-            Image(uiImage: image).resizable()
-        case .remote(let url):
-            CachedAsyncImage(url: URL(string: url)) { phase in
-                if let img = phase.image { img.resizable() }
-                else { LMSColor.backgroundSecondary }
-            }
-        }
-    }
 }
 
-// MARK: - Image Thumbnail Cell
+// MARK: - Image Row Card
 
-private struct ImageThumbnailCell: View {
+private struct ImageRowCard: View {
     let source: ImageSource
+    let index: Int
+    let total: Int
+    @Binding var note: String
     let cornerRadius: CGFloat
     let onMenu: () -> Void
 
     @GestureState private var isPressed = false
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            imageContent
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .aspectRatio(1, contentMode: .fill)
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        VStack(spacing: 0) {
+            // Full-width image with overlaid controls
+            ZStack(alignment: .topTrailing) {
+                imageContent
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
 
-            Button(action: onMenu, label: {
-                Image(systemName: "ellipsis.circle.fill")
-                    .foregroundColor(LMSColor.white)
-                    .background(LMSColor.black.opacity(0.6))
-                    .clipShape(Circle())
-                    .padding(4)
-            })
+                // Index badge top-left
+                Text("\(index + 1) / \(total)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(Capsule())
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                // Menu button top-right
+                Button(action: onMenu) {
+                    Image(systemName: "ellipsis.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(LMSColor.white)
+                        .background(LMSColor.black.opacity(0.5))
+                        .clipShape(Circle())
+                        .padding(8)
+                }
+            }
+            .scaleEffect(isPressed ? 0.98 : 1.0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($isPressed) { _, state, _ in state = true }
+            )
+
+            // Note text field
+            TextField("Thêm ghi chú cho ảnh này...", text: $note, axis: .vertical)
+                .font(.system(size: 14))
+                .foregroundColor(LMSColor.textPrimary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
         }
-        .scaleEffect(isPressed ? 0.95 : 1.0)
-        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .updating($isPressed) { _, state, _ in state = true }
+        .background(LMSColor.backgroundSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(LMSColor.secondary, lineWidth: 1)
         )
     }
 
@@ -573,7 +600,10 @@ private struct ShareSheet: UIViewControllerRepresentable {
 
     return PhotoCaptureErrorReviewView(
         inspectionId: "preview-id",
-        initialImages: [.local(image: sampleImage1), .local(image: sampleImage2)],
+        initialImages: [
+            ImageWithNote(source: .local(image: sampleImage1), note: "Carton bị móp"),
+            ImageWithNote(source: .local(image: sampleImage2))
+        ],
         onImagesUpdated: { _ in }
     )
     .environmentObject(LocalizationManager.shared)

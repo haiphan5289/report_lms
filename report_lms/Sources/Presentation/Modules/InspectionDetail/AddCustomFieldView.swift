@@ -19,6 +19,7 @@ struct AddCustomFieldView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var fieldLabel: String = ""
     @State private var fieldType: InspectionField.FieldType = .photo
+    @State private var formVisible = false
     
     let onSave: (String, InspectionField.FieldType) -> Void
     
@@ -30,18 +31,21 @@ struct AddCustomFieldView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     LMSLabel("Tên điểm kiểm tra", style: .body)
                         .fontWeight(.semibold)
-                    
+
                     LMSTextField(
                         "Nhập tên điểm kiểm tra",
                         text: $fieldLabel
                     )
                 }
-                
+                .opacity(formVisible ? 1 : 0)
+                .offset(y: formVisible ? 0 : 16)
+                .animation(.easeOut(duration: 0.35), value: formVisible)
+
                 // Field Type Picker
                 VStack(alignment: .leading, spacing: 8) {
                     LMSLabel("Loại điểm kiểm tra", style: .body)
                         .fontWeight(.semibold)
-                    
+
                     Picker("Loại", selection: $fieldType) {
                         ForEach([InspectionField.FieldType.photo, .text, .checkbox], id: \.self) { type in
                             Text(fieldTypeLabel(for: type))
@@ -50,9 +54,12 @@ struct AddCustomFieldView: View {
                     }
                     .pickerStyle(.segmented)
                 }
-                
+                .opacity(formVisible ? 1 : 0)
+                .offset(y: formVisible ? 0 : 16)
+                .animation(.easeOut(duration: 0.35).delay(0.08), value: formVisible)
+
                 Spacer()
-                
+
                 // Save Button
                 LMSButton(
                     "Thêm điểm kiểm tra",
@@ -66,6 +73,9 @@ struct AddCustomFieldView: View {
                 )
                 .frame(height: Layout.buttonHeight)
                 .disabled(fieldLabel.isEmpty)
+                .opacity(formVisible ? 1 : 0)
+                .offset(y: formVisible ? 0 : 12)
+                .animation(.easeOut(duration: 0.35).delay(0.16), value: formVisible)
             }
             .padding(Layout.padding)
             .navigationTitle("Thêm điểm kiểm tra")
@@ -76,6 +86,9 @@ struct AddCustomFieldView: View {
                         dismiss()
                     }
                 }
+            }
+            .task {
+                withAnimation(.easeOut(duration: 0.35)) { formVisible = true }
             }
         }
     }

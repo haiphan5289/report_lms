@@ -11,6 +11,8 @@ struct CatelogyPlanView: View {
     // MARK: - Properties
     @StateObject private var viewModel: CatelogyPlanViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var rowsVisible = false
+    @State private var cancelVisible = false
     var onCombineInspection: () -> Void = {}
     var onScanBarcode: () -> Void = {}
     var onStartInspection: () -> Void = {}
@@ -38,19 +40,24 @@ struct CatelogyPlanView: View {
         }
         .background(Color(.systemBackground))
         .navigationBarHidden(true)
+        .task {
+            withAnimation(.easeOut(duration: 0.3)) { rowsVisible = true }
+            try? await Task.sleep(for: .milliseconds(200))
+            withAnimation(.easeOut(duration: 0.3)) { cancelVisible = true }
+        }
     }
 
     // MARK: - Private Views
     private var contentView: some View {
         VStack(spacing: 0) {
-            ForEach(viewModel.items, id: \.self) { option in
-                optionRow(option)
+            ForEach(Array(viewModel.items.enumerated()), id: \.element) { index, option in
+                optionRow(option, index: index)
             }
         }
         .background(Color(.systemBackground))
     }
 
-    private func optionRow(_ option: CatelogyPlanViewModel.InspectionOption) -> some View {
+    private func optionRow(_ option: CatelogyPlanViewModel.InspectionOption, index: Int) -> some View {
         Button {
             handleOptionTap(option)
         } label: {
@@ -75,10 +82,13 @@ struct CatelogyPlanView: View {
                     .stroke(Color(.systemGray4), lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScalePressStyle())
         .padding(.horizontal, 12)
         .padding(.top, option == viewModel.items.first ? 0 : 6)
         .padding(.bottom, 6)
+        .opacity(rowsVisible ? 1 : 0)
+        .offset(y: rowsVisible ? 0 : 12)
+        .animation(.easeOut(duration: 0.3).delay(Double(index) * 0.07), value: rowsVisible)
     }
 
     private var cancelButton: some View {
@@ -93,7 +103,7 @@ struct CatelogyPlanView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScalePressStyle())
         .background(Color(.systemBackground))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
@@ -101,6 +111,9 @@ struct CatelogyPlanView: View {
         )
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+        .opacity(cancelVisible ? 1 : 0)
+        .offset(y: cancelVisible ? 0 : 12)
+        .animation(.easeOut(duration: 0.3), value: cancelVisible)
     }
 
     // MARK: - Private Methods
@@ -124,6 +137,16 @@ struct CatelogyPlanView: View {
 
 extension CatelogyPlanView {
 
+}
+
+// MARK: - Button Style
+
+private struct ScalePressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
+    }
 }
 
 // MARK: - Preview

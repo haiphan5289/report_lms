@@ -15,12 +15,17 @@ struct ErrorHomeView: View {
     @State private var showErrorCamera = false
     @State private var capturedImages: [UIImage] = []
     @State private var showErrorReview = false
-    @State private var scrollToTopTrigger = false
     @State private var hasLoadedOnce = false
+    let onItemTapped: (SavedErrorItem) -> Void
+
+    // Animation
+    @State private var listAppeared = false
+    @State private var floatOffset: CGFloat = -6
 
     // MARK: - Initialization
-    init(viewModel: ErrorHomeViewModel) {
+    init(viewModel: ErrorHomeViewModel, onItemTapped: @escaping (SavedErrorItem) -> Void = { _ in }) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.onItemTapped = onItemTapped
     }
 
     // MARK: - Body
@@ -38,54 +43,76 @@ struct ErrorHomeView: View {
         .refreshable {
             await viewModel.loadErrorInspections()
         }
-        .navigationDestination(isPresented: $showErrorCamera) {
+        .fullScreenCover(isPresented: $showErrorCamera) {
             CameraView(source: .errorReport) { images in
                 capturedImages = images
                 showErrorReview = true
             }
         }
-        .navigationDestination(for: SavedErrorItem.self) { item in
-            PhotoCaptureErrorReviewView(
-                inspectionId: viewModel.inspectionId,
-                initialImages: item.imageURLs.map { .remote(url: $0) },
-                editingItem: item,
-                onImagesUpdated: { _ in },
-                onSaved: { saved, images in
-                    viewModel.upsertErrorItem(saved, thumbnails: images)
-                    scrollToTopTrigger.toggle()
-                },
-                onDeleted: { deletedItem in
-                    viewModel.deleteErrorItem(deletedItem)
-                }
-            )
-        }
         .sheet(isPresented: $showErrorReview) {
-            PhotoCaptureErrorReviewView(
-                inspectionId: viewModel.inspectionId,
-                initialImages: capturedImages.map { .local(image: $0) },
-                onImagesUpdated: { _ in },
-                onSaved: { saved, images in
-                    viewModel.upsertErrorItem(saved, thumbnails: images)
-                    scrollToTopTrigger.toggle()
-                }
-            )
+            NavigationStack {
+                PhotoCaptureErrorReviewView(
+                    inspectionId: viewModel.inspectionId,
+                    initialImages: capturedImages.map { ImageWithNote(source: .local(image: $0)) },
+                    onImagesUpdated: { _ in },
+                    onSaved: { saved, images in
+                        viewModel.upsertErrorItem(saved, thumbnails: images)
+                        viewModel.scrollToTopTrigger += 1
+                    }
+                )
+            }
         }
     }
 
     // MARK: - Private Views
     private var contentView: some View {
-        Group {
+        ZStack {
             if viewModel.isLoading && viewModel.errorInspections.isEmpty {
-                LMSLoadingView()
+                errorSkeletonView
+                    .transition(.opacity)
             } else if let errorMessage = viewModel.errorMessage {
                 errorView(message: errorMessage)
+                    .transition(.opacity)
             } else if viewModel.errorInspections.isEmpty {
                 emptyStateView
+                    .transition(.opacity)
             } else {
                 inspectionListView
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeInOut(duration: 0.35), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.35), value: viewModel.errorInspections.isEmpty)
+    }
+
+    private var errorSkeletonView: some View {
+        VStack(spacing: 12) {
+            ForEach(0..<4, id: \.self) { _ in
+                HStack(spacing: 12) {
+                    LMSSkeleton()
+                        .frame(width: 72, height: 72)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    VStack(alignment: .leading, spacing: 8) {
+                        LMSSkeleton().frame(width: 140, height: 12).clipShape(Capsule())
+                        LMSSkeleton().frame(width: 80, height: 10).clipShape(Capsule())
+                        LMSSkeleton().frame(width: 120, height: 10).clipShape(Capsule())
+                    }
+                    Spacer()
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(UIColor.systemBackground))
+                        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+                )
+                .padding(.horizontal, 16)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
     }
 
     private func errorView(message: String) -> some View {
@@ -108,25 +135,24 @@ struct ErrorHomeView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 24) {
-            VStack(spacing: 8) {
-                Image(systemName: "checkmark.circle")
-                    .font(.system(size: 48))
-                    .foregroundColor(.green.opacity(0.6))
-                LMSLabel("Không có lỗi nào được phát hiện", style: .body, alignment: .center)
-                LMSLabel("Tất cả kiểm tra đang diễn ra tốt", style: .subheadline, color: .secondary, alignment: .center)
-            }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-            )
-
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 56))
+                .foregroundColor(.green.opacity(0.6))
+                .offset(y: floatOffset)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                        floatOffset = 6
+                    }
+                }
+            LMSLabel("Không có lỗi nào được phát hiện", style: .body, alignment: .center)
+            LMSLabel("Tất cả kiểm tra đang diễn ra tốt", style: .subheadline, color: .secondary, alignment: .center)
+                .multilineTextAlignment(.center)
             Spacer()
         }
-        .multilineTextAlignment(.center)
-        .padding()
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var inspectionListView: some View {
@@ -134,8 +160,14 @@ struct ErrorHomeView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     Color.clear.frame(height: 0).id("errorList-top")
-                    ForEach(viewModel.errorInspections) { item in
-                        NavigationLink(value: item) {
+                    ForEach(Array(viewModel.errorInspections.enumerated()), id: \.element.id) { index, item in
+                        Button(action: {
+                            print("🔍 [ErrorHomeView] Item tapped: \(item.id)")
+                            print("   - Severity: \(item.severity)")
+                            print("   - DefectType: \(item.defectType)")
+                            onItemTapped(item)
+                            print("   - Callback executed ✅")
+                        }) {
                             ErrorItemCardView(item: item, cachedThumbnail: viewModel.thumbnailCache[item.id])
                         }
                         .buttonStyle(.plain)
@@ -150,12 +182,19 @@ struct ErrorHomeView: View {
                                 )
                         )
                         .padding(.horizontal, 16)
+                        .opacity(listAppeared ? 1 : 0)
+                        .offset(y: listAppeared ? 0 : 16)
+                        .animation(
+                            .easeOut(duration: 0.35).delay(Double(min(index, 6)) * 0.08),
+                            value: listAppeared
+                        )
                     }
                 }
                 .padding(.vertical, 12)
+                .onAppear { listAppeared = true }
             }
             .background(Color(.systemGroupedBackground))
-            .onChange(of: scrollToTopTrigger) { _ in
+            .onChange(of: viewModel.scrollToTopTrigger) { _ in
                 withAnimation {
                     proxy.scrollTo("errorList-top", anchor: .top)
                 }
@@ -171,7 +210,7 @@ struct ErrorHomeView: View {
         }
         .frame(width: 56, height: 56)
         .background(Circle().fill(Color.orange))
-        .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
+        .shadow(color: Color.orange.opacity(0.45), radius: 14, x: 0, y: 6)
         .padding(.trailing, 24)
         .padding(.bottom, 24)
     }

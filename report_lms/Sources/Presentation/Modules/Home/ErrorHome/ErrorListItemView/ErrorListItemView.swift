@@ -13,6 +13,8 @@ struct ErrorItemCardView: View {
     let item: SavedErrorItem
     var cachedThumbnail: UIImage? = nil
 
+    @GestureState private var isPressed = false
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             thumbnailView
@@ -37,6 +39,12 @@ struct ErrorItemCardView: View {
             }
         }
         .padding(12)
+        .scaleEffect(isPressed ? 0.97 : 1.0)
+        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .updating($isPressed) { _, state, _ in state = true }
+        )
     }
 
     private var thumbnailView: some View {
@@ -54,7 +62,7 @@ struct ErrorItemCardView: View {
                     } else if phase.error != nil {
                         placeholderImage
                     } else {
-                        ProgressView()
+                        LMSSkeleton()
                     }
                 }
             } else {
@@ -63,15 +71,15 @@ struct ErrorItemCardView: View {
         }
         .frame(width: 72, height: 72)
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .background(Color.gray.opacity(0.1))
+        .background(LMSColor.backgroundSecondary)
     }
 
     private var placeholderImage: some View {
         Image(systemName: "photo")
             .font(.system(size: 24))
-            .foregroundColor(.secondary)
+            .foregroundColor(LMSColor.textTertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.gray.opacity(0.1))
+            .background(LMSColor.backgroundSecondary)
     }
 
     private var severityBadge: some View {
@@ -79,9 +87,12 @@ struct ErrorItemCardView: View {
             .font(.caption)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(severityColor.opacity(0.15))
+            .background(
+                Capsule()
+                    .fill(severityColor.opacity(0.12))
+                    .overlay(Capsule().stroke(severityColor.opacity(0.3), lineWidth: 1))
+            )
             .foregroundColor(severityColor)
-            .cornerRadius(4)
     }
 
     private var severityColor: Color {

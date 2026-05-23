@@ -19,6 +19,9 @@ struct EmptyErrorView: View {
         static let subtitleHorizontalPadding: CGFloat = 32
     }
 
+    // MARK: - Animation
+    @State private var floatOffset: CGFloat = -6
+
     // MARK: - Body
     var body: some View {
         VStack(spacing: Layout.spacing) {
@@ -38,6 +41,12 @@ struct EmptyErrorView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: Layout.iconSize))
                 .foregroundColor(.green)
+                .offset(y: floatOffset)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                        floatOffset = 6
+                    }
+                }
 
             LMSLabel(
                 "Không có Lỗi.",

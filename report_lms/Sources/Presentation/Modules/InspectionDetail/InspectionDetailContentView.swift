@@ -38,6 +38,8 @@ struct InspectionDetailContentView: View {
     @State private var showErrorCamera = false
     @State private var capturedErrorImages: [UIImage] = []
     @State private var showErrorReview = false
+    @GestureState private var addFieldPressed = false
+    @GestureState private var completePressed = false
 
     // MARK: - Body
     var body: some View {
@@ -53,7 +55,7 @@ struct InspectionDetailContentView: View {
                 loadingPlaceholder
             }
         }
-        .navigationDestination(isPresented: $showErrorCamera) {
+        .fullScreenCover(isPresented: $showErrorCamera) {
             CameraView(source: .errorReport) { images in
                 capturedErrorImages = images
                 showErrorReview = true
@@ -61,14 +63,16 @@ struct InspectionDetailContentView: View {
         }
         .sheet(isPresented: $showErrorReview) {
             if let inspectionId = contentViewModel.inspection?.id {
-                PhotoCaptureErrorReviewView(
-                    inspectionId: inspectionId,
-                    initialImages: capturedErrorImages.map { .local(image: $0) },
-                    onImagesUpdated: { _ in },
-                    onSaved: { _, _ in
-                        onSwitchToErrorTab()
-                    }
-                )
+                NavigationStack {
+                    PhotoCaptureErrorReviewView(
+                        inspectionId: inspectionId,
+                        initialImages: capturedErrorImages.map { ImageWithNote(source: .local(image: $0)) },
+                        onImagesUpdated: { _ in },
+                        onSaved: { _, _ in
+                            onSwitchToErrorTab()
+                        }
+                    )
+                }
             }
         }
     }
@@ -169,8 +173,26 @@ struct InspectionDetailContentView: View {
     
     private var loadingPlaceholder: some View {
         ScrollView {
-            VStack {
-                // Empty placeholder to maintain layout
+            VStack(spacing: 12) {
+                ForEach(0..<3, id: \.self) { _ in
+                    VStack(spacing: 0) {
+                        HStack {
+                            LMSSkeleton().frame(width: 120, height: 14).clipShape(Capsule())
+                            Spacer()
+                            LMSSkeleton().frame(width: 40, height: 14).clipShape(Capsule())
+                        }
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(UIColor.systemBackground))
+                                .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+                        )
+                        VStack(spacing: 0) {
+                            LMSInspectionCardSkeleton()
+                            LMSInspectionCardSkeleton()
+                        }
+                    }
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, Layout.horizontalPadding)
@@ -189,7 +211,7 @@ struct InspectionDetailContentView: View {
         }
         .frame(width: 56, height: 56)
         .background(Circle().fill(Color.orange))
-        .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
+        .shadow(color: Color.orange.opacity(0.45), radius: 14, x: 0, y: 6)
         .padding(.trailing, 24)
         .padding(.bottom, 24)
     }
@@ -219,10 +241,16 @@ struct InspectionDetailContentView: View {
             .cornerRadius(Layout.actionButtonCornerRadius)
         }
         .buttonStyle(.plain)
+        .scaleEffect(addFieldPressed ? 0.97 : 1.0)
+        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: addFieldPressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .updating($addFieldPressed) { _, state, _ in state = true }
+        )
         .accessibilityLabel("Thêm điểm kiểm tra tùy chỉnh")
         .accessibilityHint("Thêm một điểm kiểm tra mới vào danh sách")
     }
-    
+
     private func completeInspectionButton() -> some View {
         Button(action: {
             showFinalReport = true
@@ -249,6 +277,12 @@ struct InspectionDetailContentView: View {
             .shadow(color: LMSColor.primary.opacity(0.25), radius: 8, x: 0, y: 4)
         }
         .buttonStyle(.plain)
+        .scaleEffect(completePressed ? 0.97 : 1.0)
+        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: completePressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .updating($completePressed) { _, state, _ in state = true }
+        )
         .padding(.top, 8)
         .accessibilityLabel("Hoàn tất kiểm tra")
         .accessibilityHint("Mở màn hình hoàn tất kiểm tra và gửi báo cáo")

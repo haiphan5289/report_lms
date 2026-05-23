@@ -11,10 +11,16 @@ struct LMSProgressView: View {
     // MARK: - Properties
     @StateObject private var viewModel: ProgressViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
+    let onInspectionTapped: (Inspection) -> Void
+
+    // Animation
+    @State private var listAppeared = false
+    @State private var floatOffset: CGFloat = -6
 
     // MARK: - Initialization
-    init(viewModel: ProgressViewModel? = nil) {
+    init(viewModel: ProgressViewModel? = nil, onInspectionTapped: @escaping (Inspection) -> Void = { _ in }) {
         _viewModel = StateObject(wrappedValue: viewModel ?? Container.shared.resolve(ProgressViewModel.self)!)
+        self.onInspectionTapped = onInspectionTapped
     }
 
     // MARK: - Body
@@ -31,17 +37,44 @@ struct LMSProgressView: View {
 
     // MARK: - Private Views
     private var contentView: some View {
-        Group {
+        ZStack {
             if viewModel.isLoading && viewModel.weeklyInspections.isEmpty {
-                LMSLoadingView()
+                progressSkeletonView
+                    .transition(.opacity)
             } else if let errorMessage = viewModel.errorMessage {
                 errorView(message: errorMessage)
+                    .transition(.opacity)
             } else if viewModel.weeklyInspections.isEmpty {
                 emptyStateView
+                    .transition(.opacity)
             } else {
                 inspectionListView
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+        .animation(.easeInOut(duration: 0.35), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.35), value: viewModel.weeklyInspections.isEmpty)
+    }
+
+    private var progressSkeletonView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                RoundedRectangle(cornerRadius: 8).fill(Color(.systemFill))
+                    .frame(width: 80, height: 14)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            VStack(spacing: 0) {
+                ForEach(0..<4, id: \.self) { _ in
+                    LMSInspectionCardSkeleton()
+                }
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
     }
 
     private func errorView(message: String) -> some View {
@@ -64,15 +97,21 @@ struct LMSProgressView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
             Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary.opacity(0.6))
-
+                .font(.system(size: 56))
+                .foregroundColor(.secondary.opacity(0.5))
+                .offset(y: floatOffset)
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                        floatOffset = 6
+                    }
+                }
             LMSLabel(localizationManager.localize("progress.empty.title"), style: .body, alignment: .center)
             LMSLabel(localizationManager.localize("progress.empty.subtitle"), style: .subheadline, color: .secondary, alignment: .center)
+                .multilineTextAlignment(.center)
         }
-        .padding()
+        .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -85,8 +124,8 @@ struct LMSProgressView: View {
                             let visibleInspections = viewModel.visibleInspections(for: section)
 
                             ForEach(Array(visibleInspections.enumerated()), id: \.element.id) { index, inspection in
-                                NavigationLink(value: inspection) {
-                                InspectionCardView(
+                                Button(action: { onInspectionTapped(inspection) }) {
+                                    InspectionCardView(
                                         inspection: inspection,
                                         isLastIndex: index == visibleInspections.count - 1,
                                         onDelete: {
@@ -110,9 +149,16 @@ struct LMSProgressView: View {
                                 )
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 4)
+                                .opacity(listAppeared ? 1 : 0)
+                                .offset(y: listAppeared ? 0 : 16)
+                                .animation(
+                                    .easeOut(duration: 0.35).delay(Double(min(index, 6)) * 0.08),
+                                    value: listAppeared
+                                )
                             }
                         }
                         .padding(.vertical, 12)
+                        .onAppear { listAppeared = true }
                     } header: {
                         sectionHeader(for: section)
                     }
@@ -144,6 +190,7 @@ struct LMSProgressView: View {
 
 private final class PreviewProgressStorageService: InspectionStorageServiceType {
     private var mockInspections: [Inspection]
+    let isCacheLoaded: Bool = true
 
     init(inspections: [Inspection]) {
         self.mockInspections = inspections

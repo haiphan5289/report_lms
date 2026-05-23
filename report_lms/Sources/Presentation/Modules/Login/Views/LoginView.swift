@@ -25,6 +25,12 @@ struct LoginView: View {
     @StateObject private var viewModel: LoginViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
 
+    // Animation
+    @State private var titleVisible = false
+    @State private var formVisible = false
+    @State private var shakeOffset: CGFloat = 0
+    @GestureState private var biometricPressed = false
+
     // MARK: - Initialization
     init(viewModel: LoginViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -42,13 +48,37 @@ struct LoginView: View {
             Spacer().frame(height: Layout.topSpacing)
 
             titleSection
+                .opacity(titleVisible ? 1 : 0)
+                .offset(y: titleVisible ? 0 : -16)
+                .animation(.easeOut(duration: 0.45), value: titleVisible)
             formSection
+                .opacity(formVisible ? 1 : 0)
+                .offset(y: formVisible ? 0 : 20)
+                .offset(x: shakeOffset)
+                .animation(.easeOut(duration: 0.4), value: formVisible)
             actionSection
+                .opacity(formVisible ? 1 : 0)
+                .offset(y: formVisible ? 0 : 20)
+                .animation(.easeOut(duration: 0.4).delay(0.08), value: formVisible)
 
             Spacer()
         }
         .padding(.horizontal, Layout.horizontalPadding)
         .padding(.vertical, Layout.verticalPadding)
+        .task {
+            withAnimation(.easeOut(duration: 0.45)) { titleVisible = true }
+            try? await Task.sleep(for: .milliseconds(200))
+            withAnimation(.easeOut(duration: 0.4)) { formVisible = true }
+        }
+        .onChange(of: viewModel.errorMessage) { _, newValue in
+            guard newValue != nil else { return }
+            withAnimation(.easeInOut(duration: 0.06).repeatCount(4, autoreverses: true)) {
+                shakeOffset = 8
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation { shakeOffset = 0 }
+            }
+        }
     }
 
     private var titleSection: some View {
@@ -106,11 +136,13 @@ struct LoginView: View {
         VStack(spacing: Layout.errorSpacing) {
             if let error = viewModel.errorMessage {
                 errorView(message: error)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             loginButton
             biometricButton
         }
+        .animation(.easeInOut(duration: 0.25), value: viewModel.errorMessage == nil)
     }
 
     private func errorView(message: String) -> some View {
@@ -162,7 +194,7 @@ struct LoginView: View {
                                     Circle()
                                         .stroke(LMSColor.primaryBorder, lineWidth: 2)
                                 )
-                            
+
                             if viewModel.isBiometricLoading {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .blue))
@@ -175,6 +207,12 @@ struct LoginView: View {
                     }
                     .disabled(viewModel.isBiometricLoading)
                     .opacity(viewModel.isBiometricLoading ? 0.6 : 1.0)
+                    .scaleEffect(biometricPressed ? 0.93 : 1.0)
+                    .animation(.spring(response: 0.2, dampingFraction: 0.6), value: biometricPressed)
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 0)
+                            .updating($biometricPressed) { _, state, _ in state = true }
+                    )
                     
                     Text(biometricButtonTitle)
                         .font(.caption)

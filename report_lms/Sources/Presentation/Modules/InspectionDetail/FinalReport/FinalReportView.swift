@@ -20,6 +20,9 @@ struct FinalReportView: View {
     @StateObject private var viewModel: FinalReportViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
     @Environment(\.dismiss) private var dismiss
+
+    // Animation
+    @State private var contentVisible = false
     
     // MARK: - Initialization
     init(
@@ -41,25 +44,34 @@ struct FinalReportView: View {
                 
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(spacing: Layout.sectionSpacing) {
-                    // Section 1: Số lượng
-                    quantitiesSection
-                    
+                        quantitiesSection
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 16)
+                            .animation(.easeOut(duration: 0.35), value: contentVisible)
                         statusSection
-                        
-                        // Section 2: Vị trí
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 16)
+                            .animation(.easeOut(duration: 0.35).delay(0.08), value: contentVisible)
                         locationSection
-                        
-                        // Section 3: Tóm tắt nhận xét
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 16)
+                            .animation(.easeOut(duration: 0.35).delay(0.16), value: contentVisible)
                         summarySection
-                        
-                        // Section 4: Thông báo
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 16)
+                            .animation(.easeOut(duration: 0.35).delay(0.24), value: contentVisible)
                         notificationSection
-                        
-                        // Section 5: Kết thúc kiểm tra
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 16)
+                            .animation(.easeOut(duration: 0.35).delay(0.32), value: contentVisible)
                         actionButtonsSection
-                        
-                        // Section 6: Lưu vào tập ảnh
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 16)
+                            .animation(.easeOut(duration: 0.35).delay(0.40), value: contentVisible)
                         savePhotosSection
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 16)
+                            .animation(.easeOut(duration: 0.35).delay(0.44), value: contentVisible)
                     }
                     .padding(.horizontal, Layout.horizontalPadding)
                     .padding(.vertical, Layout.verticalPadding)
@@ -73,6 +85,9 @@ struct FinalReportView: View {
                         .foregroundColor(LMSColor.textPrimary)
                 }
             )
+            .task {
+                withAnimation(.easeOut(duration: 0.35)) { contentVisible = true }
+            }
         }
         .sheet(isPresented: $viewModel.isShowingRecipientsPicker) {
             recipientsPickerView

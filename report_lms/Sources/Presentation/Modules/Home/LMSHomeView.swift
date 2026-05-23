@@ -6,41 +6,47 @@
 //
 
 import SwiftUI
-import UIKit
-
-// MARK: - LMSHomeView Constants
-
-struct Layout {
-    static let headerHorizontalPadding: CGFloat = 8
-    static let headerVerticalPadding: CGFloat = 4
-    static let iconButtonSize: CGFloat = 44
-    static let shadowOpacity: CGFloat = 0.04
-    static let shadowRadius: CGFloat = 2
-    static let shadowY: CGFloat = 1
-    static let tabIconSize: CGFloat = 18
-    static let tabSpacing: CGFloat = 4
-    static let tabUnderlineHeight: CGFloat = 3
-    static let tabBottomPadding: CGFloat = 2
-    static let minContentHeight: CGFloat = 120
-}
 
 // MARK: - LMSHomeView
 
 struct LMSHomeView: View {
 
+    // MARK: - Layout Constants
+
+    private enum Layout {
+        static let headerHorizontalPadding: CGFloat = 8
+        static let headerVerticalPadding: CGFloat = 4
+        static let iconButtonSize: CGFloat = 44
+        static let shadowOpacity: CGFloat = 0.04
+        static let shadowRadius: CGFloat = 2
+        static let shadowY: CGFloat = 1
+        static let tabIconSize: CGFloat = 18
+        static let tabSpacing: CGFloat = 4
+        static let tabUnderlineHeight: CGFloat = 3
+        static let tabBottomPadding: CGFloat = 2
+        static let minContentHeight: CGFloat = 120
+    }
+
     // MARK: - Properties
+
     @StateObject private var viewModel: LMSHomeViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
     @Namespace private var tabBarNamespace
     let onLogout: () -> Void
 
+    // Animation
+    @State private var headerVisible = false
+    @State private var tabBarVisible = false
+
     // MARK: - Initialization
+
     init(viewModel: LMSHomeViewModel, onLogout: @escaping () -> Void) {
         _viewModel = StateObject(wrappedValue: viewModel)
         self.onLogout = onLogout
     }
 
     // MARK: - Body
+
     var body: some View {
         ZStack {
             // Main content
@@ -59,17 +65,12 @@ struct LMSHomeView: View {
                 .navigationDestination(for: String.self) { destination in
                     switch destination {
                     case "createInspection":
-                        let createViewModel = CreateInspectionViewModel(
-                            createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!,
-                            storageService: Container.shared.resolve(InspectionStorageServiceType.self)!
-                        )
-                        CreateInspectionView(viewModel: createViewModel) { createdInspection in
+                        CreateInspectionDestination { createdInspection in
                             viewModel.handleNewInspectionCreated(createdInspection)
                         }
                     case "orders":
                         OrdersView()
                     case "profile":
-                        // TODO: Replace with ProfileView when available
                         Text("Profile")
                             .navigationTitle("Profile")
                     case "settings":
@@ -87,6 +88,10 @@ struct LMSHomeView: View {
                 }
                 .onChange(of: viewModel.navigationPath) { oldValue, newValue in
                     viewModel.handleNavigationBack(from: oldValue, to: newValue)
+                }
+                .onAppear {
+                    withAnimation(.easeOut(duration: 0.4)) { headerVisible = true }
+                    withAnimation(.easeOut(duration: 0.4).delay(0.1)) { tabBarVisible = true }
                 }
             }
 
@@ -134,8 +139,10 @@ struct LMSHomeView: View {
             }
         }
     }
+
     // MARK: - Private Views
-    var header: some View {
+
+    private var header: some View {
         HStack {
             menuButton
             Spacer()
@@ -151,9 +158,12 @@ struct LMSHomeView: View {
             radius: Layout.shadowRadius,
             y: Layout.shadowY
         )
+        .opacity(headerVisible ? 1 : 0)
+        .offset(y: headerVisible ? 0 : -12)
+        .animation(.easeOut(duration: 0.4), value: headerVisible)
     }
 
-    var menuButton: some View {
+    private var menuButton: some View {
         LMSButton(
             "",
             icon: "line.3.horizontal",
@@ -163,7 +173,7 @@ struct LMSHomeView: View {
         .frame(width: Layout.iconButtonSize, height: Layout.iconButtonSize)
     }
 
-    var cloudButton: some View {
+    private var cloudButton: some View {
         LMSButton(
             "",
             icon: "cloud",
@@ -173,7 +183,7 @@ struct LMSHomeView: View {
         .frame(width: Layout.iconButtonSize, height: Layout.iconButtonSize)
     }
 
-    var tabBar: some View {
+    private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(LMSHomeViewModel.Tab.allCases, id: \.self) { tab in
                 tabButton(for: tab)
@@ -182,9 +192,11 @@ struct LMSHomeView: View {
         .background(Color(.systemBackground))
         .overlay(Divider(), alignment: .bottom)
         .padding(.bottom, Layout.tabBottomPadding)
+        .opacity(tabBarVisible ? 1 : 0)
+        .animation(.easeOut(duration: 0.4), value: tabBarVisible)
     }
 
-    func tabButton(for tab: LMSHomeViewModel.Tab) -> some View {
+    private func tabButton(for tab: LMSHomeViewModel.Tab) -> some View {
         Button(action: {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 viewModel.selectedTab = tab
@@ -195,7 +207,7 @@ struct LMSHomeView: View {
         .buttonStyle(.plain)
     }
 
-    func tabButtonContent(for tab: LMSHomeViewModel.Tab) -> some View {
+    private func tabButtonContent(for tab: LMSHomeViewModel.Tab) -> some View {
         let isSelected = viewModel.selectedTab == tab
 
         return VStack(spacing: Layout.tabSpacing) {
@@ -217,7 +229,7 @@ struct LMSHomeView: View {
         .padding(.vertical, 0)
     }
 
-    func tabUnderline(isSelected: Bool) -> some View {
+    private func tabUnderline(isSelected: Bool) -> some View {
         ZStack {
             if isSelected {
                 Capsule()
@@ -230,27 +242,52 @@ struct LMSHomeView: View {
         }
     }
 
-    var tabContent: some View {
+    private var tabContent: some View {
         Group {
             switch viewModel.selectedTab {
-            case LMSHomeViewModel.Tab.plan:
+            case .plan:
                 PlanLMSHomeView(
                     refreshTrigger: viewModel.dataRefreshTrigger,
-                    onQuickInspection: viewModel.navigateToCreateInspection
+                    onQuickInspection: viewModel.navigateToCreateInspection,
+                    onInspectionTapped: viewModel.navigateToInspectionDetail
                 )
-            case LMSHomeViewModel.Tab.inProgress:
-                LMSProgressView()
-            case LMSHomeViewModel.Tab.report:
+            case .inProgress:
+                LMSProgressView(onInspectionTapped: viewModel.navigateToInspectionDetail)
+            case .report:
                 reportContent
             }
         }
         .frame(maxWidth: .infinity, minHeight: Layout.minContentHeight)
         .background(Color(.systemGroupedBackground))
-        .animation(.easeInOut, value: viewModel.selectedTab)
     }
 
-    var reportContent: some View {
+    private var reportContent: some View {
         InformationPurchaseView()
+    }
+}
+
+// MARK: - CreateInspectionDestination
+
+private struct CreateInspectionDestination: View {
+    @StateObject private var viewModel: CreateInspectionViewModel
+    let onCreated: (Inspection) -> Void
+
+    init(onCreated: @escaping (Inspection) -> Void) {
+        self.onCreated = onCreated
+        guard let useCase = Container.shared.resolve(CreateInspectionUseCase.self),
+              let storage = Container.shared.resolve(InspectionStorageServiceType.self) else {
+            fatalError("CreateInspectionUseCase or InspectionStorageServiceType not registered in DI container")
+        }
+        _viewModel = StateObject(wrappedValue: CreateInspectionViewModel(
+            createInspectionUseCase: useCase,
+            storageService: storage
+        ))
+    }
+
+    var body: some View {
+        CreateInspectionView(viewModel: viewModel) { createdInspection in
+            onCreated(createdInspection)
+        }
     }
 }
 
