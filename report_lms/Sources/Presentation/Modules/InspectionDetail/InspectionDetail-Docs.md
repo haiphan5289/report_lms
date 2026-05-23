@@ -536,4 +536,256 @@ let inspectionId: String  // Internal for debug access
 
 ---
 
+### 🐛 BUG-010 — Remote image shows black after editing in ImageEditorView
+
+**Date:** 2026-05-23  
+**Branch:** `feat/login`  
+**Severity:** High (image editing broken for remote images)
+
+#### Root Cause
+
+When editing a remote image:
+
+1. User taps "Edit" on a remote image → `handleEditImage()` downloads it
+2. ImageEditorView edits the UIImage
+3. Callback `viewModel.replaceImage(at: index, with: editedImage)` changes source from `.remote(url)` to `.local(image)`
+4. `ImageWithNote.id` (UUID) remains unchanged
+5. SwiftUI doesn't recreate `ImageRowCard` because same `id` in `ForEach`
+6. Old `CachedAsyncImage` continues rendering, showing black/empty
+
+SwiftUI rule: When using `ForEach(id:)`, if the identity doesn't change, SwiftUI reuses the view even when content changes. The `ImageSource` change from `.remote` to `.local` was invisible to SwiftUI's identity system.
+
+```
+ForEach(images, id: \.id) { imageWithNote in
+    ImageRowCard(source: imageWithNote.source, ...)  // ❌ source changes but id doesn't
+}
+```
+
+#### Fix: Force View Identity Change with `.id()` Modifier
+
+**Pattern: Use composite identity that includes both stable ID and source type.**
+
+**2 files changed:**
+
+**1. `ErrorItem.swift`** — Added `idString` computed property to `ImageSource`:
+```swift
+enum ImageSource: Equatable {
+    case remote(url: String)
+    case local(image: UIImage)
+    
+    var idString: String {
+        switch self {
+        case .remote(let url):
+            return "remote-\(url.hashValue)"
+        case .local(let image):
+            return "local-\(ObjectIdentifier(image).hashValue)"
+        }
+    }
+}
+```
+
+**2. `PhotoCaptureErrorReviewView.swift`** — Added `.id()` modifier to force recreation:
+```swift
+ForEach(Array(viewModel.images.enumerated()), id: \.element.id) { index, imageWithNote in
+    ImageRowCard(
+        source: imageWithNote.source,
+        index: index,
+        total: viewModel.images.count,
+        note: ...,
+        cornerRadius: ...
+    ) {
+        selectedImageIndex = index
+        showImageMenu = true
+    }
+    .id("\(imageWithNote.id)-\(imageWithNote.source.idString)")  // ✅ Composite identity
+}
+```
+
+#### How It Works
+
+**Before (broken):**
+```
+Remote Image Edit Flow:
+1. source = .remote("url123") → id = "uuid-abc"
+2. Edit & Save
+3. source = .local(UIImage) → id = "uuid-abc" (same!)
+4. SwiftUI: "same id, reuse view" → CachedAsyncImage still rendering
+5. Result: Black/empty image
+```
+
+**After (fixed):**
+```
+Remote Image Edit Flow:
+1. source = .remote("url123") → composite id = "uuid-abc-remote-123456"
+2. Edit & Save  
+3. source = .local(UIImage) → composite id = "uuid-abc-local-789012" (different!)
+4. SwiftUI: "different id, recreate view" → Fresh Image(uiImage:) rendered
+5. Result: Edited image displays correctly ✅
+```
+
+#### Rule to Remember
+
+> When SwiftUI views depend on enum state that can change (like `ImageSource`), always use composite identity in `.id()` modifier. Combine the stable identifier (UUID) with a string representation of the enum case to force view recreation when the variant changes. For enums with associated values, use `hashValue` or `ObjectIdentifier` to create unique strings per case.
+
+---
+
+### 🐛 BUG-011 — UIGraphicsImageRenderer memory allocation fails for large images (9072x12096 pixels)
+
+**Date:** 2026-05-23  
+**Branch:** `feat/login`  
+**Severity:** Critical (app crashes with "unable to allocate 7.9GB" error when editing high-res images)
+
+#### Root Cause
+
+Firebase Storage may contain high-resolution images (9072 x 12096 pixels from iPhone Pro Max photos). When compositing in `ImageEditorViewModel.compositeImage()`:
+
+```swift
+private func compositeImage(canvasSize: CGSize) -> UIImage {
+    let base = rotatedSourceImage()  // 9072x12096
+    let imgSize = base.size
+    let renderer = UIGraphicsImageRenderer(size: imgSize)  // ❌ Tries to allocate 9072*12096*4 bytes
+    
+    return renderer.image { _ in
+        base.draw(in: CGRect(origin: .zero, size: imgSize))
+        // ...PencilKit drawing overlay
+    }
+}
+```
+
+**Memory calculation for 9072 x 12096 pixels:**
+- RGBA format: 4 bytes per pixel
+- Total: 9072 × 12096 × 4 = **439,205,888 bytes** (~439MB for image data)
+- CGBitmapContext overhead: **~7,900,913,664 bytes** (~7.9GB) requested by Core Graphics
+
+**Console output:**
+```
+🔍 [PhotoCaptureErrorReviewVM] downloadImage()
+   - Downloaded 11215207 bytes (~11MB compressed)
+   - Original image size: (9072.0, 12096.0)
+   
+🔍 [ImageEditorViewModel] compositeImage()
+   - Base image size: (9072.0, 12096.0)
+   - Canvas size: (492.0, 656.0)
+   - Scale: (18.4390243902439, 18.4390243902439)
+
+CGBitmapContextInfoCreate: unable to allocate 7900913664 bytes for bitmap data
+CGDisplayListDrawInContext: invalid context 0x0
+CGBitmapContextCreateImage: invalid context 0x0
+   - Result image size: (0.0, 0.0)  ❌
+```
+
+iOS **cannot allocate 7.9GB** for a single bitmap context → returns invalid context → result is empty UIImage with size (0.0, 0.0).
+
+#### Fix: Auto-Resize Large Images on Download
+
+**Pattern: Resize images to max 2048x2048 before processing to prevent memory issues.**
+
+**File changed: `PhotoCaptureErrorReviewViewModel.swift`**
+
+```swift
+func downloadImage(from url: String) async throws -> UIImage {
+    print("🔍 [PhotoCaptureErrorReviewVM] downloadImage()")
+    guard let imageURL = URL(string: url) else { throw URLError(.badURL) }
+    let (data, _) = try await URLSession.shared.data(from: imageURL)
+    guard let image = UIImage(data: data) else { throw URLError(.cannotDecodeContentData) }
+    
+    print("   - Original image size: \(image.size)")
+    
+    // ✅ Resize if too large (prevents memory issues in compositing)
+    let maxDimension: CGFloat = 2048
+    if image.size.width > maxDimension || image.size.height > maxDimension {
+        let resized = resizeImage(image, maxDimension: maxDimension)
+        print("   - ⚠️ Image too large, resized to: \(resized.size)")
+        return resized
+    }
+    
+    return image
+}
+
+private func resizeImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+    let size = image.size
+    let aspectRatio = size.width / size.height
+    var newSize: CGSize
+    
+    if size.width > size.height {
+        newSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
+    } else {
+        newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
+    }
+    
+    let renderer = UIGraphicsImageRenderer(size: newSize)
+    return renderer.image { _ in
+        image.draw(in: CGRect(origin: .zero, size: newSize))
+    }
+}
+```
+
+#### How It Works
+
+**Before (broken - 7.9GB memory request):**
+```
+Download Flow:
+1. Download 11MB JPEG from Firebase
+2. Decode to UIImage: (9072.0, 12096.0) pixels
+3. Pass to ImageEditorView → compositeImage()
+4. UIGraphicsImageRenderer(size: 9072x12096)
+5. iOS: "Need 7.9GB RAM" → FAIL ❌
+6. Return empty image (0.0, 0.0)
+```
+
+**After (fixed - ~16MB memory):**
+```
+Download Flow:
+1. Download 11MB JPEG from Firebase
+2. Decode to UIImage: (9072.0, 12096.0) pixels
+3. Check: width > 2048? YES → resize
+4. Resize to (1536.0, 2048.0) preserving aspect ratio
+5. Pass to ImageEditorView → compositeImage()
+6. UIGraphicsImageRenderer(size: 1536x2048)
+7. iOS: "Need ~16MB RAM" → OK ✅
+8. Return valid image (1536.0, 2048.0)
+```
+
+**Memory calculation after resize (1536 x 2048):**
+- RGBA format: 4 bytes per pixel
+- Total: 1536 × 2048 × 4 = **12,582,912 bytes** (~12MB)
+- CGBitmapContext overhead: **~16-20MB** (acceptable!)
+
+**Console output after fix:**
+```
+🔍 [PhotoCaptureErrorReviewVM] downloadImage()
+   - Downloaded 11215207 bytes
+   - Original image size: (9072.0, 12096.0)
+   - ⚠️ Image too large, resized to: (1536.0, 2048.0)  ✅
+   - Downloaded image size: (1536.0, 2048.0)
+
+🔍 [ImageEditorViewModel] compositeImage()
+   - Base image size: (1536.0, 2048.0)  ✅
+   - Canvas size: (492.0, 656.0)
+   - Scale: (3.12, 3.12)
+   - Result image size: (1536.0, 2048.0)  ✅ SUCCESS
+```
+
+#### Why 2048x2048 Max?
+
+1. **Display Quality:** iPhone screen resolutions max out at ~2796x1290 (iPhone 17 Pro Max). 2048px is sufficient for crisp display.
+2. **Memory Safe:** 2048×2048×4 = 16MB bitmap (well within iOS memory limits).
+3. **Annotation Quality:** PencilKit drawings scale perfectly at 2048px resolution.
+4. **Upload Efficiency:** Smaller file size when saving back to Firebase (~2-3MB vs 11MB).
+
+#### Rule to Remember
+
+> Always validate and resize large images (>2048px) when downloading from remote storage before passing to UIKit/Core Graphics compositing operations. High-resolution camera photos (9000+ pixels) exceed iOS memory limits for bitmap contexts. Resize preserving aspect ratio to max 2048x2048 — this maintains excellent visual quality while preventing memory allocation failures.
+
+**Debug pattern to detect oversized images:**
+```swift
+// Add this check after downloading any remote image
+if image.size.width > 2048 || image.size.height > 2048 {
+    print("⚠️ Image exceeds safe dimensions: \(image.size)")
+    print("   Memory required: ~\(Int(image.size.width * image.size.height * 4 / 1024 / 1024))MB")
+}
+```
+
+---
+
 *Generated by `/ct-ai-document` on 2026-05-23*

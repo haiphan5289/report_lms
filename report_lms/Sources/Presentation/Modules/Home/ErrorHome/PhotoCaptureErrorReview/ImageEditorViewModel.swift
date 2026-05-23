@@ -37,6 +37,9 @@ final class ImageEditorViewModel: ObservableObject {
 
     // MARK: - Init
     init(image: UIImage) {
+        print("🔍 [ImageEditorViewModel] Init")
+        print("   - Source image size: \(image.size)")
+        print("   - Source image scale: \(image.scale)")
         self.sourceImage = image
         canvasView.backgroundColor = .clear
         canvasView.drawingPolicy = .anyInput
@@ -70,7 +73,12 @@ final class ImageEditorViewModel: ObservableObject {
 
     // MARK: - Save
     func save(canvasSize: CGSize) -> UIImage {
-        return compositeImage(canvasSize: canvasSize)
+        print("🔍 [ImageEditorViewModel] save() called")
+        print("   - canvasSize: \(canvasSize)")
+        print("   - sourceImage size: \(sourceImage.size)")
+        let result = compositeImage(canvasSize: canvasSize)
+        print("   - Result image size: \(result.size)")
+        return result
     }
 
     // MARK: - Private
@@ -90,11 +98,20 @@ final class ImageEditorViewModel: ObservableObject {
     }
 
     private func compositeImage(canvasSize: CGSize) -> UIImage {
+        print("🔍 [ImageEditorViewModel] compositeImage()")
         let base = rotatedSourceImage()
         let imgSize = base.size
-        guard canvasSize.width > 0, canvasSize.height > 0 else { return base }
+        print("   - Base image size: \(imgSize)")
+        print("   - Canvas size: \(canvasSize)")
+        
+        guard canvasSize.width > 0, canvasSize.height > 0 else {
+            print("   - ⚠️ canvasSize is zero, returning base image")
+            return base
+        }
+        
         let scaleX = imgSize.width / canvasSize.width
         let scaleY = imgSize.height / canvasSize.height
+        print("   - Scale: (\(scaleX), \(scaleY))")
         let renderer = UIGraphicsImageRenderer(size: imgSize)
 
         return renderer.image { _ in

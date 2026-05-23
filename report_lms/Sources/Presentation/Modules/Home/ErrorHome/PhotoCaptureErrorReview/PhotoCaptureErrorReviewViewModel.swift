@@ -71,14 +71,58 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
 
     func replaceImage(at index: Int, with image: UIImage) {
         guard index >= 0 && index < images.count else { return }
-        images[index].source = .local(image: image)
+        print("🔍 [PhotoCaptureErrorReviewVM] replaceImage at index \(index)")
+        print("   - Old source: \(images[index].source)")
+        print("   - New image size: \(image.size)")
+        // Create new ImageWithNote to force SwiftUI to recreate the view
+        let currentNote = images[index].note
+        images[index] = ImageWithNote(source: .local(image: image), note: currentNote)
+        print("   - New source: \(images[index].source)")
+        print("   - Replaced successfully ✅")
     }
 
     func downloadImage(from url: String) async throws -> UIImage {
-        guard let imageURL = URL(string: url) else { throw URLError(.badURL) }
+        print("🔍 [PhotoCaptureErrorReviewVM] downloadImage()")
+        print("   - URL: \(url)")
+        guard let imageURL = URL(string: url) else {
+            print("   - ❌ Bad URL")
+            throw URLError(.badURL)
+        }
         let (data, _) = try await URLSession.shared.data(from: imageURL)
-        guard let image = UIImage(data: data) else { throw URLError(.cannotDecodeContentData) }
+        print("   - Downloaded \(data.count) bytes")
+        guard let image = UIImage(data: data) else {
+            print("   - ❌ Cannot decode image")
+            throw URLError(.cannotDecodeContentData)
+        }
+        print("   - Original image size: \(image.size)")
+        print("   - Original image scale: \(image.scale)")
+        
+        // Resize if too large (prevents memory issues in compositing)
+        let maxDimension: CGFloat = 2048
+        if image.size.width > maxDimension || image.size.height > maxDimension {
+            let resized = resizeImage(image, maxDimension: maxDimension)
+            print("   - ⚠️ Image too large, resized to: \(resized.size)")
+            return resized
+        }
+        
         return image
+    }
+    
+    private func resizeImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+        let aspectRatio = size.width / size.height
+        var newSize: CGSize
+        
+        if size.width > size.height {
+            newSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
+        } else {
+            newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
+        }
+        
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
     }
 
     // MARK: - Defect Type

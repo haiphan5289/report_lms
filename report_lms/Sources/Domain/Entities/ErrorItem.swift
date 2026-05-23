@@ -22,6 +22,15 @@ enum ImageSource: Equatable {
         default: return false
         }
     }
+    
+    var idString: String {
+        switch self {
+        case .remote(let url):
+            return "remote-\(url.hashValue)"
+        case .local(let image):
+            return "local-\(ObjectIdentifier(image).hashValue)"
+        }
+    }
 }
 
 // MARK: - ImageWithNote

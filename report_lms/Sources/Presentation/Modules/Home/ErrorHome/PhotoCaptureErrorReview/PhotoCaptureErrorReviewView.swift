@@ -51,6 +51,7 @@ struct PhotoCaptureErrorReviewView: View {
     // Animation
     @State private var heroVisible = false
     @State private var floatOffset: CGFloat = -6
+    @State private var imageRefreshTrigger: Int = 0
 
     // MARK: - Initialization
     init(
@@ -100,6 +101,7 @@ struct PhotoCaptureErrorReviewView: View {
             }
             .padding()
         }
+        .background(Color(.systemGroupedBackground))
         .navigationTitle(
             localizationManager.localize(viewModel.isEditMode ? "errorReview.title.edit" : "errorReview.title.new")
         )
@@ -196,8 +198,13 @@ struct PhotoCaptureErrorReviewView: View {
         .sheet(isPresented: $showImageEditor) {
             if let image = editingUIImage, let index = selectedImageIndex {
                 ImageEditorView(image: image) { editedImage in
+                    print("🔍 [PhotoCaptureErrorReviewView] ImageEditor callback")
+                    print("   - Edited image size: \(editedImage.size)")
                     viewModel.replaceImage(at: index, with: editedImage)
                     onImagesUpdated(viewModel.images)
+                    // Force view refresh
+                    imageRefreshTrigger += 1
+                    print("   - Refresh trigger: \(imageRefreshTrigger)")
                 }
                 .environmentObject(localizationManager)
             }
@@ -219,10 +226,17 @@ struct PhotoCaptureErrorReviewView: View {
     }
 
     // MARK: - Images Section
+    @GestureState private var imagesSectionPressed = false
+    
     private var imagesSection: some View {
         VStack(alignment: .leading, spacing: Layout.innerSpacing) {
-            LMSLabel(localizationManager.localize("errorReview.section.images"), style: .title2)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LMSColor.primary)
+                    .frame(width: 3, height: 20)
+                LMSLabel(localizationManager.localize("errorReview.section.images"), style: .title2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             if viewModel.images.isEmpty {
                 VStack(spacing: Layout.innerSpacing) {
@@ -256,20 +270,40 @@ struct PhotoCaptureErrorReviewView: View {
                             selectedImageIndex = index
                             showImageMenu = true
                         }
+                        .id("\(imageWithNote.id)-\(imageRefreshTrigger)")
                     }
                 }
             }
         }
         .padding(Layout.sectionPadding)
-        .background(LMSColor.background)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
-        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.primary.opacity(0.06), radius: 8, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .scaleEffect(imagesSectionPressed ? 0.98 : 1.0)
+        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: imagesSectionPressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .updating($imagesSectionPressed) { _, state, _ in state = true }
+        )
     }
 
     // MARK: - Take More Photos Section
+    @GestureState private var photoButtonPressed = false
+    
     private var takeMorePhotosSection: some View {
         VStack(alignment: .leading, spacing: Layout.innerSpacing) {
-            LMSLabel(localizationManager.localize("errorReview.section.takeMorePhotos"), style: .title2)
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LMSColor.primary)
+                    .frame(width: 3, height: 20)
+                LMSLabel(localizationManager.localize("errorReview.section.takeMorePhotos"), style: .title2)
+            }
 
             LMSButton(
                 localizationManager.localize("errorReview.button.takePhoto"),
@@ -279,17 +313,34 @@ struct PhotoCaptureErrorReviewView: View {
             ) {
                 viewModel.showCamera = true
             }
+            .scaleEffect(photoButtonPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: photoButtonPressed)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($photoButtonPressed) { _, state, _ in state = true }
+            )
         }
         .padding(Layout.sectionPadding)
-        .background(LMSColor.background)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
-        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.primary.opacity(0.06), radius: 8, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 
     // MARK: - Severity Level Section
     private var severityLevelSection: some View {
         VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
-            LMSLabel(localizationManager.localize("errorReview.section.severity"), style: .title2)
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LMSColor.primary)
+                    .frame(width: 3, height: 20)
+                LMSLabel(localizationManager.localize("errorReview.section.severity"), style: .title2)
+            }
 
             VStack(spacing: Layout.innerSpacing) {
                 ForEach(SeverityLevel.allCases, id: \.self) { level in
@@ -309,16 +360,27 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .padding(Layout.sectionPadding)
-        .background(LMSColor.background)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
-        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.primary.opacity(0.06), radius: 8, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 
     // MARK: - General Condition Section
     private var generalConditionSection: some View {
         VStack(alignment: .leading, spacing: Layout.sectionSpacing) {
             HStack {
-                LMSLabel(localizationManager.localize("errorReview.section.generalCondition"), style: .title2)
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(LMSColor.primary)
+                        .frame(width: 3, height: 20)
+                    LMSLabel(localizationManager.localize("errorReview.section.generalCondition"), style: .title2)
+                }
                 Spacer()
                 Toggle("", isOn: $viewModel.generalConditionEnabled)
                     .labelsHidden()
@@ -353,9 +415,15 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .padding(Layout.sectionPadding)
-        .background(LMSColor.background)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
-        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.primary.opacity(0.06), radius: 8, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 
     // MARK: - Defect Types Section
@@ -363,7 +431,12 @@ struct PhotoCaptureErrorReviewView: View {
         VStack(alignment: .leading, spacing: Layout.innerSpacing) {
             if let defectType = viewModel.selectedDefectType {
                 HStack {
-                    LMSLabel(localizationManager.localize("errorReview.section.defectTypes"), style: .title2)
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(LMSColor.primary)
+                            .frame(width: 3, height: 20)
+                        LMSLabel(localizationManager.localize("errorReview.section.defectTypes"), style: .title2)
+                    }
                     Spacer()
                     Button(action: {
                         viewModel.selectedDefectType = nil
@@ -377,7 +450,12 @@ struct PhotoCaptureErrorReviewView: View {
                     .lineLimit(2)
             } else {
                 HStack {
-                    LMSLabel(localizationManager.localize("errorReview.section.defectTypes"), style: .title2)
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(LMSColor.primary)
+                            .frame(width: 3, height: 20)
+                        LMSLabel(localizationManager.localize("errorReview.section.defectTypes"), style: .title2)
+                    }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundColor(LMSColor.textTertiary)
@@ -393,15 +471,26 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .padding(Layout.sectionPadding)
-        .background(LMSColor.background)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
-        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.primary.opacity(0.06), radius: 8, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 
     // MARK: - Comments Section
     private var commentsSection: some View {
         VStack(alignment: .leading, spacing: Layout.innerSpacing) {
-            LMSLabel(localizationManager.localize("errorReview.section.comments"), style: .title2)
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LMSColor.primary)
+                    .frame(width: 3, height: 20)
+                LMSLabel(localizationManager.localize("errorReview.section.comments"), style: .title2)
+            }
 
             TextEditor(text: $viewModel.comments)
                 .frame(minHeight: Layout.textEditorMinHeight)
@@ -414,9 +503,15 @@ struct PhotoCaptureErrorReviewView: View {
                 )
         }
         .padding(Layout.sectionPadding)
-        .background(LMSColor.background)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
-        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.primary.opacity(0.06), radius: 8, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 
     // MARK: - Action Buttons Section
@@ -445,26 +540,40 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .padding(Layout.sectionPadding)
-        .background(LMSColor.background)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
-        .shadow(color: LMSColor.shadow, radius: Layout.shadowRadius)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.primary.opacity(0.08), radius: 12, y: 6)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.cornerRadius)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        )
     }
 
     // MARK: - Image Action Handlers
     private func handleEditImage() async {
         guard let index = selectedImageIndex else { return }
+        print("🔍 [PhotoCaptureErrorReviewView] handleEditImage")
+        print("   - Index: \(index)")
+        print("   - Source: \(viewModel.images[index].source)")
+        
         switch viewModel.images[index].source {
         case .local(let img):
+            print("   - Local image size: \(img.size)")
             editingUIImage = img
             showImageEditor = true
         case .remote(let url):
+            print("   - Downloading remote image...")
             viewModel.isDownloading = true
             do {
                 let img = try await viewModel.downloadImage(from: url)
+                print("   - Downloaded image size: \(img.size)")
                 viewModel.isDownloading = false
                 editingUIImage = img
                 showImageEditor = true
             } catch {
+                print("   - Download failed: \(error)")
                 viewModel.isDownloading = false
                 viewModel.snackbarMessage = localizationManager.localize("imageEditor.error.downloadFailed")
             }
@@ -518,11 +627,16 @@ private struct ImageRowCard: View {
                 // Index badge top-left
                 Text("\(index + 1) / \(total)")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.5))
+                    .background(.ultraThinMaterial)
                     .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
+                    )
+                    .shadow(color: Color.primary.opacity(0.12), radius: 6, y: 3)
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
 
@@ -530,9 +644,11 @@ private struct ImageRowCard: View {
                 Button(action: onMenu) {
                     Image(systemName: "ellipsis.circle.fill")
                         .font(.system(size: 22))
-                        .foregroundColor(LMSColor.white)
-                        .background(LMSColor.black.opacity(0.5))
+                        .foregroundColor(.primary)
+                        .padding(6)
+                        .background(.ultraThinMaterial)
                         .clipShape(Circle())
+                        .shadow(color: Color.primary.opacity(0.18), radius: 6, y: 3)
                         .padding(8)
                 }
             }
@@ -562,11 +678,26 @@ private struct ImageRowCard: View {
     private var imageContent: some View {
         switch source {
         case .local(let image):
-            Image(uiImage: image).resizable()
+            Image(uiImage: image)
+                .resizable()
+                .onAppear {
+                    print("🔍 [ImageRowCard] Rendering LOCAL image")
+                    print("   - Image size: \(image.size)")
+                }
         case .remote(let url):
             CachedAsyncImage(url: URL(string: url)) { phase in
-                if let img = phase.image { img.resizable() }
-                else { LMSColor.backgroundSecondary }
+                if let img = phase.image {
+                    img.resizable()
+                        .onAppear {
+                            print("🔍 [ImageRowCard] Rendering REMOTE image SUCCESS")
+                        }
+                } else {
+                    LMSColor.backgroundSecondary
+                        .onAppear {
+                            print("🔍 [ImageRowCard] Rendering REMOTE placeholder (loading/error)")
+                            print("   - URL: \(url)")
+                        }
+                }
             }
         }
     }

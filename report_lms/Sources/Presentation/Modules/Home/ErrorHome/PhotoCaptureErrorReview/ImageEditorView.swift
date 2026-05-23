@@ -39,6 +39,9 @@ struct ImageEditorView: View {
 
     // MARK: - Init
     init(image: UIImage, onSaved: @escaping (UIImage) -> Void) {
+        print("🔍 [ImageEditorView] Init")
+        print("   - Input image size: \(image.size)")
+        print("   - Input image scale: \(image.scale)")
         _viewModel = StateObject(wrappedValue: ImageEditorViewModel(image: image))
         self.onSaved = onSaved
     }
@@ -61,7 +64,24 @@ struct ImageEditorView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(localizationManager.localize("common.save")) {
+                        print("🔍 [ImageEditorView] Save tapped")
+                        print("   - canvasSize: \(canvasSize)")
+                        print("   - sourceImage size: \(viewModel.sourceImage.size)")
+                        
+                        guard canvasSize.width > 0 && canvasSize.height > 0 else {
+                            print("   - ❌ ERROR: canvasSize is zero!")
+                            // Use source image size as fallback
+                            let fallbackSize = viewModel.sourceImage.size
+                            print("   - Using fallback size: \(fallbackSize)")
+                            let img = viewModel.save(canvasSize: fallbackSize)
+                            print("   - Saved image size: \(img.size)")
+                            onSaved(img)
+                            dismiss()
+                            return
+                        }
+                        
                         let img = viewModel.save(canvasSize: canvasSize)
+                        print("   - Saved image size: \(img.size)")
                         onSaved(img)
                         dismiss()
                     }
@@ -139,12 +159,22 @@ struct ImageEditorView: View {
                 }
             }
             .position(x: geo.size.width / 2, y: geo.size.height / 2)
-            .onAppear { canvasSize = frame }
+            .onAppear {
+                canvasSize = frame
+                print("🔍 [ImageEditorView] Canvas appeared")
+                print("   - frame: \(frame)")
+                print("   - canvasSize set to: \(canvasSize)")
+            }
             .onChange(of: geo.size) { _, newSize in
-                canvasSize = aspectFitSize(for: displaySize, in: newSize)
+                let newCanvasSize = aspectFitSize(for: displaySize, in: newSize)
+                canvasSize = newCanvasSize
+                print("🔍 [ImageEditorView] Geometry changed")
+                print("   - new canvasSize: \(canvasSize)")
             }
             .onChange(of: viewModel.rotationAngle) { _, _ in
                 canvasSize = aspectFitSize(for: displaySize, in: geo.size)
+                print("🔍 [ImageEditorView] Rotation changed")
+                print("   - new canvasSize: \(canvasSize)")
             }
         }
     }
