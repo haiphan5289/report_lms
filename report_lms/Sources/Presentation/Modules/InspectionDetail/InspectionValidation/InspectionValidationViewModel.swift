@@ -21,7 +21,9 @@ final class InspectionValidationViewModel: ObservableObject {
     @Published var showReorderMode: Bool = false
     @Published var isDirty: Bool = false
     @Published var showDeleteConfirmation: Bool = false
-    
+    @Published var isDownloading: Bool = false
+    @Published var snackbarMessage: String?
+
     // MARK: - Private Properties
     private var imageIndexToDelete: Int?
     private let fieldId: String
@@ -222,6 +224,42 @@ final class InspectionValidationViewModel: ObservableObject {
         }
     }
     
+    func replaceImage(at index: Int, with newImage: UIImage) {
+        guard images.indices.contains(index) else { return }
+        let currentDescription = images[index].description
+        images[index] = InspectionImage(image: newImage, description: currentDescription)
+        updateDirtyState()
+    }
+
+    func downloadImage(from url: URL) async throws -> UIImage {
+        if let cached = await ImageCacheActor.shared.image(for: url) {
+            return cached
+        }
+        let (data, _) = try await URLSession.shared.data(from: url)
+        guard let image = UIImage(data: data) else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        await ImageCacheActor.shared.store(image, for: url)
+        let maxDimension: CGFloat = 2048
+        if image.size.width > maxDimension || image.size.height > maxDimension {
+            return resizeImage(image, maxDimension: maxDimension)
+        }
+        return image
+    }
+
+    private func resizeImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+        let aspectRatio = size.width / size.height
+        let newSize: CGSize
+        if size.width > size.height {
+            newSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
+        } else {
+            newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
+        }
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
+    }
+
     private func updateDirtyState() {
         isDirty = status != initialStatus ||
                   comments != initialComments ||

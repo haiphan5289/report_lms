@@ -28,6 +28,15 @@ struct InspectionValidationView: View {
     @State private var contentVisible = false
     @GestureState private var passPressed = false
     @GestureState private var naPressed = false
+
+    // Image actions
+    @State private var selectedImageIndex: Int?
+    @State private var showImageMenu = false
+    @State private var showImageEditor = false
+    @State private var editingUIImage: UIImage?
+    @State private var sharingImage: UIImage?
+    @State private var showShareSheet = false
+    @State private var imageRefreshTrigger: Int = 0
     
     // MARK: - Initialization
     init(
@@ -96,7 +105,38 @@ struct InspectionValidationView: View {
             CameraView(source: .inspection) { images in
                 viewModel.appendImages(images)
             }
+            .environmentObject(LocalizationManager.shared)
         }
+        .confirmationDialog("", isPresented: $showImageMenu) {
+            Button("Chỉnh sửa") { Task { await handleEditImage() } }
+            Button("Chia sẻ") { Task { await handleShareImage() } }
+            Button("Xoá bỏ", role: .destructive) {
+                if let index = selectedImageIndex {
+                    viewModel.requestDeleteImage(at: index)
+                }
+            }
+            Button("Huỷ", role: .cancel) {}
+        }
+        .sheet(isPresented: $showImageEditor) {
+            if let image = editingUIImage, let index = selectedImageIndex {
+                ImageEditorView(image: image) { editedImage in
+                    viewModel.replaceImage(at: index, with: editedImage)
+                    imageRefreshTrigger += 1
+                }
+                .environmentObject(LocalizationManager.shared)
+            }
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let image = sharingImage {
+                ShareSheet(items: [image])
+            }
+        }
+        .overlay {
+            if viewModel.isDownloading {
+                LMSLoadingOverlay()
+            }
+        }
+        .lmsSnackbar(message: $viewModel.snackbarMessage, type: .error)
         .fullScreenCover(isPresented: $viewModel.showDeleteConfirmation) {
             DeleteConfirmationView(
                 title: "Xóa ảnh",
@@ -118,7 +158,7 @@ struct InspectionValidationView: View {
     
     private var headerSection: some View {
         HStack {
-            Text("Carton overview")
+            Text(viewModel.fieldLabel)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.primary)
             
@@ -144,7 +184,7 @@ struct InspectionValidationView: View {
     private var statusSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Title
-            Text("Taking 4 sides of carton")
+            Text(viewModel.fieldLabel)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.primary)
             
@@ -219,16 +259,21 @@ struct InspectionValidationView: View {
                     .padding(.vertical, 40)
             } else {
                 VStack(spacing: 16) {
-                    ForEach(Array(viewModel.images.enumerated()), id: \ .element.id) { (index, inspectionImage) in
+                    ForEach(Array(viewModel.images.enumerated()), id: \.element.id) { (index, inspectionImage) in
                         ImageGalleryItemView(
                             inspectionImage: inspectionImage,
                             isReorderMode: viewModel.showReorderMode,
                             onDelete: { viewModel.requestDeleteImage(at: index) },
+                            onMenu: {
+                                selectedImageIndex = index
+                                showImageMenu = true
+                            },
                             descriptionBinding: Binding(
                                 get: { viewModel.images[index].description },
                                 set: { newValue in viewModel.images[index].description = newValue }
                             )
                         )
+                        .id("\(inspectionImage.id)-\(imageRefreshTrigger)")
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -331,8 +376,50 @@ struct InspectionValidationView: View {
         )
     }
     
+    // MARK: - Image Action Handlers
+
+    private func handleEditImage() async {
+        guard let index = selectedImageIndex, viewModel.images.indices.contains(index) else { return }
+        let img = viewModel.images[index]
+        if let remoteURL = img.remoteURL {
+            viewModel.isDownloading = true
+            do {
+                let downloaded = try await viewModel.downloadImage(from: remoteURL)
+                viewModel.isDownloading = false
+                editingUIImage = downloaded
+                showImageEditor = true
+            } catch {
+                viewModel.isDownloading = false
+                viewModel.snackbarMessage = "Không thể tải ảnh. Vui lòng thử lại."
+            }
+        } else {
+            editingUIImage = img.image
+            showImageEditor = true
+        }
+    }
+
+    private func handleShareImage() async {
+        guard let index = selectedImageIndex, viewModel.images.indices.contains(index) else { return }
+        let img = viewModel.images[index]
+        if let remoteURL = img.remoteURL {
+            viewModel.isDownloading = true
+            do {
+                let downloaded = try await viewModel.downloadImage(from: remoteURL)
+                viewModel.isDownloading = false
+                sharingImage = downloaded
+                showShareSheet = true
+            } catch {
+                viewModel.isDownloading = false
+                viewModel.snackbarMessage = "Không thể tải ảnh. Vui lòng thử lại."
+            }
+        } else {
+            sharingImage = img.image
+            showShareSheet = true
+        }
+    }
+
     // MARK: - Helper Methods
-    
+
     private func statusColor(for status: ValidationStatus) -> Color {
         switch status {
         case .passed:
@@ -348,6 +435,14 @@ struct InspectionValidationView: View {
 }
 
 // MARK: - Helper Views
+
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
 
 /// Clear background view for fullScreenCover
 struct ClearBackgroundView: UIViewRepresentable {

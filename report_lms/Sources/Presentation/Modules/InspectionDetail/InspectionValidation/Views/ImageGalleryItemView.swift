@@ -12,12 +12,20 @@ struct ImageGalleryItemView: View {
     let inspectionImage: InspectionImage
     let isReorderMode: Bool
     let onDelete: () -> Void
+    let onMenu: () -> Void
     @Binding var description: String
-    
-    init(inspectionImage: InspectionImage, isReorderMode: Bool, onDelete: @escaping () -> Void, descriptionBinding: Binding<String>) {
+
+    init(
+        inspectionImage: InspectionImage,
+        isReorderMode: Bool,
+        onDelete: @escaping () -> Void,
+        onMenu: @escaping () -> Void,
+        descriptionBinding: Binding<String>
+    ) {
         self.inspectionImage = inspectionImage
         self.isReorderMode = isReorderMode
         self.onDelete = onDelete
+        self.onMenu = onMenu
         self._description = descriptionBinding
     }
     
@@ -59,6 +67,17 @@ struct ImageGalleryItemView: View {
                             .background(Color.black.opacity(0.6))
                             .clipShape(Circle())
                             .padding(4)
+                    }
+                } else {
+                    Button(action: onMenu) {
+                        Image(systemName: "ellipsis.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(.white)
+                            .padding(6)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: Color.black.opacity(0.18), radius: 6, y: 3)
+                            .padding(8)
                     }
                 }
             }

@@ -26,7 +26,7 @@ enum CameraSource {
     var allowsMultiplePhotos: Bool {
         switch self {
         case .errorReport: return true
-        case .inspection: return false
+        case .inspection: return true
         case .general: return true
         }
     }
