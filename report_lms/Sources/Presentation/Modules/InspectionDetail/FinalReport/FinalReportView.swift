@@ -114,9 +114,7 @@ struct FinalReportView: View {
             }
         }
         .overlay {
-            if viewModel.isGeneratingPDF {
-                LMSLoadingOverlay(message: localizationManager.localize("finalReport.loading.pdf"), style: .dark)
-            } else if viewModel.isSavingPhotos {
+            if viewModel.isSavingPhotos {
                 LMSLoadingOverlay(message: localizationManager.localize("finalReport.loading.savePhotos"), style: .dark)
             }
         }
@@ -304,7 +302,10 @@ struct FinalReportView: View {
                     variant: .tertiary,
                     size: .large,
                     isFullWidth: true,
-                    isDisabled: viewModel.isGeneratingPDF
+                    isLoading: $viewModel.isGeneratingPDF,
+                    progressText: viewModel.isGeneratingPDF
+                        ? "\(Int(viewModel.pdfGenerationProgress * 100))%"
+                        : nil
                 ) {
                     Task {
                         await viewModel.generateAndPreviewPDF()

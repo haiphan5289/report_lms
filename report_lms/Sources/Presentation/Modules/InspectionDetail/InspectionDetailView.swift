@@ -126,9 +126,7 @@ struct InspectionDetailView: View {
     
     private func tabButton(for tab: InspectionDetailViewModel.Tab) -> some View {
         Button(action: {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                viewModel.selectedTab = tab
-            }
+            viewModel.selectedTab = tab
         }, label: {
             tabButtonContent(for: tab)
         })
@@ -178,7 +176,11 @@ struct InspectionDetailView: View {
                     contentViewModel: viewModel.contentViewModel,
                     onRetry: { await viewModel.loadInspectionDetail() },
                     errorMessage: viewModel.errorMessage,
-                    onSwitchToErrorTab: { viewModel.selectedTab = .error }
+                    onSwitchToErrorTab: { viewModel.selectedTab = .error },
+                    onErrorSaved: { saved, images in
+                        viewModel.errorHomeViewModel.upsertErrorItem(saved, thumbnails: images)
+                        viewModel.errorHomeViewModel.scrollToTopTrigger += 1
+                    }
                 )
             case .error:
                 errorTabContent

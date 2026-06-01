@@ -144,12 +144,18 @@ struct PhotoCaptureErrorReviewView: View {
             print("   - EditMode: \(viewModel.isEditMode)")
             print("   - InspectionId: \(viewModel.inspectionId)")
             print("   - EditingItem: \(editingItem?.id ?? "nil")")
+            print("   - initialImages count: \(initialImages.count)")
+            for (i, img) in initialImages.enumerated() {
+                print("   - initialImages[\(i)]: \(img.source)")
+            }
+            print("   - viewModel.images BEFORE setInitialImages: \(viewModel.images.count)")
             Task {
                 await viewModel.setInitialImages(initialImages)
+                print("   ✅ setInitialImages done — viewModel.images: \(viewModel.images.count)")
             }
         }
         .onDisappear {
-            print("🔍 [PhotoCaptureErrorReviewView] onDisappear")
+            print("🔍 [PhotoCaptureErrorReviewView] onDisappear — viewModel.images: \(viewModel.images.count)")
         }
         .task {
             withAnimation { heroVisible = true }

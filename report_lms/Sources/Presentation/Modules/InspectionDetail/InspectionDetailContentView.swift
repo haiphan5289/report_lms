@@ -32,12 +32,14 @@ struct InspectionDetailContentView: View {
     let onRetry: () async -> Void
     let errorMessage: String?
     let onSwitchToErrorTab: () -> Void
+    let onErrorSaved: (SavedErrorItem, [UIImage]) -> Void
 
     @State private var showAddCustomField = false
     @State private var showFinalReport = false
     @State private var showErrorCamera = false
     @State private var capturedErrorImages: [UIImage] = []
     @State private var showErrorReview = false
+    @State private var inspectionIdSnapshot: String? = nil
     @GestureState private var addFieldPressed = false
     @GestureState private var completePressed = false
 
@@ -58,17 +60,26 @@ struct InspectionDetailContentView: View {
         .fullScreenCover(isPresented: $showErrorCamera) {
             CameraView(source: .errorReport) { images in
                 capturedErrorImages = images
+                inspectionIdSnapshot = contentViewModel.inspection?.id
+            }
+        }
+        .onChange(of: showErrorCamera) { _, isShowing in
+            if !isShowing && !capturedErrorImages.isEmpty {
                 showErrorReview = true
             }
         }
-        .sheet(isPresented: $showErrorReview) {
-            if let inspectionId = contentViewModel.inspection?.id {
+        .sheet(isPresented: $showErrorReview, onDismiss: {
+            capturedErrorImages = []
+            inspectionIdSnapshot = nil
+        }) {
+            if let inspectionId = inspectionIdSnapshot {
                 NavigationStack {
                     PhotoCaptureErrorReviewView(
                         inspectionId: inspectionId,
                         initialImages: capturedErrorImages.map { ImageWithNote(source: .local(image: $0)) },
                         onImagesUpdated: { _ in },
-                        onSaved: { _, _ in
+                        onSaved: { saved, images in
+                            onErrorSaved(saved, images)
                             onSwitchToErrorTab()
                         }
                     )
@@ -304,7 +315,8 @@ private struct PreviewWrapper: View {
             contentViewModel: parentViewModel.contentViewModel,
             onRetry: {},
             errorMessage: errorMessage,
-            onSwitchToErrorTab: {}
+            onSwitchToErrorTab: {},
+            onErrorSaved: { _, _ in }
         )
     }
 }

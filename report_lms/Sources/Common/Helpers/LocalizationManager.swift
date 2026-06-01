@@ -108,6 +108,10 @@ final class LocalizationManager: ObservableObject {
             "progress.empty.title": "Không có yêu cầu nào đang trong tiến trình",
             "progress.empty.subtitle": "Các yêu cầu đang kiểm tra sẽ hiển thị tại đây",
 
+            // MARK: Error Home
+            "errorHome.empty.title": "Chưa có lỗi nào",
+            "errorHome.empty.subtitle": "Nhấn nút cam bên dưới để ghi nhận lỗi mới",
+
             // MARK: Error Review
             "errorReview.title.new": "Đánh giá ảnh chụp",
             "errorReview.title.edit": "Chỉnh sửa lỗi",
@@ -282,6 +286,10 @@ final class LocalizationManager: ObservableObject {
             // MARK: Progress
             "progress.empty.title": "No requests in progress",
             "progress.empty.subtitle": "Requests being inspected will appear here",
+
+            // MARK: Error Home
+            "errorHome.empty.title": "No errors recorded",
+            "errorHome.empty.subtitle": "Tap the orange button below to report a new error",
 
             // MARK: Error Review
             "errorReview.title.new": "Review Photos",

@@ -1,7 +1,52 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xcodebuild -project report_lms.xcodeproj -scheme report_lms -destination 'generic/platform=iOS Simulator' -configuration Debug build)"
+      "Bash(xcodebuild -project report_lms.xcodeproj -scheme report_lms -destination 'generic/platform=iOS Simulator' -configuration Debug build)",
+      "Bash(python3 -c ' *)",
+      "Bash(sudo chmod 777 /private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440/)",
+      "Bash(mkdir -p \"/private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440/tasks\" && echo \"OK\")",
+      "Bash(ls -la /private/tmp/claude-502/ 2>&1 | head -5)",
+      "Read(//private/tmp/claude-502//**)",
+      "Bash(export TMPDIR=/tmp)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms diff main...HEAD --stat)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(find /Users/haiphan/Desktop/haiphan/report_lms -name \"PhotoCaptureErrorReviewViewModel.swift\" 2>/dev/null || find /Users/haiphan/Desktop/haiphan -name \"PhotoCaptureErrorReviewViewModel.swift\" 2>/dev/null)",
+      "Read(//Users/haiphan/Desktop/haiphan/**)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms ls-files)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms log --oneline -5)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms show --stat HEAD)",
+      "Bash(find /Users/haiphan -name \"PhotoCaptureErrorReview*\" -maxdepth 10 2>&1 | grep -v \"permission denied\" | head -20)",
+      "Read(//Users/haiphan/**)",
+      "Bash(find /Users/haiphan -name \"PhotoCaptureErrorReviewView.swift\" 2>/dev/null)",
+      "WebSearch",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms show HEAD --name-only)",
+      "Bash(sudo mkdir -p /private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440/tasks)",
+      "Bash(ls /private/tmp/ 2>&1 | head -20)",
+      "Read(//private/tmp/**)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms log --all --oneline)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms log --all --full-history -- \"**/ErrorHomeView.swift\")",
+      "WebFetch(domain:github.com)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms show HEAD --stat)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(exit 0)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms grep -rl \"ErrorHomeView\" --name-only)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms ls-files \"*.swift\")",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms show HEAD:--name-only)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms log --name-only --oneline -10)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms log --all --oneline --name-only)",
+      "Bash(GIT_DIR=/Users/haiphan/Desktop/haiphan/report_lms/.git git log --oneline -5)",
+      "Bash(GIT_WORK_TREE=/Users/haiphan/Desktop/haiphan/report_lms GIT_DIR=/Users/haiphan/Desktop/haiphan/report_lms/.git git ls-files)",
+      "Bash(mkdir -p /private/tmp/claude-502 && echo \"ok\")",
+      "Bash(git --git-dir=/Users/haiphan/Desktop/haiphan/report_lms/.git show HEAD:PhotoCaptureErrorReviewView.swift)",
+      "WebFetch(domain:serialcoder.dev)",
+      "WebFetch(domain:softwareanders.com)"
+    ],
+    "additionalDirectories": [
+      "/private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440",
+      "/private/tmp/claude-502"
     ]
   }
 }

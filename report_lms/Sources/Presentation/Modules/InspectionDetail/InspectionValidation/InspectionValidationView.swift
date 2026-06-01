@@ -259,21 +259,22 @@ struct InspectionValidationView: View {
                     .padding(.vertical, 40)
             } else {
                 VStack(spacing: 16) {
-                    ForEach(Array(viewModel.images.enumerated()), id: \.element.id) { (index, inspectionImage) in
+                    ForEach($viewModel.images) { $image in
                         ImageGalleryItemView(
-                            inspectionImage: inspectionImage,
+                            inspectionImage: image,
                             isReorderMode: viewModel.showReorderMode,
-                            onDelete: { viewModel.requestDeleteImage(at: index) },
+                            onDelete: {
+                                if let index = viewModel.images.firstIndex(where: { $0.id == image.id }) {
+                                    viewModel.requestDeleteImage(at: index)
+                                }
+                            },
                             onMenu: {
-                                selectedImageIndex = index
+                                selectedImageIndex = viewModel.images.firstIndex(where: { $0.id == image.id })
                                 showImageMenu = true
                             },
-                            descriptionBinding: Binding(
-                                get: { viewModel.images[index].description },
-                                set: { newValue in viewModel.images[index].description = newValue }
-                            )
+                            descriptionBinding: $image.description
                         )
-                        .id("\(inspectionImage.id)-\(imageRefreshTrigger)")
+                        .id("\(image.id)-\(imageRefreshTrigger)")
                     }
                 }
                 .frame(maxWidth: .infinity)

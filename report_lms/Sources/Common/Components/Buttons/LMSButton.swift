@@ -34,6 +34,7 @@ struct LMSButton: View {
     private let isFullWidth: Bool
     private let contentAlignment: Alignment
     @Binding private var isLoading: Bool
+    private let progressText: String?
     private let isDisabled: Bool
     private let action: () -> Void
 
@@ -48,6 +49,7 @@ struct LMSButton: View {
     ///   - isFullWidth: Whether button should expand to fill available width (default: false)
     ///   - contentAlignment: Alignment of content within the button (default: .center)
     ///   - isLoading: Binding to control loading state (default: false)
+    ///   - progressText: Optional text shown next to the spinner when loading (e.g. "45%")
     ///   - isDisabled: Whether button is disabled (default: false)
     ///   - action: Action to perform when button is tapped
     init(
@@ -58,6 +60,7 @@ struct LMSButton: View {
         isFullWidth: Bool = false,
         contentAlignment: Alignment = .center,
         isLoading: Binding<Bool> = .constant(false),
+        progressText: String? = nil,
         isDisabled: Bool = false,
         action: @escaping () -> Void
     ) {
@@ -68,6 +71,7 @@ struct LMSButton: View {
         self.isFullWidth = isFullWidth
         self.contentAlignment = contentAlignment
         self._isLoading = isLoading
+        self.progressText = progressText
         self.isDisabled = isDisabled
         self.action = action
     }
@@ -162,6 +166,12 @@ private struct IconOnlyButtonStyle: ButtonStyle {
                             .progressViewStyle(.circular)
                             .tint(variant.foregroundColor)
                             .scaleEffect(0.9)
+                        if let progressText = progressText {
+                            Text(progressText)
+                                .font(size.fontSize)
+                                .fontWeight(.semibold)
+                                .monospacedDigit()
+                        }
                     } else {
                         if let icon = icon {
                             Image(systemName: icon)

@@ -46,15 +46,30 @@ struct ErrorHomeView: View {
         }
         .fullScreenCover(isPresented: $showErrorCamera) {
             CameraView(source: .errorReport) { images in
+                print("📷 [ErrorHomeView] Camera callback fired — images: \(images.count)")
                 capturedImages = images
-                showErrorReview = true
+                print("📷 [ErrorHomeView] capturedImages set — count: \(capturedImages.count)")
             }
         }
-        .sheet(isPresented: $showErrorReview) {
+        .onChange(of: showErrorCamera) { _, isShowing in
+            print("📷 [ErrorHomeView] showErrorCamera changed → \(isShowing), capturedImages: \(capturedImages.count)")
+            if !isShowing && !capturedImages.isEmpty {
+                print("📷 [ErrorHomeView] → setting showErrorReview = true")
+                showErrorReview = true
+            } else if !isShowing && capturedImages.isEmpty {
+                print("📷 [ErrorHomeView] ⚠️ Camera dismissed but capturedImages is EMPTY — sheet will NOT present")
+            }
+        }
+        .sheet(isPresented: $showErrorReview, onDismiss: {
+            print("📋 [ErrorHomeView] sheet onDismiss — clearing capturedImages")
+            capturedImages = []
+        }) {
+            let mapped = capturedImages.map { ImageWithNote(source: .local(image: $0)) }
+            let _ = print("📋 [ErrorHomeView] sheet closure evaluated — capturedImages: \(capturedImages.count), mapped: \(mapped.count)")
             NavigationStack {
                 PhotoCaptureErrorReviewView(
                     inspectionId: viewModel.inspectionId,
-                    initialImages: capturedImages.map { ImageWithNote(source: .local(image: $0)) },
+                    initialImages: mapped,
                     onImagesUpdated: { _ in },
                     onSaved: { saved, images in
                         viewModel.upsertErrorItem(saved, thumbnails: images)
@@ -136,23 +151,38 @@ struct ErrorHomeView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             Spacer()
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 56))
-                .foregroundColor(LMSColor.success.opacity(0.6))
-                .offset(y: floatOffset)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
-                        floatOffset = 6
+
+            ZStack {
+                Circle()
+                    .fill(LMSColor.warning.opacity(0.12))
+                    .frame(width: 100, height: 100)
+                Circle()
+                    .fill(LMSColor.warning.opacity(0.07))
+                    .frame(width: 130, height: 130)
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 44, weight: .medium))
+                    .foregroundColor(LMSColor.warning.opacity(0.75))
+                    .offset(y: floatOffset)
+                    .onAppear {
+                        withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                            floatOffset = 6
+                        }
                     }
-                }
-            LMSLabel(localizationManager.localize("errorHome.empty.title"), style: .body, alignment: .center)
+            }
+            .padding(.bottom, 20)
+
+            LMSLabel(localizationManager.localize("errorHome.empty.title"), style: .title3, alignment: .center)
+                .padding(.bottom, 8)
+
             LMSLabel(localizationManager.localize("errorHome.empty.subtitle"), style: .subheadline, color: .secondary, alignment: .center)
                 .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            Spacer()
             Spacer()
         }
-        .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
