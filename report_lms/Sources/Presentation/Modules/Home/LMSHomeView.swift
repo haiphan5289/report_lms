@@ -193,7 +193,6 @@ struct LMSHomeView: View {
         .overlay(Divider(), alignment: .bottom)
         .padding(.bottom, Layout.tabBottomPadding)
         .opacity(tabBarVisible ? 1 : 0)
-        .animation(.easeOut(duration: 0.4), value: tabBarVisible)
     }
 
     private func tabButton(for tab: LMSHomeViewModel.Tab) -> some View {
@@ -262,7 +261,7 @@ struct LMSHomeView: View {
     }
 
     private var reportContent: some View {
-        InformationPurchaseView()
+        ReportLMSHomeView(onInspectionTapped: viewModel.navigateToInspectionDetail)
     }
 }
 

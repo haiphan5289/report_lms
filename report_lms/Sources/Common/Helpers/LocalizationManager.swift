@@ -108,6 +108,10 @@ final class LocalizationManager: ObservableObject {
             "progress.empty.title": "Không có yêu cầu nào đang trong tiến trình",
             "progress.empty.subtitle": "Các yêu cầu đang kiểm tra sẽ hiển thị tại đây",
 
+            // MARK: Report
+            "report.empty.title": "Chưa có báo cáo nào",
+            "report.empty.subtitle": "Các đơn kiểm tra hoàn thành sẽ hiển thị tại đây",
+
             // MARK: Error Home
             "errorHome.empty.title": "Chưa có lỗi nào",
             "errorHome.empty.subtitle": "Nhấn nút cam bên dưới để ghi nhận lỗi mới",
@@ -193,6 +197,10 @@ final class LocalizationManager: ObservableObject {
             "finalReport.location.placeholder": "Nhập vị trí kiểm tra",
             "finalReport.section.summary": "Tóm tắt nhận xét",
             "finalReport.section.notification": "Thông báo",
+            "finalReport.section.email": "Email người nhận",
+            "finalReport.email.placeholder": "Nhập địa chỉ email",
+            "finalReport.queue.title": "Đã gửi yêu cầu",
+            "finalReport.queue.message": "Báo cáo đang được xử lý và sẽ được gửi đến người nhận trong giây lát.",
             "finalReport.section.endInspection": "Kết thúc kiểm tra",
             "finalReport.quantity.order": "Số lượng đơn hàng",
             "finalReport.quantity.actual": "Số lượng thực tế đã xong",
@@ -287,6 +295,10 @@ final class LocalizationManager: ObservableObject {
             "progress.empty.title": "No requests in progress",
             "progress.empty.subtitle": "Requests being inspected will appear here",
 
+            // MARK: Report
+            "report.empty.title": "No reports yet",
+            "report.empty.subtitle": "Completed inspections will appear here",
+
             // MARK: Error Home
             "errorHome.empty.title": "No errors recorded",
             "errorHome.empty.subtitle": "Tap the orange button below to report a new error",
@@ -372,6 +384,10 @@ final class LocalizationManager: ObservableObject {
             "finalReport.location.placeholder": "Enter inspection location",
             "finalReport.section.summary": "Summary Comments",
             "finalReport.section.notification": "Notification",
+            "finalReport.section.email": "Recipient Email",
+            "finalReport.email.placeholder": "Enter email address",
+            "finalReport.queue.title": "Request Submitted",
+            "finalReport.queue.message": "Your report is being processed and will be sent to recipients shortly.",
             "finalReport.section.endInspection": "End Inspection",
             "finalReport.quantity.order": "Order Quantity",
             "finalReport.quantity.actual": "Actual Completed Quantity",

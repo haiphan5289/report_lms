@@ -27,13 +27,15 @@ final class ProgressViewModel: ObservableObject {
         self.groupInspectionsByWeekUseCase = groupInspectionsByWeekUseCase
 
         Task { @MainActor in
-            NotificationCenter.default.publisher(for: .inspectionCacheDidLoad)
-                .sink { [weak self] _ in
-                    Task { @MainActor in
-                        await self?.loadInspections()
+            for name in [Notification.Name.inspectionCacheDidLoad, .inspectionDidUpdate] {
+                NotificationCenter.default.publisher(for: name)
+                    .sink { [weak self] _ in
+                        Task { @MainActor in
+                            await self?.loadInspections()
+                        }
                     }
-                }
-                .store(in: &self.cancellables)
+                    .store(in: &self.cancellables)
+            }
         }
     }
 

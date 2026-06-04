@@ -19,6 +19,7 @@ final class FinalReportViewModel: ObservableObject {
     @Published var selectedStatus: FinalReportStatus = .pending
     @Published var summaryComments: String = ""
     @Published var location: String = ""
+    @Published var recipientEmail: String = ""
     @Published var selectedRecipients: [FinalReportRecipient] = []
     @Published var isShowingRecipientsPicker = false
     @Published var isNotificationSectionExpanded = false
@@ -43,10 +44,16 @@ final class FinalReportViewModel: ObservableObject {
     @Published var showErrorAlert = false
     @Published var errorAlertMessage: String?
     
+    // MARK: - Queue Delivery
+    @Published var isSendingToServer = false
+    @Published var showEmailQueuedAlert = false
+
     // MARK: - Private Properties
     let inspection: Inspection?
     private let capturedPhotos: [String: [InspectionImage]]
     private let generatePDFUseCase: GenerateHTMLPDFReportUseCase
+    private let storageService: InspectionStorageServiceType
+    private let queueDeliveryUseCase: QueueReportDeliveryUseCase
     private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "finalreport")
     
     // MARK: - Computed Properties
@@ -71,11 +78,14 @@ final class FinalReportViewModel: ObservableObject {
     init(
         inspection: Inspection?,
         capturedPhotos: [String: [InspectionImage]],
-        generatePDFUseCase: GenerateHTMLPDFReportUseCase? = nil
+        generatePDFUseCase: GenerateHTMLPDFReportUseCase? = nil,
+        storageService: InspectionStorageServiceType? = nil,
+        queueDeliveryUseCase: QueueReportDeliveryUseCase? = nil
     ) {
         self.inspection = inspection
         self.capturedPhotos = capturedPhotos
-        
+        self.recipientEmail = "freelancerios0502@gmail.com"
+
         if let useCase = generatePDFUseCase {
             self.generatePDFUseCase = useCase
         } else {
@@ -83,6 +93,24 @@ final class FinalReportViewModel: ObservableObject {
                 fatalError("GenerateHTMLPDFReportUseCase must be registered in DI container")
             }
             self.generatePDFUseCase = resolvedUseCase
+        }
+
+        if let service = storageService {
+            self.storageService = service
+        } else {
+            guard let resolved = Container.shared.resolve(InspectionStorageServiceType.self) else {
+                fatalError("InspectionStorageServiceType must be registered in DI container")
+            }
+            self.storageService = resolved
+        }
+
+        if let queueUseCase = queueDeliveryUseCase {
+            self.queueDeliveryUseCase = queueUseCase
+        } else {
+            guard let resolved = Container.shared.resolve(QueueReportDeliveryUseCase.self) else {
+                fatalError("QueueReportDeliveryUseCase must be registered in DI container")
+            }
+            self.queueDeliveryUseCase = resolved
         }
     }
     
@@ -214,8 +242,72 @@ final class FinalReportViewModel: ObservableObject {
         isGeneratingPDF = false
     }
     
-    /// Handle email sent successfully
-    func handleEmailSent() {
+    /// Entry point for sending report — routes to Firebase queue or legacy mail composer.
+    func sendReport() async {
+        if FeatureFlags.useFirebaseReportDelivery {
+            await sendReportViaQueue()
+        } else {
+            await generateAndSendPDF()
+        }
+    }
+
+    /// Queues a Firestore delivery task and listens for server-side status updates.
+    func sendReportViaQueue() async {
+        guard let inspection else {
+            errorAlertMessage = "Không có dữ liệu kiểm tra"
+            showErrorAlert = true
+            return
+        }
+
+        isSendingToServer = true
+        defer { isSendingToServer = false }
+
+        do {
+            var allRecipients = selectedRecipients
+            let trimmed = recipientEmail.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                allRecipients.append(FinalReportRecipient(name: trimmed, email: trimmed))
+            }
+
+            let taskId = try await queueDeliveryUseCase.execute(
+                inspection: inspection,
+                recipients: allRecipients,
+                location: location
+            )
+            logger.log("Report queued: \(taskId)")
+            showEmailQueuedAlert = true
+
+            for await status in queueDeliveryUseCase.statusStream(taskId: taskId) {
+                switch status {
+                case .sent:
+                    showEmailSuccessAlert = true
+                case .failed:
+                    errorAlertMessage = "Gửi báo cáo thất bại. Vui lòng thử lại."
+                    showErrorAlert = true
+                default:
+                    break
+                }
+            }
+        } catch {
+            logger.error("Queue delivery failed: \(error.localizedDescription)")
+            errorAlertMessage = error.localizedDescription
+            showErrorAlert = true
+        }
+    }
+
+    /// Handle email sent successfully — marks the inspection as completed
+    func handleEmailSent() async {
+        guard var updated = inspection else {
+            showEmailSuccessAlert = true
+            return
+        }
+        updated.status = .completed
+        do {
+            try await storageService.updateInspection(updated)
+            logger.log("Inspection \(updated.inspectionNumber) marked as completed after email sent")
+        } catch {
+            logger.error("Failed to mark inspection as completed: \(error.localizedDescription)")
+        }
         showEmailSuccessAlert = true
     }
     

@@ -10,21 +10,23 @@ import Foundation
 struct FinalReportRecipient: Identifiable, Equatable {
     let id: String
     let name: String
-    
-    init(id: String = UUID().uuidString, name: String) {
+    let email: String
+
+    init(id: String = UUID().uuidString, name: String, email: String = "") {
         self.id = id
         self.name = name
+        self.email = email
     }
-    
+
     // MARK: - Mock Data
     static let mockRecipients: [FinalReportRecipient] = [
-        FinalReportRecipient(name: "Nguyễn Văn A"),
-        FinalReportRecipient(name: "Trần Thị B"),
-        FinalReportRecipient(name: "Lê Văn C"),
-        FinalReportRecipient(name: "Phạm Thị D"),
-        FinalReportRecipient(name: "Hoàng Văn E"),
-        FinalReportRecipient(name: "Vũ Thị F"),
-        FinalReportRecipient(name: "Đặng Văn G"),
-        FinalReportRecipient(name: "Bùi Thị H")
+        FinalReportRecipient(name: "Nguyễn Văn A", email: "a.nguyen@example.com"),
+        FinalReportRecipient(name: "Trần Thị B", email: "b.tran@example.com"),
+        FinalReportRecipient(name: "Lê Văn C", email: "c.le@example.com"),
+        FinalReportRecipient(name: "Phạm Thị D", email: "d.pham@example.com"),
+        FinalReportRecipient(name: "Hoàng Văn E", email: "e.hoang@example.com"),
+        FinalReportRecipient(name: "Vũ Thị F", email: "f.vu@example.com"),
+        FinalReportRecipient(name: "Đặng Văn G", email: "g.dang@example.com"),
+        FinalReportRecipient(name: "Bùi Thị H", email: "h.bui@example.com")
     ]
 }

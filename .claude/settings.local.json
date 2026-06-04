@@ -42,7 +42,19 @@
       "Bash(mkdir -p /private/tmp/claude-502 && echo \"ok\")",
       "Bash(git --git-dir=/Users/haiphan/Desktop/haiphan/report_lms/.git show HEAD:PhotoCaptureErrorReviewView.swift)",
       "WebFetch(domain:serialcoder.dev)",
-      "WebFetch(domain:softwareanders.com)"
+      "WebFetch(domain:softwareanders.com)",
+      "Bash(xargs ls -1)",
+      "Bash(firebase --version)",
+      "Bash(firebase deploy *)",
+      "Bash(npm install *)",
+      "Bash(curl -L \"https://github.com/google/fonts/raw/main/ofl/notosans/static/NotoSans-Regular.ttf\" -o /Users/haiphan/Desktop/haiphan/report_lms/functions/fonts/NotoSans-Regular.ttf)",
+      "Bash(curl -L \"https://github.com/google/fonts/raw/main/ofl/notosans/static/NotoSans-Bold.ttf\" -o /Users/haiphan/Desktop/haiphan/report_lms/functions/fonts/NotoSans-Bold.ttf)",
+      "Bash(npm run *)",
+      "Bash(curl -sI \"https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf\")",
+      "Bash(curl -L \"https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf\" -o /Users/haiphan/Desktop/haiphan/report_lms/functions/fonts/NotoSans-Regular.ttf)",
+      "Bash(curl -L \"https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf\" -o /Users/haiphan/Desktop/haiphan/report_lms/functions/fonts/NotoSans-Bold.ttf)",
+      "Bash(firebase functions:log --only processReportQueue)",
+      "Bash(npx tsc *)"
     ],
     "additionalDirectories": [
       "/private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440",

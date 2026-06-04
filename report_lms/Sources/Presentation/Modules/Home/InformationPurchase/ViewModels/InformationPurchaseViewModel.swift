@@ -11,18 +11,35 @@ import Foundation
 @MainActor
 final class InformationPurchaseViewModel: ObservableObject {
     // MARK: - Published Properties
-    @Published var productName: String = "Ghế"
-    @Published var orderNumber: String = "001"
-    @Published var productCode: String = "001"
-    @Published var totalQuantity: String = "0"
-    @Published var sampleQuantity: String = "0"
-    @Published var boxQuantity: String = "Ngẫu nhiên"
-    @Published var factoryName: String = "KUKA"
-    @Published var inspectionDate: String = "CN, 28 tháng 12, 2025"
-    @Published var factoryLocation: String = "Nhà máy gò vấp"
-    
+    @Published var companyName: String = "—"
+    @Published var productName: String = "—"
+    @Published var orderNumber: String = "—"
+    @Published var productCode: String = "—"
+    @Published var totalQuantity: String = "—"
+    @Published var productionUnit: String = "—"
+    @Published var inspectionType: String = "—"
+    @Published var factoryName: String = "—"
+    @Published var inspectionDate: String = "—"
+
     // MARK: - Initialization
-    init() {
-        // Initialize with default values
+    init(inspection: Inspection? = nil) {
+        guard let i = inspection else { return }
+        companyName    = i.companyName
+        productName    = i.productName
+        orderNumber    = i.orderCode
+        productCode    = i.productCode
+        totalQuantity  = i.quantity
+        productionUnit = i.productionUnit
+        inspectionType = i.inspectionType
+        factoryName    = i.factory
+        inspectionDate = Self.formatDate(i.createdAt)
+    }
+
+    // MARK: - Private Helpers
+    private static func formatDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateStyle = .long
+        f.locale = Locale(identifier: "vi_VN")
+        return f.string(from: date)
     }
 }

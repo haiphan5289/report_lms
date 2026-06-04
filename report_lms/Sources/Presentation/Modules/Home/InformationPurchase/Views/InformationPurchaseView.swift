@@ -10,7 +10,7 @@ import SwiftUI
 
 struct InformationPurchaseView: View {
     // MARK: - Properties
-    @StateObject private var viewModel = InformationPurchaseViewModel()
+    let inspection: Inspection?
 
     // Animation
     @State private var section1Visible = false
@@ -44,27 +44,20 @@ struct InformationPurchaseView: View {
 
     private var section1View: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Accent header
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(LMSColor.primary)
                     .frame(width: 3, height: 20)
-                LMSLabel(viewModel.productName, style: .title)
+                LMSLabel(inspection?.companyName ?? "—", style: .title)
+                    .lineLimit(2)
             }
             Divider()
-            infoRow(label: "Đơn đặt hàng:", value: viewModel.orderNumber)
-            infoRow(label: "Sản phẩm:", value: viewModel.productCode)
+            infoRow(label: "Đơn đặt hàng:", value: inspection?.orderCode ?? "—")
+            infoRow(label: "Mã sản phẩm:", value: inspection?.productCode ?? "—")
+            infoRow(label: "Loại kiểm tra:", value: inspection?.inspectionType ?? "—")
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(UIColor.systemBackground))
-                .shadow(color: LMSColor.Shadow.subtle, radius: 6, x: 0, y: 3)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(LMSColor.Border.subtle, lineWidth: 1)
-                )
-        )
+        .background(cardBackground)
     }
 
     private var section2View: some View {
@@ -76,42 +69,67 @@ struct InformationPurchaseView: View {
                 LMSLabel("Thông tin kiểm hàng", style: .headline)
             }
             Divider()
-            infoRow(label: "Tên sản phẩm:", value: viewModel.productName)
-            infoRow(label: "Tổng số lượng:", value: viewModel.totalQuantity)
-            infoRow(label: "Số lượng mẫu cần kiếm:", value: viewModel.sampleQuantity)
-            HStack {
-                LMSLabel("Số lượng thùng cần kiếm:", style: .body)
-                Spacer()
-                LMSLabel(viewModel.boxQuantity, style: .body, color: .custom(.green))
-            }
-            infoRow(label: "Tên nhà máy:", value: viewModel.factoryName)
-            infoRow(label: "Ngày dự kiến kiểm hàng:", value: viewModel.inspectionDate)
-            infoRow(label: "Nhà máy:", value: viewModel.factoryLocation)
+            infoRow(label: "Tên sản phẩm:", value: inspection?.productName ?? "—")
+            infoRow(label: "Tổng số lượng:", value: inspection?.quantity ?? "—")
+            infoRow(label: "Đơn vị sản xuất:", value: inspection?.productionUnit ?? "—")
+            infoRow(label: "Tên nhà máy:", value: inspection?.factory ?? "—")
+            infoRow(label: "Ngày tạo đơn:", value: formattedDate)
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(UIColor.systemBackground))
-                .shadow(color: LMSColor.Shadow.subtle, radius: 6, x: 0, y: 3)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(LMSColor.Border.subtle, lineWidth: 1)
-                )
-        )
+        .background(cardBackground)
+    }
+
+    private var formattedDate: String {
+        guard let date = inspection?.createdAt else { return "—" }
+        let f = DateFormatter()
+        f.dateStyle = .long
+        f.locale = Locale(identifier: "vi_VN")
+        return f.string(from: date)
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color(UIColor.systemBackground))
+            .shadow(color: LMSColor.Shadow.subtle, radius: 6, x: 0, y: 3)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(LMSColor.Border.subtle, lineWidth: 1)
+            )
     }
 
     private func infoRow(label: String, value: String) -> some View {
-        HStack {
+        HStack(alignment: .top) {
             LMSLabel(label, style: .body)
             Spacer()
             LMSLabel(value, style: .body, color: .secondary)
+                .multilineTextAlignment(.trailing)
         }
     }
 }
 
 // MARK: - Preview
-#Preview {
+#Preview("With data") {
     NavigationStack {
-        InformationPurchaseView()
+        InformationPurchaseView(
+            inspection: Inspection(
+                id: "1",
+                inspectionNumber: "INS-2026-001",
+                companyName: "Công ty TNHH ABC",
+                productName: "Ghế văn phòng",
+                productCode: "GVP-001",
+                orderCode: "ORD-2026-001",
+                inspectionType: "Final Inspection",
+                quantity: "500",
+                factory: "Nhà máy Hà Nội",
+                productionUnit: "Pcs",
+                status: .completed
+            )
+        )
+    }
+}
+
+#Preview("Loading / nil") {
+    NavigationStack {
+        InformationPurchaseView(inspection: nil)
     }
 }

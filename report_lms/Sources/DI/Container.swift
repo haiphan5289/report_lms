@@ -118,6 +118,15 @@ final class Container {
             return GenerateHTMLPDFReportUseCase(pdfGenerator: pdfGenerator)
         }
 
+        let reportDeliveryQueueService = ReportDeliveryQueueService()
+        registerSingleton(ReportDeliveryQueueService.self, instance: reportDeliveryQueueService)
+
+        register(QueueReportDeliveryUseCase.self) {
+            QueueReportDeliveryUseCase(
+                queueService: Container.shared.resolve(ReportDeliveryQueueService.self)!
+            )
+        }
+
         // UserManager - Singleton for shared state management
         let userManager = UserManager()
         registerSingleton(UserManager.self, instance: userManager)
@@ -143,6 +152,12 @@ final class Container {
         }
         register(ProgressViewModel.self) {
             ProgressViewModel(
+                storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
+                groupInspectionsByWeekUseCase: Container.shared.resolve(GroupInspectionsByWeekUseCase.self)!
+            )
+        }
+        register(ReportViewModel.self) {
+            ReportViewModel(
                 storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
                 groupInspectionsByWeekUseCase: Container.shared.resolve(GroupInspectionsByWeekUseCase.self)!
             )

@@ -64,6 +64,10 @@ struct FinalReportView: View {
                             .opacity(contentVisible ? 1 : 0)
                             .offset(y: contentVisible ? 0 : 16)
                             .animation(.easeOut(duration: 0.35).delay(0.32), value: contentVisible)
+                        emailSection
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 16)
+                            .animation(.easeOut(duration: 0.35).delay(0.38), value: contentVisible)
                         actionButtonsSection
                             .opacity(contentVisible ? 1 : 0)
                             .offset(y: contentVisible ? 0 : 16)
@@ -97,9 +101,10 @@ struct FinalReportView: View {
                 MailComposerView(
                     pdfData: pdfData,
                     inspectionNumber: viewModel.inspection?.inspectionNumber ?? "",
+                    recipientEmail: viewModel.recipientEmail.isEmpty ? nil : viewModel.recipientEmail,
                     onComplete: { result in
                         if result == .sent {
-                            viewModel.handleEmailSent()
+                            Task { await viewModel.handleEmailSent() }
                         }
                     }
                 )
@@ -119,6 +124,16 @@ struct FinalReportView: View {
             }
         }
         .overlay {
+            if viewModel.showEmailQueuedAlert {
+                SuccessConfirmationView(
+                    title: localizationManager.localize("finalReport.queue.title"),
+                    message: localizationManager.localize("finalReport.queue.message"),
+                    confirmTitle: localizationManager.localize("common.ok")
+                ) {
+                    viewModel.showEmailQueuedAlert = false
+                }
+            }
+
             if viewModel.showEmailSuccessAlert {
                 SuccessConfirmationView(
                     title: localizationManager.localize("finalReport.success.email.title"),
@@ -290,6 +305,21 @@ struct FinalReportView: View {
         }
     }
     
+    private var emailSection: some View {
+        LMSSectionContainer(title: localizationManager.localize("finalReport.section.email")) {
+            TextField(
+                localizationManager.localize("finalReport.email.placeholder"),
+                text: $viewModel.recipientEmail
+            )
+            .padding(12)
+            .background(LMSColor.backgroundSecondary)
+            .cornerRadius(8)
+            .keyboardType(.emailAddress)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+        }
+    }
+
     private var actionButtonsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             LMSLabel(localizationManager.localize("finalReport.section.endInspection"), style: .headline)
@@ -314,14 +344,15 @@ struct FinalReportView: View {
 
                 LMSButton(
                     localizationManager.localize("finalReport.button.sendEmail"),
-                    icon: "paperplane.fill",
+                    icon: viewModel.isSendingToServer ? "clock.arrow.circlepath" : "paperplane.fill",
                     variant: .primary,
                     size: .large,
                     isFullWidth: true,
-                    isDisabled: viewModel.isGeneratingPDF
+                    isLoading: $viewModel.isSendingToServer,
+                    isDisabled: viewModel.isGeneratingPDF || viewModel.isSendingToServer
                 ) {
                     Task {
-                        await viewModel.generateAndSendPDF()
+                        await viewModel.sendReport()
                     }
                 }
             }

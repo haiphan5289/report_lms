@@ -206,7 +206,7 @@ struct InspectionDetailView: View {
     }
     
     private var orderInformationContent: some View {
-        InformationPurchaseView()
+        InformationPurchaseView(inspection: viewModel.inspection)
     }
 
     private var submitButton: some View {
