@@ -21,6 +21,8 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
     // MARK: - Properties
     private let logger = Logger(subsystem: "com.reportlms.storage", category: "firestore")
     private let firestoreService: FirestoreService
+    private let storageService: FirebaseStorageService
+    private let deliveryQueueService: ReportDeliveryQueueService
 
     /// Flips to `true` when `loadCache()` finishes (success or failure).
     /// Stays `true` for the app lifetime; survives logout/login.
@@ -30,8 +32,14 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
     private var cache: [Inspection] = []
 
     // MARK: - Initialization
-    init(firestoreService: FirestoreService) {
+    init(
+        firestoreService: FirestoreService,
+        storageService: FirebaseStorageService,
+        deliveryQueueService: ReportDeliveryQueueService
+    ) {
         self.firestoreService = firestoreService
+        self.storageService = storageService
+        self.deliveryQueueService = deliveryQueueService
         logger.log("FirestoreInspectionStorageService initialized")
     }
 
@@ -105,22 +113,52 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
         logger.log("Inspection updated in Firestore successfully")
     }
 
-    /// Delete from Firestore, then remove from cache.
+    /// Cascade delete: Firestore doc + cache + notification (blocking), then photos + delivery tasks (fire & forget).
     func deleteInspection(by id: String) async throws {
-        logger.log("Deleting inspection \(id) from Firestore...")
-        let exists = await MainActor.run { cache.contains { $0.id == id } }
-        guard exists else {
+        logger.log("Cascade deleting inspection \(id)...")
+
+        // 1. Fetch from cache first — need photo URLs before the doc is gone
+        let inspection = await MainActor.run { cache.first { $0.id == id } }
+        guard let inspection else {
             logger.error("Inspection \(id) not found in cache for deletion")
             throw InspectionStorageError.inspectionNotFound
         }
+
+        // 2. Delete Firestore document (blocking)
         do {
             try await firestoreService.deleteInspection(id: id)
         } catch {
             logger.error("Firestore delete failed: \(error.localizedDescription)")
             throw InspectionStorageError.deleteFailed
         }
+
+        // 3. Remove from cache + notify other tabs (blocking)
         await MainActor.run { cache.removeAll { $0.id == id } }
-        logger.log("Inspection deleted from Firestore successfully")
+        NotificationCenter.default.post(name: .inspectionDidUpdate, object: nil)
+
+        // 4. Fire & forget: delete photos + delivery queue tasks
+        let photoURLs = inspection.sections
+            .flatMap { $0.fields }
+            .flatMap { field -> [String] in
+                var urls = field.imageURLs
+                if let url = field.photoURL { urls.append(url) }
+                return urls
+            }
+            .filter { !$0.isEmpty }
+
+        let storageService = self.storageService
+        let deliveryQueueService = self.deliveryQueueService
+        Task {
+            for url in photoURLs {
+                try? await storageService.deleteImage(fromURL: url)
+            }
+            if !photoURLs.isEmpty {
+                logger.log("Deleted \(photoURLs.count) photos for inspection \(id)")
+            }
+            try? await deliveryQueueService.deleteTasksForInspection(inspectionId: id)
+        }
+
+        logger.log("Inspection \(id) cascade delete complete")
     }
 
     @MainActor

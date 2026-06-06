@@ -135,6 +135,18 @@ final class ReportDeliveryQueueService {
         logger.log("Deleted \(taskIds.count) tasks")
     }
 
+    /// Queries and deletes all delivery tasks linked to a given inspection.
+    func deleteTasksForInspection(inspectionId: String) async throws {
+        let snapshot = try await db
+            .collection(Self.collectionName)
+            .whereField("inspectionId", isEqualTo: inspectionId)
+            .getDocuments()
+        let ids = snapshot.documents.map { $0.documentID }
+        guard !ids.isEmpty else { return }
+        try await deleteTasks(taskIds: ids)
+        logger.log("Deleted \(ids.count) delivery tasks for inspection \(inspectionId)")
+    }
+
     /// Updates an existing failed task's status back to `queued` so the Cloud Function re-processes it.
     func retryTask(taskId: String) async throws {
         try await db

@@ -382,10 +382,24 @@ private let previewInspections: [Inspection] = [
 ]
 
 @MainActor
-private func makePreviewViewModel() -> OrdersViewModel {
-    let firestoreService = FirestoreService()
-    let vm = OrdersViewModel(firestoreService: firestoreService)
-    vm.inspections = previewInspections
+private func makePreviewViewModel(inspections: [Inspection] = previewInspections) -> OrdersViewModel {
+    final class MockStorage: InspectionStorageServiceType {
+        private var items: [Inspection]
+        let isCacheLoaded = true
+        init(_ items: [Inspection]) { self.items = items }
+        func loadCache() async throws {}
+        func getAllInspections() -> [Inspection] { items }
+        func getInspection(by id: String) -> Inspection? { items.first { $0.id == id } }
+        func saveInspection(_ i: Inspection) async throws { items.append(i) }
+        func updateInspection(_ i: Inspection) async throws {
+            if let idx = items.firstIndex(where: { $0.id == i.id }) { items[idx] = i }
+        }
+        func deleteInspection(by id: String) async throws { items.removeAll { $0.id == id } }
+        func getDraftInspections() -> [Inspection] { items.filter { $0.status == .plan || $0.status == .inProgress } }
+        func getCompletedInspections() -> [Inspection] { items.filter { $0.status == .completed } }
+    }
+    let vm = OrdersViewModel(storageService: MockStorage(inspections))
+    vm.inspections = inspections
     return vm
 }
 
@@ -398,10 +412,7 @@ private func makePreviewViewModel() -> OrdersViewModel {
 
 #Preview("Empty") {
     NavigationView {
-        OrdersView(viewModel: {
-            let vm = OrdersViewModel(firestoreService: FirestoreService())
-            return vm
-        }())
+        OrdersView(viewModel: makePreviewViewModel(inspections: []))
     }
     .environmentObject(LocalizationManager.shared)
 }
@@ -409,7 +420,7 @@ private func makePreviewViewModel() -> OrdersViewModel {
 #Preview("Loading") {
     NavigationView {
         OrdersView(viewModel: {
-            let vm = OrdersViewModel(firestoreService: FirestoreService())
+            let vm = makePreviewViewModel(inspections: [])
             vm.isLoading = true
             return vm
         }())

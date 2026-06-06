@@ -55,10 +55,6 @@ final class Container {
         let inspectionService = InspectionService()
         registerSingleton(InspectionServiceType.self, instance: inspectionService)
         
-        // Firestore-backed storage service - Singleton for in-memory cache
-        let inspectionStorageService = FirestoreInspectionStorageService(firestoreService: firestoreService)
-        registerSingleton(InspectionStorageServiceType.self, instance: inspectionStorageService)
-
         // Repositories - Singleton to maintain publisher state
         let authRepository = AuthRepository(service: firebaseAuthService)
         registerSingleton(AuthRepositoryType.self, instance: authRepository)
@@ -121,6 +117,14 @@ final class Container {
         let reportDeliveryQueueService = ReportDeliveryQueueService()
         registerSingleton(ReportDeliveryQueueService.self, instance: reportDeliveryQueueService)
 
+        // Re-register storage service now that deliveryQueueService is available
+        let inspectionStorageServiceFull = FirestoreInspectionStorageService(
+            firestoreService: firestoreService,
+            storageService: firebaseStorageService,
+            deliveryQueueService: reportDeliveryQueueService
+        )
+        registerSingleton(InspectionStorageServiceType.self, instance: inspectionStorageServiceFull)
+
         register(QueueReportDeliveryUseCase.self) {
             QueueReportDeliveryUseCase(
                 queueService: Container.shared.resolve(ReportDeliveryQueueService.self)!
@@ -142,7 +146,7 @@ final class Container {
             LMSHomeViewModel()
         }
         register(OrdersViewModel.self) {
-            OrdersViewModel(firestoreService: Container.shared.resolve(FirestoreService.self)!)
+            OrdersViewModel(storageService: Container.shared.resolve(InspectionStorageServiceType.self)!)
         }
         register(PlanLMSHomeViewModel.self) {
             PlanLMSHomeViewModel(

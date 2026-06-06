@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import Combine
 
 @MainActor
 final class OrdersViewModel: ObservableObject {
@@ -15,11 +16,24 @@ final class OrdersViewModel: ObservableObject {
     @Published var selectedStatus: InspectionStatus? = nil
 
     // MARK: - Private
-    private let firestoreService: FirestoreService
+    private let storageService: InspectionStorageServiceType
+    private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Init
-    nonisolated init(firestoreService: FirestoreService) {
-        self.firestoreService = firestoreService
+    nonisolated init(storageService: InspectionStorageServiceType) {
+        self.storageService = storageService
+
+        Task { @MainActor in
+            for name in [Notification.Name.inspectionCacheDidLoad, .inspectionDidUpdate] {
+                NotificationCenter.default.publisher(for: name)
+                    .sink { [weak self] _ in
+                        Task { @MainActor in
+                            await self?.loadOrders()
+                        }
+                    }
+                    .store(in: &self.cancellables)
+            }
+        }
     }
 
     // MARK: - Computed
@@ -53,11 +67,7 @@ final class OrdersViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
-        do {
-            inspections = try await firestoreService.fetchInspections()
-        } catch {
-            errorMessage = "Không thể tải đơn hàng: \(error.localizedDescription)"
-        }
+        inspections = storageService.getAllInspections()
     }
 
     func deleteInspection(id: String) async {
@@ -65,9 +75,9 @@ final class OrdersViewModel: ObservableObject {
         let backup = inspections
         inspections.removeAll { $0.id == id }
         do {
-            try await firestoreService.deleteInspection(id: id)
+            try await storageService.deleteInspection(by: id)
         } catch {
-            // Rollback if Firestore fails
+            // Rollback on failure
             inspections = backup
             errorMessage = "Không thể xóa đơn hàng"
         }
