@@ -189,29 +189,57 @@ final class InspectionValidationViewModel: ObservableObject {
         let doneCb = onImageDone
         let failCb = onImageFail
 
-        // Limit concurrent uploads to 2 to prevent OOM when processing many high-res images.
-        // Each prepareForUpload() peaks at ~100MB (pixel buffer + render + JPEG); unbounded concurrency
-        // on 10+ images easily exceeds the 3GB process limit.
-        let maxConcurrent = 4
-        let newlyUploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
+        // Phase 1 — Compress: run all prepareForUpload() in parallel, capped at 3 concurrent.
+        // Each prepareForUpload() peaks ~100MB (pixel buffer + renderer + JPEG output).
+        // Decoupling compress from upload means upload slots never idle waiting for CPU work.
+        let maxConcurrentCompress = 3
+        let compressedItems: [(index: Int, data: Data)] = await withTaskGroup(of: (Int, Data?).self) { group in
             var pending = Array(localImages.enumerated())
             var nextIndex = 0
-            var results: [(Int, String)] = []
+            var results: [(Int, Data)] = []
 
-            func addTask(for item: (offset: Int, element: InspectionImage)) {
+            func addCompressTask(for item: (offset: Int, element: InspectionImage)) {
                 let (index, inspectionImage) = (item.offset, item.element)
                 let image = inspectionImage.image
                 group.addTask {
-                    let imageData = await Task.detached(priority: .userInitiated) {
+                    let data = await Task.detached(priority: .userInitiated) {
                         image.prepareForUpload()
                     }.value
-                    guard let imageData else {
-                        failCb?(index)
-                        return (index, nil)
-                    }
+                    return (index, data)
+                }
+            }
+
+            while nextIndex < min(maxConcurrentCompress, pending.count) {
+                addCompressTask(for: pending[nextIndex])
+                nextIndex += 1
+            }
+            for await (index, data) in group {
+                if let data {
+                    results.append((index, data))
+                } else {
+                    failCb?(index)
+                }
+                if nextIndex < pending.count {
+                    addCompressTask(for: pending[nextIndex])
+                    nextIndex += 1
+                }
+            }
+            return results.sorted { $0.0 < $1.0 }.map { (index: $0.0, data: $0.1) }
+        }
+
+        // Phase 2 — Upload: each slot holds only ~600KB Data (pixel buffer already released).
+        // Safe to run 6 concurrent — peak memory ≈ 6 × 600KB ≈ 3.6MB, negligible.
+        let maxConcurrentUpload = 6
+        let newlyUploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
+            var nextIndex = 0
+            var results: [(Int, String)] = []
+
+            func addUploadTask(for item: (index: Int, data: Data)) {
+                let (index, data) = (item.index, item.data)
+                group.addTask {
                     do {
                         let url = try await uploadUseCase.executeWithProgress(
-                            imageData: imageData,
+                            imageData: data,
                             inspectionId: inspectionId,
                             onProgress: { progress in progressCb?(index, progress) }
                         )
@@ -224,21 +252,17 @@ final class InspectionValidationViewModel: ObservableObject {
                 }
             }
 
-            // Seed initial batch
-            while nextIndex < min(maxConcurrent, pending.count) {
-                addTask(for: pending[nextIndex])
+            while nextIndex < min(maxConcurrentUpload, compressedItems.count) {
+                addUploadTask(for: compressedItems[nextIndex])
                 nextIndex += 1
             }
-
-            // As each task finishes, start the next one
             for await (index, url) in group {
                 if let url { results.append((index, url)) }
-                if nextIndex < pending.count {
-                    addTask(for: pending[nextIndex])
+                if nextIndex < compressedItems.count {
+                    addUploadTask(for: compressedItems[nextIndex])
                     nextIndex += 1
                 }
             }
-
             return results.sorted { $0.0 < $1.0 }.map { $0.1 }
         }
 
