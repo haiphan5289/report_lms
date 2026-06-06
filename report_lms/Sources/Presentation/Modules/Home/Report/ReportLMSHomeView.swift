@@ -14,6 +14,7 @@ struct ReportLMSHomeView: View {
     // MARK: - Properties
     @StateObject private var viewModel: ReportViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
+    @Binding var scrollToInspectionId: String?
 
     // Animation
     @State private var listAppeared = false
@@ -21,11 +22,12 @@ struct ReportLMSHomeView: View {
     @State private var selectedInspection: Inspection?
 
     // MARK: - Initialization
-    init(viewModel: ReportViewModel? = nil) {
+    init(viewModel: ReportViewModel? = nil, scrollToInspectionId: Binding<String?> = .constant(nil)) {
         guard let resolved = viewModel ?? Container.shared.resolve(ReportViewModel.self) else {
             fatalError("ReportViewModel not registered in DI container")
         }
         _viewModel = StateObject(wrappedValue: resolved)
+        _scrollToInspectionId = scrollToInspectionId
     }
 
     // MARK: - Body
@@ -129,46 +131,58 @@ struct ReportLMSHomeView: View {
     }
 
     private var inspectionListView: some View {
-        ScrollView {
-            LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
-                ForEach(viewModel.weeklyInspections) { section in
-                    Section {
-                        VStack(spacing: 12) {
-                            let inspections = section.inspections
-                            ForEach(Array(inspections.enumerated()), id: \.element.id) { index, inspection in
-                                Button(action: { selectedInspection = inspection }) {
-                                    InspectionCardView(inspection: inspection)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
+                    ForEach(viewModel.weeklyInspections) { section in
+                        Section {
+                            VStack(spacing: 12) {
+                                let inspections = section.inspections
+                                ForEach(Array(inspections.enumerated()), id: \.element.id) { index, inspection in
+                                    Button(action: { selectedInspection = inspection }) {
+                                        InspectionCardView(inspection: inspection)
+                                    }
+                                    .id(inspection.id)
+                                    .buttonStyle(CardPressStyle())
+                                    .padding(.horizontal, 16)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(LMSColor.background)
+                                            .shadow(color: LMSColor.Shadow.medium, radius: 4, x: 0, y: 2)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(LMSColor.Border.subtle, lineWidth: 1)
+                                            )
+                                    )
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 4)
+                                    .opacity(listAppeared ? 1 : 0)
+                                    .offset(y: listAppeared ? 0 : 16)
+                                    .animation(
+                                        .easeOut(duration: 0.35).delay(Double(min(index, 6)) * 0.08),
+                                        value: listAppeared
+                                    )
                                 }
-                                .buttonStyle(CardPressStyle())
-                                .padding(.horizontal, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(LMSColor.background)
-                                        .shadow(color: LMSColor.Shadow.medium, radius: 4, x: 0, y: 2)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(LMSColor.Border.subtle, lineWidth: 1)
-                                        )
-                                )
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 4)
-                                .opacity(listAppeared ? 1 : 0)
-                                .offset(y: listAppeared ? 0 : 16)
-                                .animation(
-                                    .easeOut(duration: 0.35).delay(Double(min(index, 6)) * 0.08),
-                                    value: listAppeared
-                                )
                             }
+                            .padding(.vertical, 12)
+                            .onAppear { listAppeared = true }
+                        } header: {
+                            sectionHeader(for: section)
                         }
-                        .padding(.vertical, 12)
-                        .onAppear { listAppeared = true }
-                    } header: {
-                        sectionHeader(for: section)
                     }
                 }
             }
+            .background(Color(.systemGroupedBackground))
+            .onChange(of: scrollToInspectionId) { _, targetId in
+                guard let targetId else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        proxy.scrollTo(targetId, anchor: .center)
+                    }
+                    scrollToInspectionId = nil
+                }
+            }
         }
-        .background(Color(.systemGroupedBackground))
     }
 
     private func sectionHeader(for section: WeekSection) -> some View {

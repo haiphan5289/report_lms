@@ -266,7 +266,7 @@ struct LMSHomeView: View {
     }
 
     private var reportContent: some View {
-        ReportLMSHomeView()
+        ReportLMSHomeView(scrollToInspectionId: $viewModel.scrollToInspectionId)
     }
 }
 

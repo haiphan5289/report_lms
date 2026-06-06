@@ -17,6 +17,21 @@ final class LMSHomeViewModel: ObservableObject {
     @Published var selectedTab: Tab = .plan
     @Published var navigationPath = NavigationPath()
     @Published var dataRefreshTrigger = 0
+    @Published var scrollToInspectionId: String?
+
+    // MARK: - Private
+    private var cancellables = Set<AnyCancellable>()
+
+    // MARK: - Init
+    init() {
+        NotificationCenter.default.publisher(for: .navigateToReportTab)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                let id = notification.userInfo?["inspectionId"] as? String
+                self?.navigateToReportTab(scrollingTo: id)
+            }
+            .store(in: &cancellables)
+    }
 
     // MARK: - Public Methods
     func showMenuAction() {
@@ -54,9 +69,10 @@ final class LMSHomeViewModel: ObservableObject {
         dataRefreshTrigger += 1
     }
 
-    func navigateToReportTab() {
+    func navigateToReportTab(scrollingTo inspectionId: String? = nil) {
         navigationPath = NavigationPath()
         selectedTab = .report
+        scrollToInspectionId = inspectionId
     }
 
     func handleNavigationBack(from oldValue: NavigationPath, to newValue: NavigationPath) {

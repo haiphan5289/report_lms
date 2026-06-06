@@ -12,6 +12,8 @@ import OSLog
 extension Notification.Name {
     static let inspectionCacheDidLoad = Notification.Name("inspectionCacheDidLoad")
     static let inspectionDidUpdate = Notification.Name("inspectionDidUpdate")
+    /// Posted when an inspection is marked completed; userInfo["inspectionId"] = String
+    static let navigateToReportTab = Notification.Name("navigateToReportTab")
 }
 
 /// Local-disk implementation of `InspectionStorageServiceType`.

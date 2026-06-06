@@ -302,13 +302,18 @@ final class FinalReportViewModel: ObservableObject {
         }
     }
 
-    /// Marks inspection as completed in Firestore without showing any alert.
+    /// Marks inspection as completed in Firestore, then triggers navigation to the Report tab.
     private func markInspectionCompleted() async {
         guard var updated = inspection else { return }
         updated.status = .completed
         do {
             try await storageService.updateInspection(updated)
             logger.log("Inspection \(updated.inspectionNumber) marked as completed")
+            NotificationCenter.default.post(
+                name: .navigateToReportTab,
+                object: nil,
+                userInfo: ["inspectionId": updated.id]
+            )
         } catch {
             logger.error("Failed to mark inspection as completed: \(error.localizedDescription)")
         }
