@@ -36,6 +36,8 @@ struct UploadStatusBottomSheet: View {
             }
             .navigationTitle("Trạng thái tải ảnh")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { isPresented = false }) {

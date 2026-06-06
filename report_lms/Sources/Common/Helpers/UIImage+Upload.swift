@@ -8,7 +8,7 @@ import UIKit
 extension UIImage {
     /// Resize to maxDimension (preserving aspect ratio) then compress to JPEG.
     /// Called on a background thread — never on MainActor.
-    func prepareForUpload(maxDimension: CGFloat = 2048, compressionQuality: CGFloat = 0.8) -> Data? {
+    func prepareForUpload(maxDimension: CGFloat = 1600, compressionQuality: CGFloat = 0.8) -> Data? {
         let resized = resizedIfNeeded(maxDimension: maxDimension)
         return resized.jpegData(compressionQuality: compressionQuality)
     }

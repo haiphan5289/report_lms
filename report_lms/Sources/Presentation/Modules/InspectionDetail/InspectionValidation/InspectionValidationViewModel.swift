@@ -192,7 +192,7 @@ final class InspectionValidationViewModel: ObservableObject {
         // Limit concurrent uploads to 2 to prevent OOM when processing many high-res images.
         // Each prepareForUpload() peaks at ~100MB (pixel buffer + render + JPEG); unbounded concurrency
         // on 10+ images easily exceeds the 3GB process limit.
-        let maxConcurrent = 2
+        let maxConcurrent = 4
         let newlyUploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
             var pending = Array(localImages.enumerated())
             var nextIndex = 0
