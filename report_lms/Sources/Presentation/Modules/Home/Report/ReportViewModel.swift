@@ -40,6 +40,15 @@ final class ReportViewModel: ObservableObject {
     }
 
     // MARK: - Public Methods
+    func deleteInspection(_ inspection: Inspection) async {
+        do {
+            try await storageService.deleteInspection(by: inspection.id)
+            await loadInspections()
+        } catch {
+            errorMessage = "Xoá thất bại. Vui lòng thử lại."
+        }
+    }
+
     func loadInspections() async {
         isLoading = true
         errorMessage = nil

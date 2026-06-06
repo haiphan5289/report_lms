@@ -10,7 +10,6 @@ import SwiftUI
 struct InspectionCardView: View {
     // MARK: - Properties
     let inspection: Inspection
-    let isLastIndex: Bool
     let onTap: (() -> Void)?
     let onDelete: (() -> Void)?
     let onReset: (() -> Void)?
@@ -18,15 +17,15 @@ struct InspectionCardView: View {
     @State private var showingMenu = false
     @State private var showingDeleteConfirm = false
 
+    private var hasMenuActions: Bool { onDelete != nil || onReset != nil }
+
     init(
         inspection: Inspection,
-        isLastIndex: Bool = false,
         onTap: (() -> Void)? = nil,
         onDelete: (() -> Void)? = nil,
         onReset: (() -> Void)? = nil
     ) {
         self.inspection = inspection
-        self.isLastIndex = isLastIndex
         self.onTap = onTap
         self.onDelete = onDelete
         self.onReset = onReset
@@ -49,7 +48,7 @@ struct InspectionCardView: View {
         }
         .background(Color(.systemBackground))
         .cornerRadius(8)
-        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+        .shadow(color: LMSColor.Shadow.medium, radius: 4, x: 0, y: 2)
         .if(onTap != nil) { view in
             view.onTapGesture(perform: onTap!)
         }
@@ -104,7 +103,7 @@ struct InspectionCardView: View {
                     .font(.system(size: 40))
                     .foregroundColor(.green)
                     .frame(width: 80, height: 80)
-                    .background(Color.gray.opacity(0.1))
+                    .background(Color(.systemFill))
                     .cornerRadius(8)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -115,7 +114,7 @@ struct InspectionCardView: View {
                         HStack(spacing: 4) {
                             ZStack {
                                 Rectangle()
-                                    .fill(Color.blue)
+                                    .fill(LMSColor.primary)
                                     .frame(width: 24, height: 24)
 
                                 LMSLabel("SA", style: .caption, color: .primary)
@@ -130,15 +129,14 @@ struct InspectionCardView: View {
 
                         // Status
                         VStack(spacing: 16) {
-                            // Three dots menu
-                            Button(action: {
-                                showingMenu = true
-                            }, label: {
-                                Image(systemName: "ellipsis")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.primary)
-                                    .rotationEffect(.degrees(90))
-                            })
+                            if hasMenuActions {
+                                Button(action: { showingMenu = true }, label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.primary)
+                                        .rotationEffect(.degrees(90))
+                                })
+                            }
                             LMSLabel(inspection.status.displayName,
                                      style: .caption,
                                      color: .secondary)

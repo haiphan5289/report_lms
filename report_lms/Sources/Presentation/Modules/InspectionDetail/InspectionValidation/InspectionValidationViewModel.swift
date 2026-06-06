@@ -17,6 +17,8 @@ final class InspectionValidationViewModel: ObservableObject {
     @Published var images: [InspectionImage] = []
     @Published var showCamera: Bool = false
     @Published var isLoading: Bool = false
+    @Published var isUploading: Bool = false
+    @Published var uploadProgress: Double = 0.0
     @Published var errorMessage: String?
     @Published var showReorderMode: Bool = false
     @Published var isDirty: Bool = false
@@ -75,10 +77,8 @@ final class InspectionValidationViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
-    /// Append new images from camera
     func appendImages(_ newImages: [UIImage]) {
-        let newInspectionImages = newImages.map { InspectionImage(image: $0) }
-        images.append(contentsOf: newInspectionImages)
+        images.append(contentsOf: newImages.map { InspectionImage(image: $0) })
         updateDirtyState()
     }
     
@@ -134,11 +134,17 @@ final class InspectionValidationViewModel: ObservableObject {
         // Save draft locally
         saveDraft(validation)
 
-        // Upload images to Firebase Storage, then update inspection status and photo URLs
-        let imagesToUpload = images
+        withAnimation(.easeOut(duration: 0.3)) {
+            isUploading = true
+            uploadProgress = 0.0
+        }
         Task {
-            await uploadPhotosAndUpdateField(fieldId: fieldId, images: imagesToUpload)
+            await uploadPhotosAndUpdateField(fieldId: fieldId, images: self.images)
             await updateInspectionStatus()
+            withAnimation(.easeOut(duration: 0.3)) { uploadProgress = 1.0 }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            withAnimation(.easeOut(duration: 0.4)) { isUploading = false }
+            uploadProgress = 0.0
         }
 
         // Call save callback
@@ -155,7 +161,7 @@ final class InspectionValidationViewModel: ObservableObject {
     }
     
     // MARK: - Private Methods
-    
+
     private func uploadPhotosAndUpdateField(fieldId: String, images: [InspectionImage]) async {
         guard let inspectionId = inspectionId,
               let storageService = storageService,
@@ -167,8 +173,13 @@ final class InspectionValidationViewModel: ObservableObject {
 
         let newlyUploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
             for (index, inspectionImage) in localImages.enumerated() {
-                guard let imageData = inspectionImage.image.jpegData(compressionQuality: 0.8) else { continue }
+                let image = inspectionImage.image
                 group.addTask {
+                    // Resize + compress on background thread
+                    let imageData = await Task.detached(priority: .userInitiated) {
+                        image.prepareForUpload()
+                    }.value
+                    guard let imageData else { return (index, nil) }
                     do {
                         let url = try await uploadUseCase.execute(imageData: imageData, inspectionId: inspectionId)
                         return (index, url)

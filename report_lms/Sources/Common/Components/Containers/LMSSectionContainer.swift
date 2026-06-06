@@ -24,7 +24,7 @@ struct LMSSectionContainer<Content: View>: View {
     // MARK: - Initialization
     init(
         title: String? = nil,
-        backgroundColor: Color = LMSColor.white,
+        backgroundColor: Color = Color(.systemBackground),
         cornerRadius: CGFloat = 12,
         padding: CGFloat = 16,
         @ViewBuilder content: @escaping () -> Content

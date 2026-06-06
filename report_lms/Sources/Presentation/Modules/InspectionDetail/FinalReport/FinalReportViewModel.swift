@@ -282,6 +282,7 @@ final class FinalReportViewModel: ObservableObject {
             )
             logger.log("Report queued: \(taskId)")
             showEmailQueuedAlert = true
+            await markInspectionCompleted()
 
             for await status in queueDeliveryUseCase.statusStream(taskId: taskId) {
                 switch status {
@@ -301,19 +302,21 @@ final class FinalReportViewModel: ObservableObject {
         }
     }
 
-    /// Handle email sent successfully — marks the inspection as completed
-    func handleEmailSent() async {
-        guard var updated = inspection else {
-            showEmailSuccessAlert = true
-            return
-        }
+    /// Marks inspection as completed in Firestore without showing any alert.
+    private func markInspectionCompleted() async {
+        guard var updated = inspection else { return }
         updated.status = .completed
         do {
             try await storageService.updateInspection(updated)
-            logger.log("Inspection \(updated.inspectionNumber) marked as completed after email sent")
+            logger.log("Inspection \(updated.inspectionNumber) marked as completed")
         } catch {
             logger.error("Failed to mark inspection as completed: \(error.localizedDescription)")
         }
+    }
+
+    /// Handle email sent successfully — marks the inspection as completed (legacy mail path).
+    func handleEmailSent() async {
+        await markInspectionCompleted()
         showEmailSuccessAlert = true
     }
     

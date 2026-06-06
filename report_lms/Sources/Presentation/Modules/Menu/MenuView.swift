@@ -13,6 +13,7 @@ enum MenuAction {
     case profile
     case settings
     case orders
+    case sendEmailList
     case logout
 }
 
@@ -53,6 +54,10 @@ struct MenuView: View {
 
                     LMSButton(localizationManager.localize("menu.orders"), icon: "cart", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
                         onAction(.orders)
+                    }
+
+                    LMSButton("Lịch sử Email", icon: "envelope.fill", variant: .ghost, isFullWidth: true, contentAlignment: .leading) {
+                        onAction(.sendEmailList)
                     }
                 }
 

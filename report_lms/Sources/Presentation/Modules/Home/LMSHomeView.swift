@@ -75,6 +75,8 @@ struct LMSHomeView: View {
                             .navigationTitle("Profile")
                     case "settings":
                         SettingsView()
+                    case "sendEmailList":
+                        SendEmailListDestination()
                     default:
                         EmptyView()
                     }
@@ -120,6 +122,11 @@ struct LMSHomeView: View {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 viewModel.navigateToOrders()
                             }
+                        case .sendEmailList:
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                viewModel.showMenu = false
+                            }
+                            viewModel.navigationPath.append("sendEmailList")
                         case .logout:
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 viewModel.showMenu = false
@@ -259,7 +266,24 @@ struct LMSHomeView: View {
     }
 
     private var reportContent: some View {
-        ReportLMSHomeView(onInspectionTapped: viewModel.navigateToInspectionDetail)
+        ReportLMSHomeView()
+    }
+}
+
+// MARK: - SendEmailListDestination
+
+private struct SendEmailListDestination: View {
+    @StateObject private var viewModel: SendEmailListViewModel
+
+    init() {
+        guard let queueService = Container.shared.resolve(ReportDeliveryQueueService.self) else {
+            fatalError("ReportDeliveryQueueService not registered in DI container")
+        }
+        _viewModel = StateObject(wrappedValue: SendEmailListViewModel(queueService: queueService))
+    }
+
+    var body: some View {
+        SendEmailListView(viewModel: viewModel)
     }
 }
 

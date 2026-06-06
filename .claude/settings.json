@@ -27,11 +27,22 @@
       "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16' -quiet build)",
       "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build)",
       "Bash(xcodebuild -scheme report_lms -destination 'id=F47B6A31-94AD-48E9-AC2D-CB6E920D739F' build)",
-      "Bash(git -C /Users/hai.phan/Desktop/haiphan/report_lms rev-parse --abbrev-ref HEAD)"
+      "Bash(git -C /Users/hai.phan/Desktop/haiphan/report_lms rev-parse --abbrev-ref HEAD)",
+      "Bash(grep -E \"\\\\.\\(swift|ts|js\\)$\")",
+      "Bash(xcodebuild -list -project /Users/hai.phan/Desktop/haiphan/report_lms/report_lms.xcodeproj)",
+      "Bash(xcodebuild -scheme report_lms -project /Users/hai.phan/Desktop/haiphan/report_lms/report_lms.xcodeproj -destination 'id=487D8948-DC9E-4A54-9B7F-6C11A7623522' build)",
+      "Bash(xcodebuild -scheme report_lms -project /Users/hai.phan/Desktop/haiphan/report_lms/report_lms.xcodeproj -sdk iphonesimulator build)",
+      "Bash(xcodebuild -scheme report_lms -destination 'id=08315D84-9501-4994-8AD8-A85EABC80C9A' -quiet build)",
+      "Bash(xcodebuild -scheme report_lms -destination 'id=08315D84-9501-4994-8AD8-A85EABC80C9A' build)",
+      "Bash(xcodebuild -scheme report_lms -destination 'id=487D8948-DC9E-4A54-9B7F-6C11A7623522' build)",
+      "Bash(xcodebuild -showdestinations -scheme report_lms)",
+      "Bash(mkdir -p /Users/hai.phan/Desktop/haiphan/report_lms/.claude/skills/screen-review/spec)",
+      "Edit(/.claude/skills/screen-review/**)"
     ],
     "additionalDirectories": [
       "/Users/hai.phan/Library/Developer/Xcode/DerivedData",
-      "/Users/hai.phan/Desktop/haiphan/report_lms/.claude/skills/pa-premium-ui"
+      "/Users/hai.phan/Desktop/haiphan/report_lms/.claude/skills/pa-premium-ui",
+      "/Users/hai.phan/Desktop/haiphan/report_lms/.claude/skills/screen-review"
     ]
   },
   "hooks": {

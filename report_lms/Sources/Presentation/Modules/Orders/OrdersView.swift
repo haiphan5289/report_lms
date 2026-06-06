@@ -39,7 +39,7 @@ struct OrdersView: View {
         .task { await viewModel.loadOrders() }
         .onAppear { withAnimation(.easeOut(duration: 0.4)) { listVisible = true } }
         .refreshable { await viewModel.loadOrders() }
-        .fullScreenCover(item: $inspectionToDelete) { inspection in
+        .sheet(item: $inspectionToDelete) { inspection in
             DeleteConfirmationView(
                 title: localizationManager.localize("orders.delete.title"),
                 message: String(format: localizationManager.localize("orders.delete.message"),
@@ -50,6 +50,9 @@ struct OrdersView: View {
             ) {
                 Task { await viewModel.deleteInspection(id: inspection.id) }
             }
+            .presentationDetents([.height(340)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(24)
         }
     }
 

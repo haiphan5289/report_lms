@@ -15,15 +15,16 @@ struct FinalReportView: View {
         static let verticalPadding: CGFloat = 20
         static let cornerRadius: CGFloat = 12
     }
-    
+
     // MARK: - Properties
     @StateObject private var viewModel: FinalReportViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     // Animation
     @State private var contentVisible = false
-    
+
     // MARK: - Initialization
     init(
         inspection: Inspection?,
@@ -34,14 +35,14 @@ struct FinalReportView: View {
             capturedPhotos: capturedPhotos
         ))
     }
-    
+
     // MARK: - Body
     var body: some View {
         NavigationView {
             ZStack {
                 LMSColor.backgroundGrouped
                     .ignoresSafeArea()
-                
+
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(spacing: Layout.sectionSpacing) {
                         quantitiesSection
@@ -174,9 +175,9 @@ struct FinalReportView: View {
             Text(localizationManager.localize("finalReport.error.emailUnavailable.message"))
         }
     }
-    
+
     // MARK: - Section Views
-    
+
     private var quantitiesSection: some View {
         LMSSectionContainer(title: localizationManager.localize("finalReport.section.quantity")) {
             VStack(spacing: 8) {
@@ -184,17 +185,14 @@ struct FinalReportView: View {
                     label: localizationManager.localize("finalReport.quantity.order"),
                     value: "\(viewModel.inspection?.orderQuantity ?? 0)"
                 )
-
                 LMSInfoRow(
                     label: localizationManager.localize("finalReport.quantity.actual"),
                     value: "\(viewModel.inspection?.actualCompletedQuantity ?? 0)"
                 )
-
                 LMSInfoRow(
                     label: localizationManager.localize("finalReport.quantity.aql"),
                     value: "\(viewModel.inspection?.aqlInspectionQuantity ?? 0)"
                 )
-
                 LMSInfoRow(
                     label: localizationManager.localize("finalReport.quantity.inspected"),
                     value: "\(viewModel.inspection?.inspectedQuantity ?? 0)"
@@ -222,7 +220,7 @@ struct FinalReportView: View {
             .cornerRadius(8)
         }
     }
-    
+
     private var locationSection: some View {
         LMSSectionContainer(title: localizationManager.localize("finalReport.section.location")) {
             TextField(localizationManager.localize("finalReport.location.placeholder"), text: $viewModel.location)
@@ -237,45 +235,41 @@ struct FinalReportView: View {
         LMSSectionContainer(title: localizationManager.localize("finalReport.section.summary")) {
             TextEditor(text: $viewModel.summaryComments)
                 .frame(minHeight: 120)
+                .scrollContentBackground(.hidden)
                 .padding(8)
                 .background(LMSColor.backgroundSecondary)
                 .cornerRadius(8)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(LMSColor.secondary, lineWidth: 1)
+                        .stroke(Color(.systemGray4), lineWidth: 1)
                 )
         }
     }
-    
+
     private var notificationSection: some View {
         LMSSectionContainer {
             VStack(alignment: .leading, spacing: 12) {
-                // Header
                 Button(action: {
                     viewModel.toggleNotificationSection()
                 }) {
                     HStack {
                         LMSLabel("\(localizationManager.localize("finalReport.section.notification")) (\(viewModel.recipientsCount))", style: .headline)
-                        
                         Spacer()
-                        
                         Image(systemName: viewModel.isNotificationSectionExpanded ? "chevron.up" : "chevron.down")
                             .foregroundColor(LMSColor.textSecondary)
                             .font(.system(size: 14, weight: .semibold))
                     }
                 }
                 .buttonStyle(.plain)
-                
+
                 if viewModel.isNotificationSectionExpanded {
-                    // Info Text
                     LMSLabel(
                         localizationManager.localize("finalReport.notification.info"),
                         style: .caption,
                         color: .secondary
                     )
                     .padding(.top, 4)
-                    
-                    // Selected Recipients List
+
                     if !viewModel.selectedRecipients.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(viewModel.selectedRecipients) { recipient in
@@ -289,8 +283,7 @@ struct FinalReportView: View {
                         }
                         .padding(.vertical, 8)
                     }
-                    
-                    // Add Button
+
                     LMSButton(
                         localizationManager.localize("common.add"),
                         icon: "plus.circle.fill",
@@ -304,7 +297,7 @@ struct FinalReportView: View {
             }
         }
     }
-    
+
     private var emailSection: some View {
         LMSSectionContainer(title: localizationManager.localize("finalReport.section.email")) {
             TextField(
@@ -343,7 +336,7 @@ struct FinalReportView: View {
             .padding(.horizontal)
         }
     }
-    
+
     private var savePhotosSection: some View {
         LMSButton(
             "\(localizationManager.localize("finalReport.button.savePhotos")) (\(viewModel.totalPhotosCount))",
@@ -358,7 +351,7 @@ struct FinalReportView: View {
             }
         }
     }
-    
+
     private var recipientsPickerView: some View {
         NavigationStack {
             List {
@@ -370,11 +363,8 @@ struct FinalReportView: View {
                             Image(systemName: "person.circle.fill")
                                 .foregroundColor(LMSColor.primary)
                                 .font(.system(size: 24))
-                            
                             LMSLabel(recipient.name, style: .body, color: .primary)
-                            
                             Spacer()
-                            
                             if viewModel.isRecipientSelected(recipient) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundColor(LMSColor.primary)
@@ -398,8 +388,6 @@ struct FinalReportView: View {
         }
     }
 }
-
-
 
 // MARK: - Preview
 #Preview {

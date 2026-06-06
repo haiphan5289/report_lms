@@ -136,11 +136,17 @@ User tap "Hoàn thành" (toolbar)
             ├── guard !images.isEmpty   → errorMessage nếu không có ảnh
             ├── buildSavedErrorItem()   → SavedErrorItem (ID mới, remote URLs + form data)
             └── errorRepository.saveErrorItem(item, imageSources: images, for: inspectionId)
+                    ├── withThrowingTaskGroup → upload TẤT CẢ local images CONCURRENT
+                    │     └── Task.detached { image.prepareForUpload() }
+                    │           ├── Resize to ≤2048px
+                    │           └── JPEG 0.8 → ~500KB/ảnh
                     ├── success → onImagesUpdated(viewModel.images)
                     │            onSaved(saved, viewModel.localImages)
                     │            dismiss()
                     └── failure → errorMessage = "Không thể lưu…"
 ```
+
+> **Performance:** Upload concurrent — 3 ảnh mất ~2s thay vì ~6s sequential.
 
 ---
 
@@ -255,7 +261,9 @@ Tất cả màu sắc dùng LMS tokens — không dùng raw `Color.*`:
 |---|---|
 | `@Published` property updates | Main thread (`@MainActor`) |
 | `saveReview()` / `updateReview()` | Async task, awaits on `@MainActor` |
-| `errorRepository.saveErrorItem` | Determined by repository implementation |
+| `errorRepository.saveErrorItem` | `actor ErrorRepository` — serial actor executor |
+| JPEG resize + compress | `Task.detached(priority: .userInitiated)` — background thread |
+| Firebase Storage upload | Concurrent — `withThrowingTaskGroup` (N images upload song song) |
 
 ---
 

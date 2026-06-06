@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+import OSLog
+
+private let screenLogger = Logger(subsystem: "com.reportlms", category: "Screen")
 
 // MARK: - LMSProgressView
 
@@ -27,6 +30,8 @@ struct LMSProgressView: View {
     var body: some View {
         contentView
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear { screenLogger.debug("▶ LMSProgressView appeared") }
+            .onDisappear { screenLogger.debug("◀ LMSProgressView disappeared") }
             .task {
                 await viewModel.loadInspections()
             }
@@ -127,7 +132,6 @@ struct LMSProgressView: View {
                                 Button(action: { onInspectionTapped(inspection) }) {
                                     InspectionCardView(
                                         inspection: inspection,
-                                        isLastIndex: index == visibleInspections.count - 1,
                                         onDelete: {
                                             Task { await viewModel.deleteInspection(inspection) }
                                         },

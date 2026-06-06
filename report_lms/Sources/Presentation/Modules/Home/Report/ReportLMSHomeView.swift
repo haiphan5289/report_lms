@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+import OSLog
+
+private let screenLogger = Logger(subsystem: "com.reportlms", category: "Screen")
 
 // MARK: - ReportLMSHomeView
 
@@ -11,30 +14,39 @@ struct ReportLMSHomeView: View {
     // MARK: - Properties
     @StateObject private var viewModel: ReportViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
-    let onInspectionTapped: (Inspection) -> Void
 
     // Animation
     @State private var listAppeared = false
     @State private var floatOffset: CGFloat = -6
+    @State private var selectedInspection: Inspection?
 
     // MARK: - Initialization
-    init(
-        viewModel: ReportViewModel? = nil,
-        onInspectionTapped: @escaping (Inspection) -> Void = { _ in }
-    ) {
-        _viewModel = StateObject(wrappedValue: viewModel ?? Container.shared.resolve(ReportViewModel.self)!)
-        self.onInspectionTapped = onInspectionTapped
+    init(viewModel: ReportViewModel? = nil) {
+        guard let resolved = viewModel ?? Container.shared.resolve(ReportViewModel.self) else {
+            fatalError("ReportViewModel not registered in DI container")
+        }
+        _viewModel = StateObject(wrappedValue: resolved)
     }
 
     // MARK: - Body
     var body: some View {
         contentView
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear { screenLogger.debug("▶ ReportLMSHomeView appeared") }
+            .onDisappear { screenLogger.debug("◀ ReportLMSHomeView disappeared") }
             .task {
                 await viewModel.loadInspections()
             }
             .refreshable {
                 await viewModel.loadInspections()
+            }
+            .sheet(item: $selectedInspection) { inspection in
+                InspectionDetailBottomSheet(
+                    inspection: inspection,
+                    onDelete: {
+                        Task { await viewModel.deleteInspection(inspection) }
+                    }
+                )
             }
     }
 
@@ -124,13 +136,10 @@ struct ReportLMSHomeView: View {
                         VStack(spacing: 12) {
                             let inspections = section.inspections
                             ForEach(Array(inspections.enumerated()), id: \.element.id) { index, inspection in
-                                Button(action: { onInspectionTapped(inspection) }) {
-                                    InspectionCardView(
-                                        inspection: inspection,
-                                        isLastIndex: index == inspections.count - 1
-                                    )
+                                Button(action: { selectedInspection = inspection }) {
+                                    InspectionCardView(inspection: inspection)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(CardPressStyle())
                                 .padding(.horizontal, 16)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
@@ -175,6 +184,16 @@ struct ReportLMSHomeView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color(.systemGroupedBackground))
+    }
+}
+
+// MARK: - CardPressStyle
+
+private struct CardPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 

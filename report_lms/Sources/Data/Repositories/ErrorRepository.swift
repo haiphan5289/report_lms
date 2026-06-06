@@ -12,6 +12,12 @@ import OSLog
 import FirebaseFirestore
 import FirebaseAuth
 
+// MARK: - UploadError
+
+enum UploadError: Error {
+    case compressionFailed
+}
+
 // MARK: - ErrorRepository
 
 actor ErrorRepository: ErrorRepositoryType {
@@ -67,37 +73,45 @@ actor ErrorRepository: ErrorRepositoryType {
         logger.debug("[saveErrorItem] inspectionId=\(inspectionId, privacy: .public)")
         logger.debug("[saveErrorItem] errorId=\(item.id, privacy: .public)")
 
-        var imageURLs: [String] = []
-
         // Keep existing remote URLs in order
-        for source in imageSources {
-            if case .remote(let url) = source {
-                imageURLs.append(url)
-            }
+        let existingRemoteURLs: [String] = imageSources.compactMap {
+            if case .remote(let url) = $0 { return url } else { return nil }
         }
 
-        // Upload local images
-        let localImages = imageSources.compactMap { source -> UIImage? in
-            if case .local(let image) = source { return image } else { return nil }
+        // Collect local images with their original index for stable path naming
+        let localImages: [(index: Int, image: UIImage)] = imageSources.enumerated().compactMap { (i, src) in
+            if case .local(let img) = src { return (i, img) } else { return nil }
         }
         logger.debug("[saveErrorItem] localImageCount=\(localImages.count, privacy: .public)")
 
-        for (index, image) in localImages.enumerated() {
-            guard let imageData = image.jpegData(compressionQuality: 0.8) else {
-                logger.warning("[saveErrorItem] Skipping image[\(index, privacy: .public)] — jpegData returned nil")
-                continue
+        // Upload all local images concurrently
+        let uploadedURLs: [String] = try await withThrowingTaskGroup(of: (Int, String).self) { group in
+            for (index, image) in localImages {
+                let path = "inspections/\(inspectionId)/errors/\(item.id)/\(index).jpg"
+                let logger = self.logger
+                group.addTask {
+                    // Resize + compress on background thread
+                    let imageData = await Task.detached(priority: .userInitiated) {
+                        image.prepareForUpload()
+                    }.value
+                    guard let imageData else {
+                        logger.warning("[saveErrorItem] Skipping image[\(index, privacy: .public)] — prepareForUpload returned nil")
+                        throw UploadError.compressionFailed
+                    }
+                    logger.debug("[saveErrorItem] Uploading image[\(index, privacy: .public)] → \(path, privacy: .public)")
+                    let url = try await self.storageService.uploadImage(imageData, path: path)
+                    logger.debug("[saveErrorItem] Upload succeeded[\(index, privacy: .public)] url=\(url, privacy: .public)")
+                    return (index, url)
+                }
             }
-            let path = "inspections/\(inspectionId)/errors/\(item.id)/\(index).jpg"
-            logger.debug("[saveErrorItem] Uploading image[\(index, privacy: .public)] → \(path, privacy: .public)")
-            do {
-                let url = try await storageService.uploadImage(imageData, path: path)
-                logger.debug("[saveErrorItem] Upload succeeded[\(index, privacy: .public)] url=\(url, privacy: .public)")
-                imageURLs.append(url)
-            } catch {
-                logger.error("[saveErrorItem] ❌ Upload FAILED[\(index, privacy: .public)] error=\(error.localizedDescription, privacy: .public)")
-                throw error
+            var results: [(Int, String)] = []
+            for try await pair in group {
+                results.append(pair)
             }
+            return results.sorted { $0.0 < $1.0 }.map { $0.1 }
         }
+
+        let imageURLs = existingRemoteURLs + uploadedURLs
 
         let savedItem = SavedErrorItem(
             id: item.id,

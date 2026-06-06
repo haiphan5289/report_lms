@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+import OSLog
+
+private let screenLogger = Logger(subsystem: "com.reportlms", category: "Screen")
 
 // MARK: - PlanLMSHomeView
 
@@ -44,6 +47,8 @@ struct PlanLMSHomeView: View {
             floatingButton
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { screenLogger.debug("▶ PlanLMSHomeView appeared") }
+        .onDisappear { screenLogger.debug("◀ PlanLMSHomeView disappeared") }
         .task {
             await viewModel.loadInspections()
         }
@@ -169,7 +174,6 @@ struct PlanLMSHomeView: View {
                                 Button(action: { onInspectionTapped(inspection) }) {
                                     InspectionCardView(
                                         inspection: inspection,
-                                        isLastIndex: index == visibleInspections.count - 1,
                                         onDelete: {
                                             Task { await viewModel.deleteInspection(inspection) }
                                         },
