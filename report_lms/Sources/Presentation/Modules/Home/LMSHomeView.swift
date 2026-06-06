@@ -197,9 +197,7 @@ struct LMSHomeView: View {
 
     private func tabButton(for tab: LMSHomeViewModel.Tab) -> some View {
         Button(action: {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                viewModel.selectedTab = tab
-            }
+            viewModel.selectedTab = tab
         }, label: {
             tabButtonContent(for: tab)
         })

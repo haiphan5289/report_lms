@@ -1,374 +1,142 @@
-# PDF Parameter Refactoring - Quick Reference Guide
+# PDF Report — Builder Pattern Quick Reference
 
-## 🎯 Problem Summary
-
-**Current Code:**
-```swift
-let data = try await generatePDFUseCase.execute(
-    detail: detail,
-    images: capturedPhotos,
-    inspectorName: inspectorName,
-    location: location
-)
-```
-
-**Issues:**
-- 4 separate parameters
-- Hard to extend
-- No validation
-- Difficult to test
-
----
-
-## 🏆 Recommended Solution: Builder Pattern
-
-### Why Builder Pattern?
-
-| Aspect | Rating | Notes |
-|--------|--------|-------|
-| **Simplicity** | ⭐⭐⭐⭐ | Moderate complexity |
-| **Flexibility** | ⭐⭐⭐⭐⭐ | Excellent extensibility |
-| **Performance** | ⭐⭐⭐⭐ | Minimal overhead |
-| **Maintainability** | ⭐⭐⭐⭐⭐ | Easy to maintain |
-| **Testability** | ⭐⭐⭐⭐⭐ | Excellent coverage |
-| **Total Score** | **23/25** | **Best Overall** |
-
-### Quick Implementation
+## Current Implementation
 
 ```swift
-// 1. Create request using builder
 let request = try PDFReportRequestBuilder.withDefaults()
-    .with(detail: detail)
+    .with(inspection: detail)
     .with(images: capturedPhotos)
     .with(location: location)
+    .with(finalStatus: selectedStatus)       // inspector conclusion
+    .with(summaryComments: summaryComments)  // optional notes
     .build()
 
-// 2. Execute
 let data = try await generatePDFUseCase.execute(request: request)
 ```
 
 ---
 
-## 📊 All Solutions Comparison
+## Builder Fields
 
-### Quick Decision Matrix
+| Method | Type | Required | Default |
+|--------|------|----------|---------|
+| `.with(inspection:)` | `Inspection` | ✅ | — |
+| `.with(images:)` | `[String: [InspectionImage]]` | — | `[:]` |
+| `.with(location:)` | `String` | ✅ | — |
+| `.with(inspectorName:)` | `String` | ✅ | set by `withDefaults()` |
+| `.with(defectCounts:)` | `(critical:major:minor:)` | — | `(0,0,0)` |
+| `.with(finalStatus:)` | `FinalReportStatus` | — | `.pending` |
+| `.with(summaryComments:)` | `String` | — | `""` |
 
-```
-Need quick fix?                    → Solution 1 (DTO)
-Need flexibility?                  → Solution 2 (Builder)
-Need audit trail?                  → Solution 3 (Request-Response)
-Need real-time config?             → Solution 4 (Context)
-Follow DDD?                        → Solution 5 (Nested Models)
-```
-
-### Visual Comparison
-
-```
-Complexity vs Features
-
-High Features │             ⬤ Solution 4 (Context)
-             │       ⬤ Solution 3 (Request-Response)
-             │    ⬤ Solution 5 (Nested)
-             │  ⬤ Solution 2 (Builder) ← RECOMMENDED
-Low Features │⬤ Solution 1 (DTO)
-             └────────────────────────────────────
-               Low            Complexity         High
-```
+`PDFReportRequestBuilder.withDefaults()` pre-fills `inspectorName` from `KeychainManager`.
 
 ---
 
-## 🚀 Implementation Steps
+## PDF Layout (Qarma Style)
 
-### Phase 1: Add Models (30 min)
+Both `generateAndPreviewPDF()` (local) and `sendReportViaQueue()` (Firebase) produce the same output.
 
-```bash
-# Create these files:
-Domain/Entities/PDFReportRequest.swift
-Domain/Entities/PDFReportRequestBuilder.swift
-Domain/UseCases/GenerateHTMLPDFReportUseCase+Solution1.swift
-```
+### Page 1 — Cover
+- Small grey title + bold product subtitle
+- Bordered info table (4 cols: 22% label / 28% value repeated)
+- Inspector Conclusion row with coloured badge + summary notes
+- Full-width status banner (green / orange / red)
+- SUMMARY section: checklist table + defect count table
 
-### Phase 2: Update ViewModel (15 min)
+### Pages 2+ — Per Section
+- Sections **with images** start on a fresh page; sections **without images** continue on the current page (new page only if `y + 60 > CONTENT_MAX_Y`)
+- Section header (bold 14pt + blue underline)
+- Fields numbered `S.F` (e.g. `1.2 Field Label`)
+- 4-column photo grid (≈122×92 pt per image, 4:3 ratio)
+- Footer on every page: separator + "Report created with report_lms." + "Order:… page: N"
+
+---
+
+## Error Handling
 
 ```swift
-// In FinalReportViewModel.swift, replace:
-func generateAndPreviewPDF() async {
-    // OLD CODE
-    let data = try await generatePDFUseCase.execute(
-        detail: detail,
-        images: capturedPhotos,
-        inspectorName: inspectorName,
-        location: location
-    )
-    
-    // NEW CODE
+do {
     let request = try PDFReportRequestBuilder.withDefaults()
-        .with(detail: detail)
+        .with(inspection: detail)
         .with(images: capturedPhotos)
         .with(location: location)
-        .build()
-    
+        .with(finalStatus: selectedStatus)
+        .with(summaryComments: summaryComments)
+        .build()                              // ← validates here
+
     let data = try await generatePDFUseCase.execute(request: request)
-}
-```
-
-### Phase 3: Test (30 min)
-
-```swift
-// Add tests from PDFParameterRefactoringTests.swift
-func testBuilder_BuildsSuccessfully() throws {
-    let request = try PDFReportRequestBuilder()
-        .with(detail: mockDetail)
-        .with(images: mockImages)
-        .with(inspectorName: "John")
-        .with(location: "Factory A")
-        .build()
-    
-    XCTAssertTrue(request.isValid)
-}
-```
-
----
-
-## 📈 Before & After Comparison
-
-### Code Metrics
-
-| Metric | Before | After (Builder) | Change |
-|--------|--------|-----------------|--------|
-| Parameters | 4 | 1 | ✅ -75% |
-| Lines to call | 5 | 5 | ➖ Same |
-| Type safety | ⚠️ | ✅ | ✅ Better |
-| Validation | ❌ | ✅ | ✅ Added |
-| Extensibility | ⚠️ | ✅ | ✅ Much better |
-| Test complexity | Medium | Easy | ✅ Improved |
-
-### Error Handling
-
-**Before:**
-```swift
-// No validation - errors only at runtime
-let data = try await generatePDFUseCase.execute(...)
-```
-
-**After:**
-```swift
-// Validation at build time
-do {
-    let request = try builder.build() // ← Validates here
-    let data = try await useCase.execute(request: request)
 } catch let error as PDFReportBuilderError {
-    // Handle validation errors
+    // Missing required field
 } catch {
-    // Handle generation errors
+    // PDF generation failed
 }
 ```
 
 ---
 
-## 🎓 Code Examples by Scenario
+## Common Pitfalls
 
-### Scenario 1: Standard PDF Generation
-
+### Forgetting `.build()`
 ```swift
-func generatePDF() async {
-    guard let detail = inspectionDetail else { return }
-    
-    do {
-        let request = try PDFReportRequestBuilder.withDefaults()
-            .with(detail: detail)
-            .with(images: capturedPhotos)
-            .with(location: location)
-            .build()
-        
-        pdfData = try await generatePDFUseCase.execute(request: request)
-    } catch {
-        errorMessage = error.localizedDescription
-    }
-}
+// ❌ Returns the builder, not a request
+let request = PDFReportRequestBuilder().with(inspection: detail)
+
+// ✅ Correct
+let request = try PDFReportRequestBuilder().with(inspection: detail).build()
 ```
 
-### Scenario 2: PDF Without Photos
-
+### Reusing builder without reset
 ```swift
-let request = try PDFReportRequestBuilder.withDefaults()
-    .with(detail: detail)
-    .with(images: [:]) // Empty images
-    .with(location: location)
-    .build()
-```
+// ❌ State leaks — req2 still has detail1
+let req1 = try builder.with(inspection: detail1).build()
+let req2 = try builder.with(inspection: detail2).build()
 
-### Scenario 3: Custom Inspector Name
-
-```swift
-let request = try PDFReportRequestBuilder()
-    .with(detail: detail)
-    .with(images: capturedPhotos)
-    .with(inspectorName: "Custom Inspector")
-    .with(location: location)
-    .build()
-```
-
-### Scenario 4: Reusable Builder
-
-```swift
-// Create base builder
-let baseBuilder = PDFReportRequestBuilder.withDefaults()
-    .with(detail: detail)
-    .with(images: capturedPhotos)
-
-// Use for different locations
-let request1 = try baseBuilder.with(location: "Factory A").build()
-let request2 = try baseBuilder.with(location: "Factory B").build()
+// ✅ Correct
+let req1 = try builder.with(inspection: detail1).build()
+builder.reset()
+let req2 = try builder.with(inspection: detail2).build()
 ```
 
 ---
 
-## 🧪 Testing Guide
+## Firebase Queue Delivery
 
-### Unit Test Template
-
-```swift
-func testMyPDFGeneration() throws {
-    // Given
-    let builder = PDFReportRequestBuilder()
-        .with(detail: mockDetail)
-        .with(images: mockImages)
-        .with(inspectorName: "Test Inspector")
-        .with(location: "Test Location")
-    
-    // When
-    let request = try builder.build()
-    
-    // Then
-    XCTAssertTrue(request.isValid)
-    XCTAssertEqual(request.inspectorName, "Test Inspector")
-}
-```
-
-### Mock Data
+`sendReportViaQueue()` passes `finalStatus` and `summaryComments` to the Firestore task document.  
+The Cloud Function reads them and renders the same Qarma cover page in the server-side PDF.
 
 ```swift
-let mockRequest = PDFReportRequest(
-    inspectionDetail: .mock(),
-    capturedImages: [:],
-    inspectorName: "Mock Inspector",
-    inspectionLocation: "Mock Location"
+// FinalReportViewModel.sendReportViaQueue()
+let taskId = try await queueDeliveryUseCase.execute(
+    inspection: inspection,
+    recipients: allRecipients,
+    location: location,
+    finalStatus: selectedStatus,      // → Firestore "finalStatus": "accepted"
+    summaryComments: summaryComments  // → Firestore "summaryComments": "..."
 )
 ```
 
----
+`FinalReportStatus.serverKey` converts Vietnamese raw values to ASCII keys:
 
-## ⚠️ Common Pitfalls & Solutions
-
-### Pitfall 1: Forgetting to Call build()
-
-```swift
-// ❌ WRONG - Returns builder, not request
-let request = PDFReportRequestBuilder()
-    .with(detail: detail)
-    .with(images: images)
-
-// ✅ CORRECT
-let request = try PDFReportRequestBuilder()
-    .with(detail: detail)
-    .with(images: images)
-    .build() // ← Don't forget!
-```
-
-### Pitfall 2: Not Handling Builder Errors
-
-```swift
-// ❌ WRONG - Unhandled error
-let request = try! builder.build() // Dangerous!
-
-// ✅ CORRECT
-do {
-    let request = try builder.build()
-} catch let error as PDFReportBuilderError {
-    logger.error("Validation failed: \(error)")
-}
-```
-
-### Pitfall 3: Reusing Builder Without Reset
-
-```swift
-// ❌ WRONG - State leaks between uses
-let builder = PDFReportRequestBuilder()
-let req1 = try builder.with(detail: detail1).build()
-let req2 = try builder.with(detail: detail2).build() // Still has detail1!
-
-// ✅ CORRECT
-let req1 = try builder.with(detail: detail1).build()
-builder.reset()
-let req2 = try builder.with(detail: detail2).build()
-```
+| Case | rawValue | serverKey |
+|------|----------|-----------|
+| `.accepted` | "Chấp nhận" | `"accepted"` |
+| `.pending` | "Đang chờ xử lý" | `"pending"` |
+| `.rejected` | "Từ chối" | `"rejected"` |
 
 ---
 
-## 📚 Additional Resources
+## Related Files
 
-### Files Created
-
-1. `PDFReportRequest.swift` - DTO model
-2. `PDFReportRequestBuilder.swift` - Builder implementation
-3. `GenerateHTMLPDFReportUseCase+Solution1.swift` - Use case extension
-4. `FinalReportViewModel+BuilderImplementation.swift` - ViewModel example
-5. `PDFParameterRefactoringTests.swift` - Comprehensive tests
-6. `ALTERNATIVE_APPROACHES_PDF_REFACTORING.md` - Full analysis
-
-### Key Concepts
-
-- **DTO (Data Transfer Object)**: Simple data container
-- **Builder Pattern**: Step-by-step object construction
-- **Fluent API**: Method chaining (`.with().with().build()`)
-- **Validation**: Built-in error checking
-- **Type Safety**: Compile-time guarantees
+| File | Role |
+|------|------|
+| `PDFReportRequest.swift` | Request model (Domain/Entities) |
+| `PDFReportRequestBuilder.swift` | Builder (Domain/Entities) |
+| `PDFKitGeneratorService.swift` | iOS PDF renderer — Qarma layout (Data/Services) |
+| `GenerateHTMLPDFReportUseCase.swift` | Use case wiring builder → service (Domain/UseCases) |
+| `PDFGeneratorType.swift` | Protocol (Domain/Repositories) |
+| `FinalReportViewModel.swift` | Both preview and queue delivery call sites |
+| `functions/src/index.ts` | Cloud Function — same Qarma layout in Node.js/pdfkit |
 
 ---
 
-## 🎬 Quick Start Checklist
-
-- [ ] Read full analysis document
-- [ ] Add PDFReportRequest.swift to project
-- [ ] Add PDFReportRequestBuilder.swift to project  
-- [ ] Add use case extension
-- [ ] Update FinalReportViewModel
-- [ ] Run unit tests
-- [ ] Test in simulator
-- [ ] Code review
-- [ ] Deploy to staging
-- [ ] Monitor for issues
-- [ ] Remove old implementation
-
----
-
-## 💡 Pro Tips
-
-1. **Start Simple**: Use Solution 1 (DTO) first if time is critical
-2. **Iterate**: Upgrade to Builder later when needed
-3. **Test First**: Write tests before implementing
-4. **Document**: Add clear comments for team
-5. **Monitor**: Track performance after deployment
-
----
-
-## 🆘 Need Help?
-
-**Quick Links:**
-- 📄 Full Analysis: `ALTERNATIVE_APPROACHES_PDF_REFACTORING.md`
-- 🧪 Tests: `PDFParameterRefactoringTests.swift`
-- 💻 Implementation: `FinalReportViewModel+BuilderImplementation.swift`
-
-**Decision Not Clear?**
-1. Quick fix needed? → Solution 1
-2. Default choice → Solution 2 (Builder)
-3. Enterprise app? → Solution 3
-4. Complex config? → Solution 4
-5. DDD project? → Solution 5
-
----
-
-*Generated for report_lms iOS Application*  
-*Clean Architecture + SwiftUI Pattern*  
-*Date: March 6, 2026*
+*Last updated: 2026-06-06 — feat/login branch — blank page fix (PDFDocument margins→0); smart section page-break; "Xem PDF" button removed from UI*

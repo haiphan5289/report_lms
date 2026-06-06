@@ -18,6 +18,8 @@ final class PDFReportRequestBuilder {
     private var inspectorName: String?
     private var inspectionLocation: String?
     private var defectCounts: (critical: Int, major: Int, minor: Int) = (0, 0, 0)
+    private var finalStatus: FinalReportStatus = .pending
+    private var summaryComments: String = ""
     
     // MARK: - Builder Methods
     
@@ -49,10 +51,21 @@ final class PDFReportRequestBuilder {
         return self
     }
 
-    /// Set defect counts by severity (from error items)
     @discardableResult
     func with(defectCounts: (critical: Int, major: Int, minor: Int)) -> Self {
         self.defectCounts = defectCounts
+        return self
+    }
+
+    @discardableResult
+    func with(finalStatus: FinalReportStatus) -> Self {
+        self.finalStatus = finalStatus
+        return self
+    }
+
+    @discardableResult
+    func with(summaryComments: String) -> Self {
+        self.summaryComments = summaryComments
         return self
     }
     
@@ -77,7 +90,9 @@ final class PDFReportRequestBuilder {
             capturedImages: capturedImages,
             inspectorName: inspector,
             inspectionLocation: location,
-            defectCounts: defectCounts
+            defectCounts: defectCounts,
+            finalStatus: finalStatus,
+            summaryComments: summaryComments
         )
     }
 
@@ -90,7 +105,9 @@ final class PDFReportRequestBuilder {
             capturedImages: capturedImages,
             inspectorName: inspectorName ?? "Unknown Inspector",
             inspectionLocation: inspectionLocation ?? "Unknown Location",
-            defectCounts: defectCounts
+            defectCounts: defectCounts,
+            finalStatus: finalStatus,
+            summaryComments: summaryComments
         )
     }
     
@@ -101,6 +118,8 @@ final class PDFReportRequestBuilder {
         inspectorName = nil
         inspectionLocation = nil
         defectCounts = (0, 0, 0)
+        finalStatus = .pending
+        summaryComments = ""
     }
 }
 

@@ -18,27 +18,21 @@ struct PDFReportRequest {
     let inspectorName: String
     let inspectionLocation: String
     let defectCounts: (critical: Int, major: Int, minor: Int)
-    
+    let finalStatus: FinalReportStatus
+    let summaryComments: String
+
     // MARK: - Validation
-    
-    /// Validates that all required data is present
+
     var isValid: Bool {
         !inspection.sections.isEmpty &&
         !inspectorName.isEmpty &&
         !inspectionLocation.isEmpty
     }
-    
-    /// Validation error if data is invalid
+
     var validationError: PDFReportRequestError? {
-        if inspection.sections.isEmpty {
-            return .noInspectionSections
-        }
-        if inspectorName.isEmpty {
-            return .missingInspectorName
-        }
-        if inspectionLocation.isEmpty {
-            return .missingLocation
-        }
+        if inspection.sections.isEmpty { return .noInspectionSections }
+        if inspectorName.isEmpty { return .missingInspectorName }
+        if inspectionLocation.isEmpty { return .missingLocation }
         return nil
     }
 }
@@ -69,7 +63,9 @@ extension PDFReportRequest {
             capturedImages: [:],
             inspectorName: "John Doe",
             inspectionLocation: "Factory A",
-            defectCounts: (critical: 0, major: 0, minor: 0)
+            defectCounts: (critical: 0, major: 0, minor: 0),
+            finalStatus: .pending,
+            summaryComments: ""
         )
     }
 }

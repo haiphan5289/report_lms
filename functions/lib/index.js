@@ -45,28 +45,41 @@ const pdfkit_1 = __importDefault(require("pdfkit"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const https = __importStar(require("https"));
-const http = __importStar(require("http"));
 const sharp_1 = __importDefault(require("sharp"));
 admin.initializeApp();
 const gmailUser = (0, params_1.defineSecret)("GMAIL_USER");
 const gmailPass = (0, params_1.defineSecret)("GMAIL_APP_PASSWORD");
-// NotoSans fonts for Vietnamese text support
 const FONTS_DIR = path.join(__dirname, "..", "fonts");
 const FONT_REGULAR = path.join(FONTS_DIR, "NotoSans-Regular.ttf");
 const FONT_BOLD = path.join(FONTS_DIR, "NotoSans-Bold.ttf");
-// Layout constants — match iOS PDFKitGeneratorService
+// ── Qarma-style layout — mirrors iOS PDFKitGeneratorService ───────────────────
 const MARGIN = 40;
-const PAGE_W = 515.28; // A4 content width (595.28 - 2*40)
-// Design colors — same as iOS
-const C_BLUE = "#1a73e8";
+const PAGE_H = 841.89;
+const CW = 515.28; // A4 content width = 595.28 - 2*40
+const FOOTER_Y = PAGE_H - 28;
+const CONTENT_MAX_Y = PAGE_H - 46;
+// 4-column photo grid
+const IMGS_PER_ROW = 4;
+const IMG_GAP = 8;
+const IMG_W = (CW - IMG_GAP * (IMGS_PER_ROW - 1)) / IMGS_PER_ROW; // ≈122.8
+const IMG_H = IMG_W * 0.75; // ≈92.1
+const INFO_ROW_H = 26;
+const TABLE_ROW_H = 24;
+// ── Colors ─────────────────────────────────────────────────────────────────────
 const C_WHITE = "#ffffff";
-const C_DARK = "#333333";
-const C_MID = "#555555";
+const C_DARK = "#222222";
+const C_MID = "#404040";
 const C_GRAY = "#666666";
 const C_FOOTER = "#aaaaaa";
-const C_CRITICAL = "#c62828";
-const C_MAJOR = "#e65100";
-const C_MINOR = "#f9a825";
+const C_BLUE = "#3366cc";
+const C_BORDER = "#c8c8c8";
+const C_LABEL_BG = "#f5f5f5";
+const C_HDR_BG = "#f2f2f2";
+const C_CRITICAL = "#c62626";
+const C_MAJOR = "#e5990d";
+const C_MINOR = "#2473cc";
+const C_GREEN = "#33a14a";
+// ── Cloud Function ─────────────────────────────────────────────────────────────
 exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
     document: "report_delivery_queue/{taskId}",
     secrets: [gmailUser, gmailPass],
@@ -83,52 +96,44 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         console.error(`[${taskId}] No data in document`);
         return;
     }
-    const { inspectionId, inspectionNumber, recipientEmails, location, requestedBy } = data;
+    const { inspectionId, inspectionNumber, recipientEmails, location, requestedBy, finalStatus = "pending", summaryComments = "", } = data;
     await taskRef.update({ status: "processing" });
-    console.log(`[${taskId}] Generating PDF for #${inspectionNumber}`);
+    console.log(`[${taskId}] Generating Qarma PDF for #${inspectionNumber}`);
     try {
         const snap = await db.collection("inspections").doc(inspectionId).get();
         const inspection = snap.data();
         if (!inspection)
             throw new Error(`Inspection ${inspectionId} not found`);
-        const pdfBuffer = await generatePDF(inspection, inspectionNumber, location, requestedBy !== null && requestedBy !== void 0 ? requestedBy : "");
+        const pdfBuffer = await generatePDF(inspection, inspectionNumber, location, requestedBy !== null && requestedBy !== void 0 ? requestedBy : "", finalStatus, summaryComments);
         console.log(`[${taskId}] PDF generated: ${pdfBuffer.length} bytes`);
         const transporter = nodemailer.createTransport({
             service: "gmail",
-            auth: {
-                user: gmailUser.value(),
-                pass: gmailPass.value(),
-            },
+            auth: { user: gmailUser.value(), pass: gmailPass.value() },
         });
         await transporter.sendMail({
             from: `"LMS Report" <${gmailUser.value()}>`,
             to: recipientEmails.join(", "),
             subject: `Báo cáo kiểm tra #${inspectionNumber}`,
             html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", requestedBy),
-            attachments: [
-                {
+            attachments: [{
                     filename: `Bao_cao_kiem_tra_${inspectionNumber}.pdf`,
                     content: pdfBuffer,
                     contentType: "application/pdf",
-                },
-            ],
+                }],
         });
         console.log(`[${taskId}] Email sent to: ${recipientEmails.join(", ")}`);
-        await taskRef.update({
-            status: "sent",
-            sentAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        await taskRef.update({ status: "sent", sentAt: admin.firestore.FieldValue.serverTimestamp() });
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[${taskId}] Failed: ${message}`);
-        await taskRef.update({ status: "failed", errorMessage: message });
+        try {
+            await taskRef.update({ status: "failed", errorMessage: message });
+        }
+        catch (_c) { }
     }
 });
-// ---------------------------------------------------------------------------
-// Image download helper
-// ---------------------------------------------------------------------------
-/** Resize + compress to JPEG 70% max 800px — keeps PDF well under Gmail 25 MB limit. */
+// ── Image helpers ──────────────────────────────────────────────────────────────
 async function compressImageBuffer(buf) {
     try {
         return await (0, sharp_1.default)(buf)
@@ -142,8 +147,7 @@ async function compressImageBuffer(buf) {
 }
 function downloadImageBuffer(url) {
     return new Promise((resolve, reject) => {
-        const mod = url.startsWith("https") ? https : http;
-        const req = mod.get(url, (res) => {
+        const req = https.get(url, (res) => {
             if (res.statusCode !== 200) {
                 reject(new Error(`Image fetch ${res.statusCode}: ${url}`));
                 return;
@@ -157,227 +161,295 @@ function downloadImageBuffer(url) {
         req.setTimeout(10000, () => { req.destroy(); reject(new Error("Image download timeout")); });
     });
 }
-/** Pre-fetch all imageURLs from inspection sections into a url→buffer map. */
+/** Pre-fetch all field images; process in batches of 5 to avoid memory spikes. */
 async function prefetchImages(inspection) {
-    var _a;
+    var _a, _b;
     const map = new Map();
     const sections = Array.isArray(inspection.sections)
         ? inspection.sections : [];
-    const tasks = [];
+    const urls = [];
     for (const section of sections) {
         for (const field of ((_a = section.fields) !== null && _a !== void 0 ? _a : [])) {
-            const urls = Array.isArray(field.imageURLs)
-                ? field.imageURLs : [];
-            for (const url of urls) {
-                if (url && !map.has(url)) {
-                    tasks.push(downloadImageBuffer(url)
-                        .then((buf) => compressImageBuffer(buf))
-                        .then((buf) => { map.set(url, buf); })
-                        .catch((e) => { console.warn(`Skip image ${url}: ${e.message}`); }));
-                }
+            for (const url of ((_b = field.imageURLs) !== null && _b !== void 0 ? _b : [])) {
+                if (url && !map.has(url))
+                    urls.push(url);
             }
         }
     }
-    await Promise.all(tasks);
+    for (let i = 0; i < urls.length; i += 5) {
+        await Promise.all(urls.slice(i, i + 5).map((url) => downloadImageBuffer(url)
+            .then(compressImageBuffer)
+            .then((buf) => { map.set(url, buf); })
+            .catch((e) => { console.warn(`Skip image ${url}: ${e.message}`); })));
+    }
     return map;
 }
-// ---------------------------------------------------------------------------
-// PDF Generation — layout mirrors iOS PDFKitGeneratorService
-// ---------------------------------------------------------------------------
-async function generatePDF(inspection, inspectionNumber, location, requestedBy) {
-    // Pre-download all field images before opening the PDF stream
+// ── PDF drawing helpers ────────────────────────────────────────────────────────
+function statusColor(s) {
+    return s === "accepted" ? C_GREEN : s === "rejected" ? C_CRITICAL : C_MAJOR;
+}
+function statusLabel(s) {
+    return s === "accepted" ? "ACCEPTED" : s === "rejected" ? "REJECTED" : "PENDING";
+}
+/** Bordered cell with vertically-centred text. */
+function drawCell(doc, text, x, y, w, h, opts) {
+    const { bg = C_WHITE, fg = C_DARK, font = "R", size = 10, align = "left" } = opts;
+    const pad = 5;
+    doc.lineWidth(0.5).rect(x, y, w, h).fillAndStroke(bg, C_BORDER);
+    if (text) {
+        const textY = y + Math.max(3, (h - size * 1.2) / 2);
+        doc.font(font).fontSize(size).fillColor(fg)
+            .text(text, x + pad, textY, { width: w - pad * 2, lineBreak: false, align });
+    }
+}
+function drawHLine(doc, y, color = "#cccccc", lw = 0.75) {
+    doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y).lineWidth(lw).strokeColor(color).stroke();
+}
+/** Per-page footer: thin separator + left credit + right "Order:… page: N". */
+function drawFooter(doc, orderInfo, dateStr, pageNum, fonts) {
+    drawHLine(doc, FOOTER_Y - 5, "#d0d0d0", 0.5);
+    doc.font(fonts.R).fontSize(8).fillColor(C_FOOTER)
+        .text("Report created with report_lms.", MARGIN, FOOTER_Y, { width: CW / 2, lineBreak: false });
+    doc.font(fonts.R).fontSize(8).fillColor(C_FOOTER)
+        .text(`${orderInfo}   ${dateStr}, page: ${pageNum}`, MARGIN + CW / 2, FOOTER_Y, { width: CW / 2, lineBreak: false, align: "right" });
+}
+/**
+ * 4-column info table.
+ * rows: [leftLabel, leftValue, rightLabel | null, rightValue | null]
+ * When right columns are null, leftValue spans the remaining width.
+ */
+function drawInfoTable(doc, rows, startY, fonts) {
+    const lw = CW * 0.22;
+    const vw = CW * 0.28;
+    let y = startY;
+    for (const [ll, lv, rl, rv] of rows) {
+        if (rl !== null && rv !== null) {
+            drawCell(doc, ll, MARGIN, y, lw, INFO_ROW_H, { bg: C_LABEL_BG, fg: C_GRAY, font: fonts.R });
+            drawCell(doc, lv, MARGIN + lw, y, vw, INFO_ROW_H, { bg: C_WHITE, fg: C_DARK, font: fonts.B });
+            drawCell(doc, rl, MARGIN + lw + vw, y, lw, INFO_ROW_H, { bg: C_LABEL_BG, fg: C_GRAY, font: fonts.R });
+            drawCell(doc, rv, MARGIN + lw + vw + lw, y, vw, INFO_ROW_H, { bg: C_WHITE, fg: C_DARK, font: fonts.B });
+        }
+        else {
+            drawCell(doc, ll, MARGIN, y, lw, INFO_ROW_H, { bg: C_LABEL_BG, fg: C_GRAY, font: fonts.R });
+            drawCell(doc, lv, MARGIN + lw, y, CW - lw, INFO_ROW_H, { bg: C_WHITE, fg: C_DARK, font: fonts.B });
+        }
+        y += INFO_ROW_H;
+    }
+    return y;
+}
+/** "Inspector Conclusion" label + coloured badge + optional notes. */
+function drawConclusionRow(doc, finalStatus, summaryComments, y, fonts) {
+    doc.font(fonts.R).fontSize(10).fillColor(C_GRAY)
+        .text("Inspector Conclusion", MARGIN, y + 6, { lineBreak: false });
+    const label = statusLabel(finalStatus);
+    const color = statusColor(finalStatus);
+    const badgeX = MARGIN + 140;
+    doc.font(fonts.B).fontSize(9);
+    const textW = doc.widthOfString(label);
+    const hPad = 8, vPad = 3;
+    const bW = textW + hPad * 2;
+    const bH = 9 * 1.2 + vPad * 2;
+    doc.roundedRect(badgeX, y + 4, bW, bH, 2).fillColor(color).fill();
+    doc.font(fonts.B).fontSize(9).fillColor(C_WHITE)
+        .text(label, badgeX + hPad, y + 4 + vPad, { lineBreak: false });
+    if (summaryComments) {
+        const notesX = badgeX + bW + 10;
+        doc.font(fonts.R).fontSize(9).fillColor(C_GRAY)
+            .text(summaryComments, notesX, y + 6, { width: MARGIN + CW - notesX, lineBreak: false });
+    }
+    return y + INFO_ROW_H;
+}
+/** Full-width coloured status banner. */
+function drawStatusBanner(doc, finalStatus, y, fonts) {
+    const h = 26;
+    doc.rect(MARGIN, y, CW, h).fillColor(statusColor(finalStatus)).fill();
+    doc.font(fonts.R).fontSize(10).fillColor(C_WHITE)
+        .text("Status:", MARGIN + 10, y + 7, { lineBreak: false });
+    doc.font(fonts.B).fontSize(10).fillColor(C_WHITE)
+        .text(statusLabel(finalStatus), MARGIN + 64, y + 7, { lineBreak: false });
+    return y + h;
+}
+/** Checklist summary: section name | ✓ or — */
+function drawChecklistTable(doc, sections, imageMap, startY, fonts) {
+    const nameW = CW * 0.82;
+    const statusW = CW - nameW;
+    let y = startY;
+    drawCell(doc, "Checklist Section", MARGIN, y, nameW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_DARK, font: fonts.B });
+    drawCell(doc, "Status", MARGIN + nameW, y, statusW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_DARK, font: fonts.B, align: "center" });
+    y += TABLE_ROW_H;
+    const sorted = [...sections].sort((a, b) => { var _a, _b; return ((_a = a.order) !== null && _a !== void 0 ? _a : 0) - ((_b = b.order) !== null && _b !== void 0 ? _b : 0); });
+    sorted.forEach((sec, i) => {
+        var _a;
+        const hasPhotos = ((_a = sec.fields) !== null && _a !== void 0 ? _a : []).some((f) => { var _a; return ((_a = f.imageURLs) !== null && _a !== void 0 ? _a : []).some((u) => imageMap.has(u)); });
+        const rowBg = i % 2 === 0 ? C_WHITE : "#fafafa";
+        drawCell(doc, `${i + 1}   ${sec.title}`, MARGIN, y, nameW, TABLE_ROW_H, { bg: rowBg, fg: C_DARK, font: fonts.R });
+        drawCell(doc, hasPhotos ? "✓" : "—", MARGIN + nameW, y, statusW, TABLE_ROW_H, { bg: rowBg, fg: hasPhotos ? C_GREEN : C_FOOTER, font: fonts.B, align: "center" });
+        y += TABLE_ROW_H;
+    });
+    return y;
+}
+/** Defect count table: header row (CRITICAL / MAJOR / MINOR) + TOTAL row. */
+function drawDefectTable(doc, critical, major, minor, startY, fonts) {
+    const descW = CW * 0.52;
+    const colW = (CW - descW) / 3;
+    let y = startY;
+    drawCell(doc, "", MARGIN, y, descW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_DARK, font: fonts.B });
+    drawCell(doc, "CRITICAL", MARGIN + descW, y, colW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_CRITICAL, font: fonts.B, align: "center" });
+    drawCell(doc, "MAJOR", MARGIN + descW + colW, y, colW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_MAJOR, font: fonts.B, align: "center" });
+    drawCell(doc, "MINOR", MARGIN + descW + colW * 2, y, colW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_MINOR, font: fonts.B, align: "center" });
+    y += TABLE_ROW_H;
+    drawCell(doc, "TOTAL", MARGIN, y, descW, TABLE_ROW_H, { bg: C_WHITE, fg: C_DARK, font: fonts.B });
+    drawCell(doc, String(critical), MARGIN + descW, y, colW, TABLE_ROW_H, { bg: C_WHITE, fg: critical > 0 ? C_CRITICAL : C_DARK, font: fonts.B, align: "center" });
+    drawCell(doc, String(major), MARGIN + descW + colW, y, colW, TABLE_ROW_H, { bg: C_WHITE, fg: major > 0 ? C_MAJOR : C_DARK, font: fonts.B, align: "center" });
+    drawCell(doc, String(minor), MARGIN + descW + colW * 2, y, colW, TABLE_ROW_H, { bg: C_WHITE, fg: minor > 0 ? C_MINOR : C_DARK, font: fonts.B, align: "center" });
+    y += TABLE_ROW_H;
+    return y;
+}
+/** Section heading: bold 14pt title + 1.5pt blue underline. */
+function drawSectionHeader(doc, title, y, fonts) {
+    doc.font(fonts.B).fontSize(14).fillColor(C_DARK)
+        .text(title, MARGIN, y, { width: CW, lineBreak: false });
+    const lineY = y + 14 * 1.2 + 3;
+    doc.moveTo(MARGIN, lineY).lineTo(MARGIN + CW, lineY)
+        .lineWidth(1.5).strokeColor(C_BLUE).stroke();
+    return lineY + 6;
+}
+// ── Main PDF generation ────────────────────────────────────────────────────────
+async function generatePDF(inspection, inspectionNumber, location, requestedBy, finalStatus, summaryComments) {
     const imageMap = await prefetchImages(inspection);
     return new Promise((resolve, reject) => {
-        var _a, _b, _c, _d, _e, _f, _g, _h;
+        var _a, _b, _c, _d, _e, _f, _g;
         const chunks = [];
-        const doc = new pdfkit_1.default({ margin: MARGIN, size: "A4" });
-        // Register NotoSans for Vietnamese — fall back to Helvetica if fonts missing
+        const doc = new pdfkit_1.default({ margins: { top: 0, bottom: 0, left: 0, right: 0 }, size: "A4", autoFirstPage: false });
         const hasNoto = fs.existsSync(FONT_REGULAR) && fs.existsSync(FONT_BOLD);
         if (hasNoto) {
             doc.registerFont("R", FONT_REGULAR);
             doc.registerFont("B", FONT_BOLD);
         }
-        const R = hasNoto ? "R" : "Helvetica";
-        const B = hasNoto ? "B" : "Helvetica-Bold";
-        doc.on("data", (chunk) => chunks.push(chunk));
+        const fonts = {
+            R: hasNoto ? "R" : "Helvetica",
+            B: hasNoto ? "B" : "Helvetica-Bold",
+        };
+        doc.on("data", (c) => chunks.push(c));
         doc.on("end", () => resolve(Buffer.concat(chunks)));
         doc.on("error", reject);
-        const X = MARGIN;
-        const W = PAGE_W;
-        let y = MARGIN;
-        // ── 1. Header field rows — mirrors iOS drawHeaderFields ─────────────────
         const now = new Date();
-        const fmt = (d) => `${d.getDate().toString().padStart(2, "0")}/` +
-            `${(d.getMonth() + 1).toString().padStart(2, "0")}/` +
-            `${d.getFullYear()}`;
-        const todayStr = fmt(now);
-        const headerRows = [
-            ["Người kiểm tra:", requestedBy || "N/A",
-                "Ngày kiểm tra:", todayStr],
-            ["Số lượng mẫu:", String((_a = inspection.inspectedQuantity) !== null && _a !== void 0 ? _a : 0),
-                "Số lượng đơn hàng:", String((_b = inspection.orderQuantity) !== null && _b !== void 0 ? _b : 0)],
-            ["Vị trí:", location || "N/A",
-                "Tên biểu mẫu:", (_c = inspection.inspectionType) !== null && _c !== void 0 ? _c : "Final CheckList"],
-            ["Ngày dự kiến:", todayStr,
-                "Phương pháp lấy mẫu:", "100% inspection"],
-        ];
-        const HALF = W / 2;
-        const LABEL_W = HALF * 0.48;
-        const VAL_W = HALF * 0.50;
-        const ROW_H_HDR = 20;
-        headerRows.forEach(([lLbl, lVal, rLbl, rVal]) => {
-            const ty = y + 2;
-            doc.fillColor(C_GRAY).font(R).fontSize(10)
-                .text(lLbl, X, ty, { width: LABEL_W, lineBreak: false });
-            doc.fillColor(C_DARK).font(B).fontSize(10)
-                .text(lVal, X + LABEL_W + 2, ty, { width: VAL_W, lineBreak: false });
-            // dashes
-            doc.fillColor("#cccccc").font(R).fontSize(10)
-                .text("---------", X + LABEL_W + VAL_W + 4, ty, { lineBreak: false });
-            // right side
-            doc.fillColor(C_GRAY).font(R).fontSize(10)
-                .text(rLbl, X + HALF + 20, ty, { width: LABEL_W, lineBreak: false });
-            doc.fillColor(C_DARK).font(B).fontSize(10)
-                .text(rVal, X + HALF + 20 + LABEL_W + 2, ty, { width: VAL_W, lineBreak: false });
-            y += ROW_H_HDR;
-        });
-        // Factory name — full width row
-        const factoryLabel = "Tên nhà máy:";
-        const factoryValue = (_e = (_d = inspection.factory) !== null && _d !== void 0 ? _d : inspection.factoryName) !== null && _e !== void 0 ? _e : "N/A";
-        doc.fillColor(C_GRAY).font(R).fontSize(10)
-            .text(factoryLabel, X, y + 2, { width: LABEL_W, lineBreak: false });
-        doc.fillColor(C_DARK).font(B).fontSize(10)
-            .text(factoryValue, X + LABEL_W + 2, y + 2, { width: W - LABEL_W - 2, lineBreak: false });
-        y += ROW_H_HDR;
-        // Gray separator line
-        y += 6;
-        doc.moveTo(X, y).lineTo(X + W, y).lineWidth(1).strokeColor("#cccccc").stroke();
-        y += 14;
-        // ── 2. Report title ──────────────────────────────────────────────────────
-        doc.fillColor(C_DARK).font(B).fontSize(22)
-            .text(`Báo cáo kiểm tra #${inspectionNumber}`, X, y, {
-            width: W,
-            lineBreak: false,
-        });
-        y += 32;
-        // Date subtitle
-        const dateTimeStr = `${now.getDate().toString().padStart(2, "0")}/` +
-            `${(now.getMonth() + 1).toString().padStart(2, "0")}/` +
-            `${now.getFullYear()} ` +
-            `${now.getHours().toString().padStart(2, "0")}:` +
-            `${now.getMinutes().toString().padStart(2, "0")}`;
-        doc.fillColor(C_GRAY).font(R).fontSize(10)
-            .text(`Ngày tạo: ${dateTimeStr}`, X, y, { lineBreak: false });
-        y += 22;
-        // ── 3. Defect summary table ──────────────────────────────────────────────
-        doc.fillColor(C_DARK).font(B).fontSize(12)
-            .text("Tóm tắt lỗi", X, y, { lineBreak: false });
-        y += 20;
-        const CW = W / 4;
-        const defectHeaders = ["", "CRITICAL", "MAJOR", "MINOR"];
-        const defectHColors = [C_DARK, C_CRITICAL, C_MAJOR, C_MINOR];
-        defectHeaders.forEach((h, i) => {
-            doc.rect(X + i * CW, y, CW, 24).fillAndStroke("#f5f5f5", "#e0e0e0");
-            doc.fillColor(defectHColors[i]).font(B).fontSize(9)
-                .text(h, X + i * CW + 4, y + 7, { width: CW - 8, align: "center", lineBreak: false });
-        });
-        y += 24;
-        const critical = (_f = inspection.criticalCount) !== null && _f !== void 0 ? _f : 0;
-        const major = (_g = inspection.majorCount) !== null && _g !== void 0 ? _g : 0;
-        const minor = (_h = inspection.minorCount) !== null && _h !== void 0 ? _h : 0;
-        const defectVals = ["TOTAL", String(critical), String(major), String(minor)];
-        const defectVColors = [C_DARK, C_CRITICAL, C_MAJOR, C_MINOR];
-        defectVals.forEach((v, i) => {
-            doc.rect(X + i * CW, y, CW, 28).fillAndStroke(C_WHITE, "#e0e0e0");
-            doc.fillColor(defectVColors[i]).font(i === 0 ? B : R).fontSize(11)
-                .text(v, X + i * CW + 4, y + 8, { width: CW - 8, align: "center", lineBreak: false });
-        });
-        y += 42;
-        // ── 4. Inspection sections ───────────────────────────────────────────────
-        const IMG_GAP = 12;
-        const IMG_W = (W - IMG_GAP) / 2;
-        const IMG_H = IMG_W * 0.75; // 4:3
+        const fmtDate = (d) => `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}/${d.getFullYear()}`;
+        const dateStr = fmtDate(now);
+        const dateTimeStr = `${dateStr} ${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+        const orderInfo = `Order: ${inspectionNumber}, Item: ${(_a = inspection.productName) !== null && _a !== void 0 ? _a : ""}`;
+        let pageNum = 0;
+        function newPage() {
+            doc.addPage();
+            pageNum++;
+            drawFooter(doc, orderInfo, dateStr, pageNum, fonts);
+            return MARGIN;
+        }
+        // ── Page 1: Cover ─────────────────────────────────────────────────────────
+        let y = newPage();
+        // Small grey title
+        doc.font(fonts.R).fontSize(11).fillColor(C_GRAY)
+            .text(`Inspection report, Final: ${inspectionNumber}`, MARGIN, y, { lineBreak: false });
+        y += Math.ceil(11 * 1.2) + 4;
+        // Bold subtitle: order number + product name
+        doc.font(fonts.B).fontSize(20).fillColor(C_DARK)
+            .text(`${inspectionNumber}: ${(_b = inspection.productName) !== null && _b !== void 0 ? _b : ""}`, MARGIN, y, { width: CW, lineBreak: false });
+        y += Math.ceil(20 * 1.2) + 8;
+        // Separator
+        drawHLine(doc, y);
+        y += 10;
+        // Info table
+        y = drawInfoTable(doc, [
+            ["Inspector", requestedBy || "N/A", "Inspection Date", dateTimeStr],
+            ["Planned Sample/Insp.", `${(_c = inspection.aqlInspectionQuantity) !== null && _c !== void 0 ? _c : 0}/${(_d = inspection.inspectedQuantity) !== null && _d !== void 0 ? _d : 0}`,
+                "Order Qty", String((_e = inspection.orderQuantity) !== null && _e !== void 0 ? _e : 0)],
+            ["Location", location || "N/A", "Checklist Name", "Final CheckList"],
+            ["Planned Date", dateStr, "Sampling Method", "100% inspection"],
+            ["Supplier Name", (_g = (_f = inspection.factory) !== null && _f !== void 0 ? _f : inspection.factoryName) !== null && _g !== void 0 ? _g : "N/A", null, null],
+        ], y, fonts);
+        y += 8;
+        // Inspector conclusion row (badge + optional notes)
+        y = drawConclusionRow(doc, finalStatus, summaryComments, y, fonts);
+        y += 2;
+        // Full-width status banner
+        y = drawStatusBanner(doc, finalStatus, y, fonts);
+        y += 16;
+        // SUMMARY heading
+        doc.font(fonts.B).fontSize(14).fillColor(C_DARK)
+            .text("SUMMARY", MARGIN, y, { lineBreak: false });
+        y += Math.ceil(14 * 1.2) + 8;
+        // Checklist table + defect table
         const sections = Array.isArray(inspection.sections)
             ? inspection.sections : [];
-        sections
-            .sort((a, b) => { var _a, _b; return ((_a = a.order) !== null && _a !== void 0 ? _a : 0) - ((_b = b.order) !== null && _b !== void 0 ? _b : 0); })
-            .forEach((section) => {
+        y = drawChecklistTable(doc, sections, imageMap, y, fonts);
+        y += 12;
+        y = drawDefectTable(doc, 0, 0, 0, y, fonts); // counts are not stored server-side
+        // ── Pages 2+: Sections ────────────────────────────────────────────────────
+        const sorted = [...sections].sort((a, b) => { var _a, _b; return ((_a = a.order) !== null && _a !== void 0 ? _a : 0) - ((_b = b.order) !== null && _b !== void 0 ? _b : 0); });
+        sorted.forEach((section, si) => {
             var _a;
-            if (y > doc.page.height - 120) {
-                doc.addPage();
-                y = MARGIN;
+            const fields = Array.isArray(section.fields) ? section.fields : [];
+            const sectionHasImages = fields.some((f) => (Array.isArray(f.imageURLs) ? f.imageURLs : []).some((u) => imageMap.has(u)));
+            // Force new page only when the section has photos (lots of content) or
+            // when there is not enough room left for at least the section header + one field row.
+            if (sectionHasImages || y + 60 > CONTENT_MAX_Y) {
+                y = newPage();
             }
-            // Section title + blue underline
-            doc.fillColor(C_DARK).font(B).fontSize(14)
-                .text((_a = section.title) !== null && _a !== void 0 ? _a : "", X, y, { width: W, lineBreak: false });
-            y += 20;
-            doc.moveTo(X, y).lineTo(X + W, y).lineWidth(2).strokeColor(C_BLUE).stroke();
-            y += 10;
-            const fields = Array.isArray(section.fields)
-                ? section.fields : [];
-            fields.forEach((field) => {
+            else {
+                y += si === 0 ? 24 : 20; // vertical gap between sections
+            }
+            y = drawSectionHeader(doc, `${si + 1}   ${(_a = section.title) !== null && _a !== void 0 ? _a : ""}`, y, fonts);
+            y += 6;
+            fields.forEach((field, fi) => {
                 var _a;
-                const urls = Array.isArray(field.imageURLs)
-                    ? field.imageURLs : [];
-                const hasImages = urls.length > 0 && urls.some((u) => imageMap.has(u));
-                if (!hasImages)
-                    return; // skip fields without captured images
-                if (y > doc.page.height - IMG_H - 60) {
-                    doc.addPage();
-                    y = MARGIN;
+                const urls = Array.isArray(field.imageURLs) ? field.imageURLs : [];
+                const bufs = urls.map((u) => imageMap.get(u)).filter(Boolean);
+                const neededH = bufs.length === 0 ? 30 : IMG_H + 40;
+                if (y + neededH > CONTENT_MAX_Y) {
+                    y = newPage();
                 }
-                // Field label
-                doc.fillColor(C_MID).font(R).fontSize(12)
-                    .text((_a = field.label) !== null && _a !== void 0 ? _a : "", X, y, { width: W, lineBreak: false });
-                y += 18;
-                // Images — 2 per row
-                let col = 0;
-                let rowStartY = y;
-                for (const url of urls) {
-                    const imgBuf = imageMap.get(url);
-                    if (!imgBuf)
-                        continue;
-                    if (y + IMG_H > doc.page.height - MARGIN) {
-                        doc.addPage();
-                        y = MARGIN;
-                        rowStartY = y;
-                        col = 0;
+                // Field heading
+                doc.font(fonts.R).fontSize(11).fillColor(C_MID)
+                    .text(`${si + 1}.${fi + 1}   ${(_a = field.label) !== null && _a !== void 0 ? _a : ""}`, MARGIN, y, { width: CW, lineBreak: false });
+                y += Math.ceil(11 * 1.2) + 4;
+                // 4-column photo grid
+                if (bufs.length > 0) {
+                    let col = 0;
+                    for (const buf of bufs) {
+                        if (col === 0 && y + IMG_H > CONTENT_MAX_Y) {
+                            y = newPage();
+                        }
+                        const imgX = MARGIN + col * (IMG_W + IMG_GAP);
+                        try {
+                            doc.image(buf, imgX, y, { width: IMG_W, height: IMG_H });
+                            doc.lineWidth(0.5).rect(imgX, y, IMG_W, IMG_H).strokeColor(C_BORDER).stroke();
+                        }
+                        catch (e) {
+                            console.warn(`Embed image failed: ${e}`);
+                        }
+                        col++;
+                        if (col >= IMGS_PER_ROW) {
+                            col = 0;
+                            y += IMG_H + IMG_GAP;
+                        }
                     }
-                    const imgX = X + col * (IMG_W + IMG_GAP);
-                    try {
-                        doc.image(imgBuf, imgX, y, { width: IMG_W, height: IMG_H });
-                        // Light border
-                        doc.rect(imgX, y, IMG_W, IMG_H).lineWidth(0.5).strokeColor("#cccccc").stroke();
-                    }
-                    catch (e) {
-                        console.warn(`Embed image failed: ${e}`);
-                    }
-                    col++;
-                    if (col >= 2) {
-                        col = 0;
+                    if (col > 0) {
                         y += IMG_H + IMG_GAP;
-                        rowStartY = y;
                     }
                 }
-                if (col > 0) {
-                    y = rowStartY + IMG_H + IMG_GAP;
-                }
-                y += 8;
+                y += 10;
             });
-            y += 14;
+            y += 22;
         });
-        // ── 5. Footer ─────────────────────────────────────────────────────────────
-        doc.fillColor(C_FOOTER).font(R).fontSize(8.5)
-            .text("Báo cáo được tạo bởi report_lms  •  © 2026", X, doc.page.height - 34, { width: W, align: "center", lineBreak: false });
         doc.end();
     });
 }
-// ---------------------------------------------------------------------------
-// Email HTML body
-// ---------------------------------------------------------------------------
+// ── Email HTML ─────────────────────────────────────────────────────────────────
+function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 function buildEmailHTML(inspectionNumber, companyName, requestedBy) {
-    return `
-<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
 <style>
@@ -390,14 +462,14 @@ function buildEmailHTML(inspectionNumber, companyName, requestedBy) {
 </head>
 <body>
   <div class="card">
-    <div class="header"><h2 style="margin:0">Báo cáo kiểm tra #${inspectionNumber}</h2></div>
+    <div class="header"><h2 style="margin:0">Báo cáo kiểm tra #${esc(inspectionNumber)}</h2></div>
     <p>Kính gửi,</p>
-    <p>Đính kèm là báo cáo kiểm tra <strong>#${inspectionNumber}</strong> cho <strong>${companyName}</strong>.</p>
+    <p>Đính kèm là báo cáo kiểm tra <strong>#${esc(inspectionNumber)}</strong> cho <strong>${esc(companyName)}</strong>.</p>
     <p>Vui lòng xem file PDF đính kèm để biết chi tiết.</p>
-    <p>Trân trọng,<br/><strong>${requestedBy}</strong></p>
+    <p>Trân trọng,<br/><strong>${esc(requestedBy)}</strong></p>
     <div class="footer">Gửi tự động bởi LMS Report App</div>
   </div>
 </body>
-</html>`.trim();
+</html>`;
 }
 //# sourceMappingURL=index.js.map

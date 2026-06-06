@@ -15,7 +15,9 @@ protocol PDFGeneratorType {
         images: [String: [InspectionImage]],
         inspectorName: String,
         location: String,
-        defectCounts: (critical: Int, major: Int, minor: Int)
+        defectCounts: (critical: Int, major: Int, minor: Int),
+        finalStatus: FinalReportStatus,
+        summaryComments: String
     ) async throws -> Data
 }
 

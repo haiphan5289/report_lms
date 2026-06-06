@@ -35,7 +35,9 @@ final class GenerateHTMLPDFReportUseCase {
         images: [String: [InspectionImage]],
         inspectorName: String,
         location: String,
-        defectCounts: (critical: Int, major: Int, minor: Int) = (0, 0, 0)
+        defectCounts: (critical: Int, major: Int, minor: Int) = (0, 0, 0),
+        finalStatus: FinalReportStatus = .pending,
+        summaryComments: String = ""
     ) async throws -> Data {
         logger.log("Executing PDF generation use case for inspection #\(detail.inspectionNumber)")
 
@@ -52,7 +54,9 @@ final class GenerateHTMLPDFReportUseCase {
                 images: resolvedImages,
                 inspectorName: inspectorName,
                 location: location,
-                defectCounts: defectCounts
+                defectCounts: defectCounts,
+                finalStatus: finalStatus,
+                summaryComments: summaryComments
             )
             logger.log("PDF generation completed successfully, size: \(pdfData.count) bytes")
             return pdfData
@@ -118,7 +122,9 @@ final class GenerateHTMLPDFReportUseCase {
             images: resolvedImages,
             inspectorName: request.inspectorName,
             location: request.inspectionLocation,
-            defectCounts: request.defectCounts
+            defectCounts: request.defectCounts,
+            finalStatus: request.finalStatus,
+            summaryComments: request.summaryComments
         )
         
         logger.log("PDF generated successfully from request, size: \(pdfData.count) bytes")

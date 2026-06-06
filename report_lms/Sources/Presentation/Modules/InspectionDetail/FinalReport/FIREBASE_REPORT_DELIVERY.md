@@ -20,9 +20,9 @@ FinalReportView
                               Cloud Function: processReportQueue
                                           │
                                           ├─ Fetch inspection from Firestore
-                                          ├─ Pre-download field images
+                                          ├─ Pre-download field images (batches of 5)
                                           ├─ Compress images (sharp)
-                                          ├─ Generate PDF (pdfkit + NotoSans)
+                                          ├─ Generate Qarma-style PDF (pdfkit + NotoSans)
                                           └─ Send email (nodemailer + Gmail)
                                                           │
                                                           ▼
@@ -44,7 +44,7 @@ Khi `true`, `FinalReportViewModel.sendReport()` route sang `sendReportViaQueue()
 
 ### Luồng gửi báo cáo
 
-**File:** [FinalReportViewModel.swift](report_lms/Sources/Presentation/Modules/InspectionDetail/FinalReport/FinalReportViewModel.swift)
+**File:** [FinalReportViewModel.swift](FinalReportViewModel.swift)
 
 ```swift
 func sendReport() async {
@@ -58,7 +58,7 @@ func sendReport() async {
 
 `sendReportViaQueue()` làm:
 1. Gom `recipientEmail` (text field) + `selectedRecipients` thành 1 list
-2. Gọi `QueueReportDeliveryUseCase.execute(inspection:recipients:location:)` → tạo Firestore task document
+2. Gọi `QueueReportDeliveryUseCase.execute(inspection:recipients:location:finalStatus:summaryComments:)` → tạo Firestore task document
 3. Lắng nghe `statusStream(taskId:)` → cập nhật UI theo trạng thái `queued → processing → sent/failed`
 
 ### Firestore Task Document
@@ -71,6 +71,8 @@ Collection: `report_delivery_queue`
 | `inspectionNumber` | String | Mã đơn (INS-...) |
 | `recipientEmails` | [String] | Danh sách email nhận |
 | `location` | String | Vị trí kiểm tra |
+| `finalStatus` | String | `"accepted"` / `"pending"` / `"rejected"` |
+| `summaryComments` | String | Ghi chú kết luận của inspector |
 | `status` | String | `queued` / `processing` / `sent` / `failed` |
 | `requestedAt` | Timestamp | Thời điểm tạo task |
 | `requestedBy` | String | Email người gửi |
@@ -81,7 +83,7 @@ Collection: `report_delivery_queue`
 
 ## Cloud Function
 
-**File:** [functions/src/index.ts](functions/src/index.ts)
+**File:** [functions/src/index.ts](../../../../../functions/src/index.ts)
 
 **Trigger:** `onDocumentCreated("report_delivery_queue/{taskId}")`  
 **Region:** `asia-southeast1`  
@@ -90,7 +92,7 @@ Collection: `report_delivery_queue`
 ### Cấu hình secrets
 
 ```bash
-firebase functions:secrets:set GMAIL_USER      # tài khoản Gmail gửi mail
+firebase functions:secrets:set GMAIL_USER          # tài khoản Gmail gửi mail
 firebase functions:secrets:set GMAIL_APP_PASSWORD  # App Password (2FA)
 ```
 
@@ -99,9 +101,9 @@ firebase functions:secrets:set GMAIL_APP_PASSWORD  # App Password (2FA)
 ```
 1. Cập nhật status → "processing"
 2. Fetch inspection document từ Firestore (collection: "inspections")
-3. prefetchImages() — tải tất cả field.imageURLs song song
+3. prefetchImages() — tải field.imageURLs theo batches 5 ảnh/lần
 4. compressImageBuffer() — resize về max 800×600, JPEG 70%
-5. generatePDF() — tạo PDF với pdfkit + NotoSans fonts
+5. generatePDF() — Qarma-style layout với pdfkit + NotoSans fonts
 6. nodemailer.sendMail() — đính kèm PDF, gửi đến recipientEmails
 7. Cập nhật status → "sent" | "failed"
 ```
@@ -122,10 +124,6 @@ functions/
 ```
 
 ```typescript
-// Đăng ký font trong generatePDF()
-const FONT_REGULAR = path.join(__dirname, "..", "fonts", "NotoSans-Regular.ttf");
-const FONT_BOLD    = path.join(__dirname, "..", "fonts", "NotoSans-Bold.ttf");
-
 doc.registerFont("R", FONT_REGULAR);
 doc.registerFont("B", FONT_BOLD);
 ```
@@ -134,51 +132,91 @@ Path `__dirname` khi runtime trỏ đến `lib/`, nên `..` để lên `function
 
 ---
 
-## PDF Layout
+## PDF Layout (Qarma Style)
 
-Layout khớp với iOS `PDFKitGeneratorService.swift`.
+Cả hai delivery path (local preview và Firebase) đều dùng cùng Qarma-style layout.
 
 ### Cấu trúc trang
 
+**Trang 1 — Cover**
+
 ```
-┌─────────────────────────────────────────────────┐
-│ Người kiểm tra: ...    │  Ngày kiểm tra: ...    │
-│ Số lượng mẫu: ...      │  Số lượng đơn hàng: .. │
-│ Vị trí: ...            │  Tên biểu mẫu: ...     │
-│ Ngày dự kiến: ...      │  Phương pháp: ...      │
-│ Tên nhà máy: ...                                 │
-├─────────────────────────────────────────────────┤
-│ Báo cáo kiểm tra #INS-XXXX  (bold, 22pt)        │
-│ Ngày tạo: dd/MM/yyyy HH:mm  (gray, 10pt)        │
-├─────────────────────────────────────────────────┤
-│ Tóm tắt lỗi                                     │
-│ ┌─────────┬──────────┬────────┬────────────┐   │
-│ │         │ CRITICAL │  MAJOR │    MINOR   │   │
-│ ├─────────┼──────────┼────────┼────────────┤   │
-│ │  TOTAL  │    n     │   n    │     n      │   │
-│ └─────────┴──────────┴────────┴────────────┘   │
-├─────────────────────────────────────────────────┤
-│ Section Title (bold 14pt)                       │
-│ ─────────────────────── (blue underline 2pt)    │
-│   Field Label (regular 12pt)                    │
-│   ┌──────────────┐  ┌──────────────┐           │
-│   │    image 1   │  │    image 2   │  (4:3)    │
-│   └──────────────┘  └──────────────┘           │
-│   ┌──────────────┐                             │
-│   │    image 3   │                             │
-│   └──────────────┘                             │
-└─────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ Inspection report, Final: INS-XXXX  (grey, 11pt)                │
+│ INS-XXXX: Product Name  (bold, 20pt)                             │
+├──────────────────────────────────────────────────────────────────┤
+│ Inspector:        Name   │  Inspection Date: dd/mm/yyyy          │
+│ Planned Sample:   N/N    │  Order Qty:       N                   │
+│ Location:         ...    │  Checklist Name:  Final CheckList     │
+│ Planned Date:     ...    │  Sampling Method: 100% inspection     │
+│ Supplier Name:    ...    (spans full width)                       │
+├──────────────────────────────────────────────────────────────────┤
+│ Inspector Conclusion  [ACCEPTED]  Notes text...                  │
+├──────────────────────────────────────────────────────────────────┤
+│████████████  Status: ACCEPTED  ██████████████████████████████████│
+├──────────────────────────────────────────────────────────────────┤
+│ SUMMARY                                                          │
+│ ┌──────────────────────────────────────────────┬────────┐        │
+│ │ Checklist Section                            │ Status │        │
+│ ├──────────────────────────────────────────────┼────────┤        │
+│ │ 1   Section Name                             │   ✓    │        │
+│ │ 2   Section Name                             │   —    │        │
+│ └──────────────────────────────────────────────┴────────┘        │
+│ ┌────────────────────────┬──────────┬────────┬───────┐           │
+│ │                        │ CRITICAL │  MAJOR │ MINOR │           │
+│ ├────────────────────────┼──────────┼────────┼───────┤           │
+│ │  TOTAL                 │    0     │   0    │   0   │           │
+│ └────────────────────────┴──────────┴────────┴───────┘           │
+├──────────────────────────────────────────────────────────────────┤
+│ Report created with report_lms.    Order: INS-XXXX, page: 1     │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Trang 2+ — Sections**
+
+Sections có ảnh → bắt đầu trang mới. Sections không có ảnh → tiếp tục trang hiện tại (chỉ sang trang mới nếu không đủ chỗ cho header + 1 field row).
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 1   Section Title  (bold 14pt)                                   │
+│ ──────────────────────────── (blue underline 1.5pt)              │
+│                                                                  │
+│ 1.1   Field Label  (regular 11pt)                                │
+│ ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐     │
+│ │  image 1  │  │  image 2  │  │  image 3  │  │  image 4  │     │
+│ └───────────┘  └───────────┘  └───────────┘  └───────────┘     │
+│                                                                  │
+│ 1.2   Next Field                                                 │
+│ ┌───────────┐  ┌───────────┐                                     │
+│ │  image 5  │  │  image 6  │                                     │
+│ └───────────┘  └───────────┘                                     │
+├──────────────────────────────────────────────────────────────────┤
+│ Report created with report_lms.    Order: INS-XXXX, page: 2     │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### Hằng số layout
 
 | Constant | Giá trị | Ghi chú |
 |----------|---------|---------|
-| `MARGIN` | 40px | Lề 4 phía |
-| `PAGE_W` | 515.28px | A4 content width (595.28 - 2×40) |
-| `IMG_W` | `(PAGE_W - 12) / 2` | ~251px |
-| `IMG_H` | `IMG_W × 0.75` | ~188px (4:3) |
-| `IMG_GAP` | 12px | Khoảng cách giữa 2 ảnh |
+| `MARGIN` | 40px | Lề nội dung (dùng khi vẽ, không phải PDFDocument margin) |
+| `CW` | 515.28px | A4 content width (595.28 − 2×40) |
+| `IMGS_PER_ROW` | 4 | Số ảnh mỗi hàng |
+| `IMG_GAP` | 8px | Khoảng cách giữa ảnh |
+| `IMG_W` | `(CW − 8×3) / 4` ≈ 122.8px | Chiều rộng ảnh |
+| `IMG_H` | `IMG_W × 0.75` ≈ 92.1px | Chiều cao ảnh (4:3) |
+| `INFO_ROW_H` | 26px | Chiều cao hàng info table |
+| `TABLE_ROW_H` | 24px | Chiều cao hàng checklist/defect table |
+| `FOOTER_Y` | `PAGE_H − 28` | Vị trí footer |
+| `CONTENT_MAX_Y` | `PAGE_H − 46` | Y tối đa trước footer |
+
+### Status Colors
+
+| Status | Color | Hex |
+|--------|-------|-----|
+| `accepted` | Green | `#33a14a` |
+| `pending` | Orange | `#e5990d` |
+| `rejected` | Red | `#c62626` |
 
 ---
 
@@ -186,11 +224,9 @@ Layout khớp với iOS `PDFKitGeneratorService.swift`.
 
 **Vấn đề:** 25 ảnh full resolution → PDF ~80-100MB → vượt Gmail limit 25MB.
 
-**Fix:** Dùng `sharp` compress trước khi embed vào PDF.
+**Fix:** Dùng `sharp` compress + tải theo batch 5 ảnh để tránh OOM trong 512MiB.
 
 ```typescript
-import sharp from "sharp";
-
 async function compressImageBuffer(buf: Buffer): Promise<Buffer> {
   try {
     return await sharp(buf)
@@ -213,12 +249,6 @@ async function compressImageBuffer(buf: Buffer): Promise<Buffer> {
 | **Gmail SMTP limit** | **25 MB** |
 | **Số ảnh tối đa (ước tính)** | **~150-200 ảnh** |
 
-Để tăng giới hạn hơn nữa, giảm quality hoặc max size:
-```typescript
-.resize(600, 450, ...)   // thay vì 800×600
-.jpeg({ quality: 60 })  // thay vì 70
-```
-
 ---
 
 ## Deploy
@@ -229,33 +259,24 @@ npm run build          # tsc compile
 firebase deploy --only functions
 ```
 
-Package size khi deploy: ~655 KB (bao gồm fonts + sharp).
-
-> Warning `"could not set up cleanup policy"` là không ảnh hưởng deploy — function vẫn update thành công.
+> Warning `"could not set up cleanup policy"` không ảnh hưởng deploy.
 
 ---
 
 ## Testing
 
-### Temporary test email (revert trước production)
-
-**File:** [FinalReportViewModel.swift:87](report_lms/Sources/Presentation/Modules/InspectionDetail/FinalReport/FinalReportViewModel.swift#L87)
-
-```swift
-// TODO: Remove before production
-self.recipientEmail = "freelancerios0502@gmail.com"
-```
-
 ### Checklist test
 
-- [ ] Mở Final Report → email field tự fill `freelancerios0502@gmail.com`
-- [ ] Tap **Send Email** → Firestore document tạo với `status: "queued"`
+- [ ] Mở Final Report → chọn status (Accepted/Pending/Rejected) → nhập ghi chú
+- [ ] Tap **Send Email** → Firestore document tạo với `status: "queued"`, có `finalStatus` và `summaryComments`
 - [ ] Firestore update lên `status: "processing"` (function trigger)
 - [ ] Email đến inbox với PDF đính kèm
 - [ ] Firestore update lên `status: "sent"`
+- [ ] PDF trang 1: cover page có info table, status banner đúng màu, checklist table
+- [ ] PDF trang 2+: sections có ảnh mở trang mới, ảnh 4 cột; sections không có ảnh tiếp tục trang hiện tại
+- [ ] PDF: footer xuất hiện trên mọi trang ("Report created with report_lms.")
 - [ ] PDF: tiếng Việt hiển thị đúng (không bị vỡ ký tự)
-- [ ] PDF: ảnh embed 2 cột, tỉ lệ 4:3
-- [ ] PDF size < 25MB (kiểm tra qua email client)
+- [ ] PDF size < 25MB
 
 ### Kiểm tra log function
 
@@ -269,16 +290,21 @@ firebase functions:log --only processReportQueue
 
 ```
 functions/
-  src/index.ts              — Cloud Function logic
+  src/index.ts              — Cloud Function logic (Qarma PDF layout)
   fonts/
     NotoSans-Regular.ttf
     NotoSans-Bold.ttf
 
 report_lms/Sources/
   Domain/
-    UseCases/QueueReportDeliveryUseCase.swift
+    Entities/
+      FinalReportStatus.swift        — .accepted/.pending/.rejected + serverKey
+    UseCases/
+      QueueReportDeliveryUseCase.swift
   Data/
-    Services/ReportDeliveryQueueService.swift
+    Services/
+      ReportDeliveryQueueService.swift
+      PDFKitGeneratorService.swift   — iOS Qarma PDF (mirrors Cloud Function layout)
   Presentation/Modules/InspectionDetail/FinalReport/
     FinalReportView.swift
     FinalReportViewModel.swift
@@ -288,4 +314,5 @@ report_lms/Sources/
 
 ---
 
-*Last updated: 2026-06-04 — feat/login branch*
+*Last updated: 2026-06-06 — feat/login branch*  
+*Changes: Qarma-style PDF layout (cover page, 4-col grid, per-page footer, status banner); finalStatus + summaryComments threaded through queue delivery; fixed blank pages (PDFDocument margins set to 0 so pdfkit auto-break threshold doesn't conflict with FOOTER_Y); smart section page-break (only force new page when section has images or not enough room).*

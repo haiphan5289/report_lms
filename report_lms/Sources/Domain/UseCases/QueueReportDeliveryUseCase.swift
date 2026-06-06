@@ -30,7 +30,9 @@ final class QueueReportDeliveryUseCase {
     func execute(
         inspection: Inspection,
         recipients: [FinalReportRecipient],
-        location: String
+        location: String,
+        finalStatus: FinalReportStatus = .pending,
+        summaryComments: String = ""
     ) async throws -> String {
         let emails = recipients.map(\.email).filter { !$0.isEmpty }
 
@@ -43,7 +45,9 @@ final class QueueReportDeliveryUseCase {
             inspectionId: inspection.id,
             inspectionNumber: inspection.inspectionNumber,
             recipientEmails: emails,
-            location: location
+            location: location,
+            finalStatus: finalStatus.serverKey,
+            summaryComments: summaryComments
         )
 
         let taskId = try await queueService.enqueue(payload)

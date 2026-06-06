@@ -26,4 +26,13 @@ enum FinalReportStatus: String, Codable, CaseIterable {
             return "xmark.circle.fill"
         }
     }
+
+    /// Stable ASCII key sent to the Cloud Function via Firestore.
+    var serverKey: String {
+        switch self {
+        case .accepted: return "accepted"
+        case .pending:  return "pending"
+        case .rejected: return "rejected"
+        }
+    }
 }

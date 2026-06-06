@@ -327,22 +327,6 @@ struct FinalReportView: View {
 
             HStack(spacing: 12) {
                 LMSButton(
-                    localizationManager.localize("finalReport.button.viewPDF"),
-                    icon: "doc.text.magnifyingglass",
-                    variant: .tertiary,
-                    size: .large,
-                    isFullWidth: true,
-                    isLoading: $viewModel.isGeneratingPDF,
-                    progressText: viewModel.isGeneratingPDF
-                        ? "\(Int(viewModel.pdfGenerationProgress * 100))%"
-                        : nil
-                ) {
-                    Task {
-                        await viewModel.generateAndPreviewPDF()
-                    }
-                }
-
-                LMSButton(
                     localizationManager.localize("finalReport.button.sendEmail"),
                     icon: viewModel.isSendingToServer ? "clock.arrow.circlepath" : "paperplane.fill",
                     variant: .primary,

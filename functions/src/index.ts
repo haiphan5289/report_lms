@@ -6,7 +6,6 @@ import PDFDocument from "pdfkit";
 import * as path from "path";
 import * as fs from "fs";
 import * as https from "https";
-import * as http from "http";
 import sharp from "sharp";
 
 admin.initializeApp();
@@ -14,140 +13,153 @@ admin.initializeApp();
 const gmailUser = defineSecret("GMAIL_USER");
 const gmailPass = defineSecret("GMAIL_APP_PASSWORD");
 
-// NotoSans fonts for Vietnamese text support
-const FONTS_DIR = path.join(__dirname, "..", "fonts");
+const FONTS_DIR    = path.join(__dirname, "..", "fonts");
 const FONT_REGULAR = path.join(FONTS_DIR, "NotoSans-Regular.ttf");
-const FONT_BOLD = path.join(FONTS_DIR, "NotoSans-Bold.ttf");
+const FONT_BOLD    = path.join(FONTS_DIR, "NotoSans-Bold.ttf");
 
-// Layout constants — match iOS PDFKitGeneratorService
-const MARGIN = 40;
-const PAGE_W = 515.28; // A4 content width (595.28 - 2*40)
+// ── Qarma-style layout — mirrors iOS PDFKitGeneratorService ───────────────────
+const MARGIN        = 40;
+const PAGE_H        = 841.89;
+const CW            = 515.28;          // A4 content width = 595.28 - 2*40
+const FOOTER_Y      = PAGE_H - 28;
+const CONTENT_MAX_Y = PAGE_H - 46;
 
-// Design colors — same as iOS
-const C_BLUE = "#1a73e8";
-const C_WHITE = "#ffffff";
-const C_DARK = "#333333";
-const C_MID = "#555555";
-const C_GRAY = "#666666";
-const C_FOOTER = "#aaaaaa";
-const C_CRITICAL = "#c62828";
-const C_MAJOR = "#e65100";
-const C_MINOR = "#f9a825";
+// 4-column photo grid
+const IMGS_PER_ROW = 4;
+const IMG_GAP      = 8;
+const IMG_W        = (CW - IMG_GAP * (IMGS_PER_ROW - 1)) / IMGS_PER_ROW; // ≈122.8
+const IMG_H        = IMG_W * 0.75;                                         // ≈92.1
 
+const INFO_ROW_H  = 26;
+const TABLE_ROW_H = 24;
+
+// ── Colors ─────────────────────────────────────────────────────────────────────
+const C_WHITE    = "#ffffff";
+const C_DARK     = "#222222";
+const C_MID      = "#404040";
+const C_GRAY     = "#666666";
+const C_FOOTER   = "#aaaaaa";
+const C_BLUE     = "#3366cc";
+const C_BORDER   = "#c8c8c8";
+const C_LABEL_BG = "#f5f5f5";
+const C_HDR_BG   = "#f2f2f2";
+const C_CRITICAL = "#c62626";
+const C_MAJOR    = "#e5990d";
+const C_MINOR    = "#2473cc";
+const C_GREEN    = "#33a14a";
+
+// ── Interfaces ─────────────────────────────────────────────────────────────────
 interface ReportTask {
-  inspectionId: string;
+  inspectionId:     string;
   inspectionNumber: string;
-  recipientEmails: string[];
-  location: string;
-  requestedBy: string;
+  recipientEmails:  string[];
+  location:         string;
+  requestedBy:      string;
+  finalStatus?:     string;   // "accepted" | "pending" | "rejected"
+  summaryComments?: string;
 }
 
 interface InspectionField {
-  id: string;
-  label: string;
-  value?: string;
+  id:         string;
+  label:      string;
+  value?:     string;
+  imageURLs?: string[];
 }
 
 interface InspectionSection {
-  id: string;
-  title: string;
-  order: number;
+  id:     string;
+  title:  string;
+  order:  number;
   fields: InspectionField[];
 }
 
+type PdfDoc = InstanceType<typeof PDFDocument>;
+type Fonts  = { R: string; B: string };
+
+// ── Cloud Function ─────────────────────────────────────────────────────────────
 export const processReportQueue = onDocumentCreated(
   {
-    document: "report_delivery_queue/{taskId}",
-    secrets: [gmailUser, gmailPass],
-    region: "asia-southeast1",
+    document:       "report_delivery_queue/{taskId}",
+    secrets:        [gmailUser, gmailPass],
+    region:         "asia-southeast1",
     timeoutSeconds: 120,
-    memory: "512MiB",
+    memory:         "512MiB",
   },
   async (event) => {
-    const taskId = event.params.taskId;
-    const db = admin.firestore();
+    const taskId  = event.params.taskId;
+    const db      = admin.firestore();
     const taskRef = db.collection("report_delivery_queue").doc(taskId);
 
     const data = event.data?.data() as ReportTask | undefined;
-    if (!data) {
-      console.error(`[${taskId}] No data in document`);
-      return;
-    }
+    if (!data) { console.error(`[${taskId}] No data in document`); return; }
 
-    const { inspectionId, inspectionNumber, recipientEmails, location, requestedBy } = data;
+    const {
+      inspectionId, inspectionNumber, recipientEmails,
+      location, requestedBy,
+      finalStatus     = "pending",
+      summaryComments = "",
+    } = data;
+
     await taskRef.update({ status: "processing" });
-    console.log(`[${taskId}] Generating PDF for #${inspectionNumber}`);
+    console.log(`[${taskId}] Generating Qarma PDF for #${inspectionNumber}`);
 
     try {
       const snap = await db.collection("inspections").doc(inspectionId).get();
       const inspection = snap.data();
       if (!inspection) throw new Error(`Inspection ${inspectionId} not found`);
 
-      const pdfBuffer = await generatePDF(inspection, inspectionNumber, location, requestedBy ?? "");
+      const pdfBuffer = await generatePDF(
+        inspection, inspectionNumber, location,
+        requestedBy ?? "", finalStatus, summaryComments
+      );
       console.log(`[${taskId}] PDF generated: ${pdfBuffer.length} bytes`);
 
       const transporter = nodemailer.createTransport({
         service: "gmail",
-        auth: {
-          user: gmailUser.value(),
-          pass: gmailPass.value(),
-        },
+        auth: { user: gmailUser.value(), pass: gmailPass.value() },
       });
 
       await transporter.sendMail({
-        from: `"LMS Report" <${gmailUser.value()}>`,
-        to: recipientEmails.join(", "),
+        from:    `"LMS Report" <${gmailUser.value()}>`,
+        to:      recipientEmails.join(", "),
         subject: `Báo cáo kiểm tra #${inspectionNumber}`,
-        html: buildEmailHTML(inspectionNumber, inspection.companyName ?? "", requestedBy),
-        attachments: [
-          {
-            filename: `Bao_cao_kiem_tra_${inspectionNumber}.pdf`,
-            content: pdfBuffer,
-            contentType: "application/pdf",
-          },
-        ],
+        html:    buildEmailHTML(inspectionNumber, inspection.companyName ?? "", requestedBy),
+        attachments: [{
+          filename:    `Bao_cao_kiem_tra_${inspectionNumber}.pdf`,
+          content:     pdfBuffer,
+          contentType: "application/pdf",
+        }],
       });
 
       console.log(`[${taskId}] Email sent to: ${recipientEmails.join(", ")}`);
-      await taskRef.update({
-        status: "sent",
-        sentAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      await taskRef.update({ status: "sent", sentAt: admin.firestore.FieldValue.serverTimestamp() });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[${taskId}] Failed: ${message}`);
-      await taskRef.update({ status: "failed", errorMessage: message });
+      try { await taskRef.update({ status: "failed", errorMessage: message }); } catch {}
     }
   }
 );
 
-// ---------------------------------------------------------------------------
-// Image download helper
-// ---------------------------------------------------------------------------
-
-/** Resize + compress to JPEG 70% max 800px — keeps PDF well under Gmail 25 MB limit. */
+// ── Image helpers ──────────────────────────────────────────────────────────────
 async function compressImageBuffer(buf: Buffer): Promise<Buffer> {
   try {
     return await sharp(buf)
       .resize(800, 600, { fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 70 })
       .toBuffer();
-  } catch {
-    return buf;
-  }
+  } catch { return buf; }
 }
 
 function downloadImageBuffer(url: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const mod = url.startsWith("https") ? https : http;
-    const req = (mod as typeof https).get(url, (res) => {
+    const req = https.get(url, (res) => {
       if (res.statusCode !== 200) {
-        reject(new Error(`Image fetch ${res.statusCode}: ${url}`));
-        return;
+        reject(new Error(`Image fetch ${res.statusCode}: ${url}`)); return;
       }
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));
-      res.on("end", () => resolve(Buffer.concat(chunks)));
+      res.on("end",  () => resolve(Buffer.concat(chunks)));
       res.on("error", reject);
     });
     req.on("error", reject);
@@ -155,268 +167,372 @@ function downloadImageBuffer(url: string): Promise<Buffer> {
   });
 }
 
-/** Pre-fetch all imageURLs from inspection sections into a url→buffer map. */
+/** Pre-fetch all field images; process in batches of 5 to avoid memory spikes. */
 async function prefetchImages(
   inspection: FirebaseFirestore.DocumentData
 ): Promise<Map<string, Buffer>> {
-  const map = new Map<string, Buffer>();
-  const sections: InspectionSection[] = Array.isArray(inspection.sections)
-    ? inspection.sections : [];
+  const map      = new Map<string, Buffer>();
+  const sections = Array.isArray(inspection.sections)
+    ? inspection.sections as InspectionSection[] : [];
 
-  const tasks: Promise<void>[] = [];
+  const urls: string[] = [];
   for (const section of sections) {
     for (const field of (section.fields ?? [])) {
-      const urls: string[] = Array.isArray((field as any).imageURLs)
-        ? (field as any).imageURLs : [];
-      for (const url of urls) {
-        if (url && !map.has(url)) {
-          tasks.push(
-            downloadImageBuffer(url)
-              .then((buf) => compressImageBuffer(buf))
-              .then((buf) => { map.set(url, buf); })
-              .catch((e) => { console.warn(`Skip image ${url}: ${e.message}`); })
-          );
-        }
+      for (const url of (field.imageURLs ?? [])) {
+        if (url && !map.has(url)) urls.push(url);
       }
     }
   }
-  await Promise.all(tasks);
+
+  for (let i = 0; i < urls.length; i += 5) {
+    await Promise.all(
+      urls.slice(i, i + 5).map((url) =>
+        downloadImageBuffer(url)
+          .then(compressImageBuffer)
+          .then((buf) => { map.set(url, buf); })
+          .catch((e: Error) => { console.warn(`Skip image ${url}: ${e.message}`); })
+      )
+    );
+  }
   return map;
 }
 
-// ---------------------------------------------------------------------------
-// PDF Generation — layout mirrors iOS PDFKitGeneratorService
-// ---------------------------------------------------------------------------
+// ── PDF drawing helpers ────────────────────────────────────────────────────────
 
+function statusColor(s: string): string {
+  return s === "accepted" ? C_GREEN : s === "rejected" ? C_CRITICAL : C_MAJOR;
+}
+
+function statusLabel(s: string): string {
+  return s === "accepted" ? "ACCEPTED" : s === "rejected" ? "REJECTED" : "PENDING";
+}
+
+/** Bordered cell with vertically-centred text. */
+function drawCell(
+  doc: PdfDoc, text: string,
+  x: number, y: number, w: number, h: number,
+  opts: { bg?: string; fg?: string; font?: string; size?: number; align?: "left" | "center" | "right" }
+) {
+  const { bg = C_WHITE, fg = C_DARK, font = "R", size = 10, align = "left" } = opts;
+  const pad = 5;
+  doc.lineWidth(0.5).rect(x, y, w, h).fillAndStroke(bg, C_BORDER);
+  if (text) {
+    const textY = y + Math.max(3, (h - size * 1.2) / 2);
+    doc.font(font).fontSize(size).fillColor(fg)
+      .text(text, x + pad, textY, { width: w - pad * 2, lineBreak: false, align });
+  }
+}
+
+function drawHLine(doc: PdfDoc, y: number, color = "#cccccc", lw = 0.75) {
+  doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y).lineWidth(lw).strokeColor(color).stroke();
+}
+
+/** Per-page footer: thin separator + left credit + right "Order:… page: N". */
+function drawFooter(
+  doc: PdfDoc, orderInfo: string, dateStr: string, pageNum: number, fonts: Fonts
+) {
+  drawHLine(doc, FOOTER_Y - 5, "#d0d0d0", 0.5);
+  doc.font(fonts.R).fontSize(8).fillColor(C_FOOTER)
+    .text("Report created with report_lms.", MARGIN, FOOTER_Y,
+      { width: CW / 2, lineBreak: false });
+  doc.font(fonts.R).fontSize(8).fillColor(C_FOOTER)
+    .text(`${orderInfo}   ${dateStr}, page: ${pageNum}`,
+      MARGIN + CW / 2, FOOTER_Y,
+      { width: CW / 2, lineBreak: false, align: "right" });
+}
+
+/**
+ * 4-column info table.
+ * rows: [leftLabel, leftValue, rightLabel | null, rightValue | null]
+ * When right columns are null, leftValue spans the remaining width.
+ */
+function drawInfoTable(
+  doc: PdfDoc,
+  rows: Array<[string, string, string | null, string | null]>,
+  startY: number, fonts: Fonts
+): number {
+  const lw = CW * 0.22;
+  const vw = CW * 0.28;
+  let y = startY;
+
+  for (const [ll, lv, rl, rv] of rows) {
+    if (rl !== null && rv !== null) {
+      drawCell(doc, ll, MARGIN,                y, lw, INFO_ROW_H, { bg: C_LABEL_BG, fg: C_GRAY, font: fonts.R });
+      drawCell(doc, lv, MARGIN + lw,           y, vw, INFO_ROW_H, { bg: C_WHITE, fg: C_DARK, font: fonts.B });
+      drawCell(doc, rl, MARGIN + lw + vw,      y, lw, INFO_ROW_H, { bg: C_LABEL_BG, fg: C_GRAY, font: fonts.R });
+      drawCell(doc, rv, MARGIN + lw + vw + lw, y, vw, INFO_ROW_H, { bg: C_WHITE, fg: C_DARK, font: fonts.B });
+    } else {
+      drawCell(doc, ll, MARGIN,      y, lw,      INFO_ROW_H, { bg: C_LABEL_BG, fg: C_GRAY, font: fonts.R });
+      drawCell(doc, lv, MARGIN + lw, y, CW - lw, INFO_ROW_H, { bg: C_WHITE, fg: C_DARK, font: fonts.B });
+    }
+    y += INFO_ROW_H;
+  }
+  return y;
+}
+
+/** "Inspector Conclusion" label + coloured badge + optional notes. */
+function drawConclusionRow(
+  doc: PdfDoc, finalStatus: string, summaryComments: string,
+  y: number, fonts: Fonts
+): number {
+  doc.font(fonts.R).fontSize(10).fillColor(C_GRAY)
+    .text("Inspector Conclusion", MARGIN, y + 6, { lineBreak: false });
+
+  const label  = statusLabel(finalStatus);
+  const color  = statusColor(finalStatus);
+  const badgeX = MARGIN + 140;
+  doc.font(fonts.B).fontSize(9);
+  const textW  = doc.widthOfString(label);
+  const hPad = 8, vPad = 3;
+  const bW = textW + hPad * 2;
+  const bH = 9 * 1.2 + vPad * 2;
+
+  doc.roundedRect(badgeX, y + 4, bW, bH, 2).fillColor(color).fill();
+  doc.font(fonts.B).fontSize(9).fillColor(C_WHITE)
+    .text(label, badgeX + hPad, y + 4 + vPad, { lineBreak: false });
+
+  if (summaryComments) {
+    const notesX = badgeX + bW + 10;
+    doc.font(fonts.R).fontSize(9).fillColor(C_GRAY)
+      .text(summaryComments, notesX, y + 6,
+        { width: MARGIN + CW - notesX, lineBreak: false });
+  }
+  return y + INFO_ROW_H;
+}
+
+/** Full-width coloured status banner. */
+function drawStatusBanner(
+  doc: PdfDoc, finalStatus: string, y: number, fonts: Fonts
+): number {
+  const h = 26;
+  doc.rect(MARGIN, y, CW, h).fillColor(statusColor(finalStatus)).fill();
+  doc.font(fonts.R).fontSize(10).fillColor(C_WHITE)
+    .text("Status:", MARGIN + 10, y + 7, { lineBreak: false });
+  doc.font(fonts.B).fontSize(10).fillColor(C_WHITE)
+    .text(statusLabel(finalStatus), MARGIN + 64, y + 7, { lineBreak: false });
+  return y + h;
+}
+
+/** Checklist summary: section name | ✓ or — */
+function drawChecklistTable(
+  doc: PdfDoc, sections: InspectionSection[],
+  imageMap: Map<string, Buffer>,
+  startY: number, fonts: Fonts
+): number {
+  const nameW   = CW * 0.82;
+  const statusW = CW - nameW;
+  let y = startY;
+
+  drawCell(doc, "Checklist Section", MARGIN,          y, nameW,   TABLE_ROW_H,
+    { bg: C_HDR_BG, fg: C_DARK, font: fonts.B });
+  drawCell(doc, "Status",            MARGIN + nameW,  y, statusW, TABLE_ROW_H,
+    { bg: C_HDR_BG, fg: C_DARK, font: fonts.B, align: "center" });
+  y += TABLE_ROW_H;
+
+  const sorted = [...sections].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  sorted.forEach((sec, i) => {
+    const hasPhotos = (sec.fields ?? []).some((f) =>
+      (f.imageURLs ?? []).some((u) => imageMap.has(u))
+    );
+    const rowBg = i % 2 === 0 ? C_WHITE : "#fafafa";
+    drawCell(doc, `${i + 1}   ${sec.title}`, MARGIN,         y, nameW,   TABLE_ROW_H,
+      { bg: rowBg, fg: C_DARK, font: fonts.R });
+    drawCell(doc, hasPhotos ? "✓" : "—",      MARGIN + nameW, y, statusW, TABLE_ROW_H,
+      { bg: rowBg, fg: hasPhotos ? C_GREEN : C_FOOTER, font: fonts.B, align: "center" });
+    y += TABLE_ROW_H;
+  });
+  return y;
+}
+
+/** Defect count table: header row (CRITICAL / MAJOR / MINOR) + TOTAL row. */
+function drawDefectTable(
+  doc: PdfDoc, critical: number, major: number, minor: number,
+  startY: number, fonts: Fonts
+): number {
+  const descW = CW * 0.52;
+  const colW  = (CW - descW) / 3;
+  let y = startY;
+
+  drawCell(doc, "",         MARGIN,                     y, descW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_DARK,     font: fonts.B });
+  drawCell(doc, "CRITICAL", MARGIN + descW,             y, colW,  TABLE_ROW_H, { bg: C_HDR_BG, fg: C_CRITICAL, font: fonts.B, align: "center" });
+  drawCell(doc, "MAJOR",    MARGIN + descW + colW,      y, colW,  TABLE_ROW_H, { bg: C_HDR_BG, fg: C_MAJOR,    font: fonts.B, align: "center" });
+  drawCell(doc, "MINOR",    MARGIN + descW + colW * 2,  y, colW,  TABLE_ROW_H, { bg: C_HDR_BG, fg: C_MINOR,    font: fonts.B, align: "center" });
+  y += TABLE_ROW_H;
+
+  drawCell(doc, "TOTAL",          MARGIN,                    y, descW, TABLE_ROW_H, { bg: C_WHITE, fg: C_DARK,                             font: fonts.B });
+  drawCell(doc, String(critical), MARGIN + descW,            y, colW,  TABLE_ROW_H, { bg: C_WHITE, fg: critical > 0 ? C_CRITICAL : C_DARK, font: fonts.B, align: "center" });
+  drawCell(doc, String(major),    MARGIN + descW + colW,     y, colW,  TABLE_ROW_H, { bg: C_WHITE, fg: major    > 0 ? C_MAJOR    : C_DARK, font: fonts.B, align: "center" });
+  drawCell(doc, String(minor),    MARGIN + descW + colW * 2, y, colW,  TABLE_ROW_H, { bg: C_WHITE, fg: minor    > 0 ? C_MINOR    : C_DARK, font: fonts.B, align: "center" });
+  y += TABLE_ROW_H;
+  return y;
+}
+
+/** Section heading: bold 14pt title + 1.5pt blue underline. */
+function drawSectionHeader(doc: PdfDoc, title: string, y: number, fonts: Fonts): number {
+  doc.font(fonts.B).fontSize(14).fillColor(C_DARK)
+    .text(title, MARGIN, y, { width: CW, lineBreak: false });
+  const lineY = y + 14 * 1.2 + 3;
+  doc.moveTo(MARGIN, lineY).lineTo(MARGIN + CW, lineY)
+    .lineWidth(1.5).strokeColor(C_BLUE).stroke();
+  return lineY + 6;
+}
+
+// ── Main PDF generation ────────────────────────────────────────────────────────
 async function generatePDF(
   inspection: FirebaseFirestore.DocumentData,
   inspectionNumber: string,
   location: string,
-  requestedBy: string
+  requestedBy: string,
+  finalStatus: string,
+  summaryComments: string
 ): Promise<Buffer> {
-  // Pre-download all field images before opening the PDF stream
   const imageMap = await prefetchImages(inspection);
 
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    const doc = new PDFDocument({ margin: MARGIN, size: "A4" });
+    const doc = new PDFDocument({ margins: { top: 0, bottom: 0, left: 0, right: 0 }, size: "A4", autoFirstPage: false });
 
-    // Register NotoSans for Vietnamese — fall back to Helvetica if fonts missing
     const hasNoto = fs.existsSync(FONT_REGULAR) && fs.existsSync(FONT_BOLD);
-    if (hasNoto) {
-      doc.registerFont("R", FONT_REGULAR);
-      doc.registerFont("B", FONT_BOLD);
-    }
-    const R = hasNoto ? "R" : "Helvetica";
-    const B = hasNoto ? "B" : "Helvetica-Bold";
+    if (hasNoto) { doc.registerFont("R", FONT_REGULAR); doc.registerFont("B", FONT_BOLD); }
+    const fonts: Fonts = {
+      R: hasNoto ? "R" : "Helvetica",
+      B: hasNoto ? "B" : "Helvetica-Bold",
+    };
 
-    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("data", (c: Buffer) => chunks.push(c));
+    doc.on("end",  () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const X = MARGIN;
-    const W = PAGE_W;
-    let y = MARGIN;
-
-    // ── 1. Header field rows — mirrors iOS drawHeaderFields ─────────────────
     const now = new Date();
-    const fmt = (d: Date) =>
-      `${d.getDate().toString().padStart(2, "0")}/` +
-      `${(d.getMonth() + 1).toString().padStart(2, "0")}/` +
-      `${d.getFullYear()}`;
-    const todayStr = fmt(now);
+    const fmtDate = (d: Date) =>
+      `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}/${d.getFullYear()}`;
+    const dateStr     = fmtDate(now);
+    const dateTimeStr = `${dateStr} ${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+    const orderInfo   = `Order: ${inspectionNumber}, Item: ${inspection.productName ?? ""}`;
+    let pageNum = 0;
 
-    const headerRows: [string, string, string, string][] = [
-      ["Người kiểm tra:", requestedBy || "N/A",
-       "Ngày kiểm tra:",  todayStr],
-      ["Số lượng mẫu:",   String(inspection.inspectedQuantity ?? 0),
-       "Số lượng đơn hàng:", String(inspection.orderQuantity ?? 0)],
-      ["Vị trí:",         location || "N/A",
-       "Tên biểu mẫu:",   inspection.inspectionType ?? "Final CheckList"],
-      ["Ngày dự kiến:",   todayStr,
-       "Phương pháp lấy mẫu:", "100% inspection"],
-    ];
+    function newPage(): number {
+      doc.addPage();
+      pageNum++;
+      drawFooter(doc, orderInfo, dateStr, pageNum, fonts);
+      return MARGIN;
+    }
 
-    const HALF = W / 2;
-    const LABEL_W = HALF * 0.48;
-    const VAL_W   = HALF * 0.50;
-    const ROW_H_HDR = 20;
+    // ── Page 1: Cover ─────────────────────────────────────────────────────────
+    let y = newPage();
 
-    headerRows.forEach(([lLbl, lVal, rLbl, rVal]) => {
-      const ty = y + 2;
-      doc.fillColor(C_GRAY).font(R).fontSize(10)
-        .text(lLbl, X, ty, { width: LABEL_W, lineBreak: false });
-      doc.fillColor(C_DARK).font(B).fontSize(10)
-        .text(lVal, X + LABEL_W + 2, ty, { width: VAL_W, lineBreak: false });
-      // dashes
-      doc.fillColor("#cccccc").font(R).fontSize(10)
-        .text("---------", X + LABEL_W + VAL_W + 4, ty, { lineBreak: false });
-      // right side
-      doc.fillColor(C_GRAY).font(R).fontSize(10)
-        .text(rLbl, X + HALF + 20, ty, { width: LABEL_W, lineBreak: false });
-      doc.fillColor(C_DARK).font(B).fontSize(10)
-        .text(rVal, X + HALF + 20 + LABEL_W + 2, ty, { width: VAL_W, lineBreak: false });
-      y += ROW_H_HDR;
-    });
+    // Small grey title
+    doc.font(fonts.R).fontSize(11).fillColor(C_GRAY)
+      .text(`Inspection report, Final: ${inspectionNumber}`, MARGIN, y, { lineBreak: false });
+    y += Math.ceil(11 * 1.2) + 4;
 
-    // Factory name — full width row
-    const factoryLabel = "Tên nhà máy:";
-    const factoryValue = inspection.factory ?? inspection.factoryName ?? "N/A";
-    doc.fillColor(C_GRAY).font(R).fontSize(10)
-      .text(factoryLabel, X, y + 2, { width: LABEL_W, lineBreak: false });
-    doc.fillColor(C_DARK).font(B).fontSize(10)
-      .text(factoryValue, X + LABEL_W + 2, y + 2, { width: W - LABEL_W - 2, lineBreak: false });
-    y += ROW_H_HDR;
+    // Bold subtitle: order number + product name
+    doc.font(fonts.B).fontSize(20).fillColor(C_DARK)
+      .text(`${inspectionNumber}: ${inspection.productName ?? ""}`, MARGIN, y,
+        { width: CW, lineBreak: false });
+    y += Math.ceil(20 * 1.2) + 8;
 
-    // Gray separator line
-    y += 6;
-    doc.moveTo(X, y).lineTo(X + W, y).lineWidth(1).strokeColor("#cccccc").stroke();
-    y += 14;
+    // Separator
+    drawHLine(doc, y);
+    y += 10;
 
-    // ── 2. Report title ──────────────────────────────────────────────────────
-    doc.fillColor(C_DARK).font(B).fontSize(22)
-      .text(`Báo cáo kiểm tra #${inspectionNumber}`, X, y, {
-        width: W,
-        lineBreak: false,
-      });
-    y += 32;
+    // Info table
+    y = drawInfoTable(doc, [
+      ["Inspector",            requestedBy || "N/A",  "Inspection Date",  dateTimeStr],
+      ["Planned Sample/Insp.", `${inspection.aqlInspectionQuantity ?? 0}/${inspection.inspectedQuantity ?? 0}`,
+                                                       "Order Qty",         String(inspection.orderQuantity ?? 0)],
+      ["Location",             location || "N/A",     "Checklist Name",   "Final CheckList"],
+      ["Planned Date",         dateStr,               "Sampling Method",  "100% inspection"],
+      ["Supplier Name",        inspection.factory ?? inspection.factoryName ?? "N/A", null, null],
+    ], y, fonts);
+    y += 8;
 
-    // Date subtitle
-    const dateTimeStr = `${now.getDate().toString().padStart(2, "0")}/` +
-      `${(now.getMonth() + 1).toString().padStart(2, "0")}/` +
-      `${now.getFullYear()} ` +
-      `${now.getHours().toString().padStart(2, "0")}:` +
-      `${now.getMinutes().toString().padStart(2, "0")}`;
-    doc.fillColor(C_GRAY).font(R).fontSize(10)
-      .text(`Ngày tạo: ${dateTimeStr}`, X, y, { lineBreak: false });
-    y += 22;
+    // Inspector conclusion row (badge + optional notes)
+    y = drawConclusionRow(doc, finalStatus, summaryComments, y, fonts);
+    y += 2;
 
-    // ── 3. Defect summary table ──────────────────────────────────────────────
-    doc.fillColor(C_DARK).font(B).fontSize(12)
-      .text("Tóm tắt lỗi", X, y, { lineBreak: false });
-    y += 20;
+    // Full-width status banner
+    y = drawStatusBanner(doc, finalStatus, y, fonts);
+    y += 16;
 
-    const CW = W / 4;
-    const defectHeaders = ["", "CRITICAL", "MAJOR", "MINOR"];
-    const defectHColors = [C_DARK, C_CRITICAL, C_MAJOR, C_MINOR];
+    // SUMMARY heading
+    doc.font(fonts.B).fontSize(14).fillColor(C_DARK)
+      .text("SUMMARY", MARGIN, y, { lineBreak: false });
+    y += Math.ceil(14 * 1.2) + 8;
 
-    defectHeaders.forEach((h, i) => {
-      doc.rect(X + i * CW, y, CW, 24).fillAndStroke("#f5f5f5", "#e0e0e0");
-      doc.fillColor(defectHColors[i]).font(B).fontSize(9)
-        .text(h, X + i * CW + 4, y + 7,
-          { width: CW - 8, align: "center", lineBreak: false });
-    });
-    y += 24;
-
-    const critical = inspection.criticalCount ?? 0;
-    const major    = inspection.majorCount ?? 0;
-    const minor    = inspection.minorCount ?? 0;
-    const defectVals    = ["TOTAL", String(critical), String(major), String(minor)];
-    const defectVColors = [C_DARK, C_CRITICAL, C_MAJOR, C_MINOR];
-
-    defectVals.forEach((v, i) => {
-      doc.rect(X + i * CW, y, CW, 28).fillAndStroke(C_WHITE, "#e0e0e0");
-      doc.fillColor(defectVColors[i]).font(i === 0 ? B : R).fontSize(11)
-        .text(v, X + i * CW + 4, y + 8,
-          { width: CW - 8, align: "center", lineBreak: false });
-    });
-    y += 42;
-
-    // ── 4. Inspection sections ───────────────────────────────────────────────
-    const IMG_GAP  = 12;
-    const IMG_W    = (W - IMG_GAP) / 2;
-    const IMG_H    = IMG_W * 0.75; // 4:3
-
+    // Checklist table + defect table
     const sections: InspectionSection[] = Array.isArray(inspection.sections)
-      ? inspection.sections : [];
+      ? inspection.sections as InspectionSection[] : [];
+    y = drawChecklistTable(doc, sections, imageMap, y, fonts);
+    y += 12;
+    y = drawDefectTable(doc, 0, 0, 0, y, fonts);  // counts are not stored server-side
 
-    sections
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .forEach((section) => {
-        if (y > doc.page.height - 120) { doc.addPage(); y = MARGIN; }
+    // ── Pages 2+: Sections ────────────────────────────────────────────────────
+    const sorted = [...sections].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-        // Section title + blue underline
-        doc.fillColor(C_DARK).font(B).fontSize(14)
-          .text(section.title ?? "", X, y, { width: W, lineBreak: false });
-        y += 20;
-        doc.moveTo(X, y).lineTo(X + W, y).lineWidth(2).strokeColor(C_BLUE).stroke();
-        y += 10;
-
-        const fields: InspectionField[] = Array.isArray(section.fields)
-          ? section.fields : [];
-
-        fields.forEach((field) => {
-          const urls: string[] = Array.isArray((field as any).imageURLs)
-            ? (field as any).imageURLs : [];
-          const hasImages = urls.length > 0 && urls.some((u) => imageMap.has(u));
-
-          if (!hasImages) return; // skip fields without captured images
-
-          if (y > doc.page.height - IMG_H - 60) { doc.addPage(); y = MARGIN; }
-
-          // Field label
-          doc.fillColor(C_MID).font(R).fontSize(12)
-            .text(field.label ?? "", X, y, { width: W, lineBreak: false });
-          y += 18;
-
-          // Images — 2 per row
-          let col = 0;
-          let rowStartY = y;
-          for (const url of urls) {
-            const imgBuf = imageMap.get(url);
-            if (!imgBuf) continue;
-
-            if (y + IMG_H > doc.page.height - MARGIN) {
-              doc.addPage(); y = MARGIN; rowStartY = y; col = 0;
-            }
-
-            const imgX = X + col * (IMG_W + IMG_GAP);
-            try {
-              doc.image(imgBuf, imgX, y, { width: IMG_W, height: IMG_H });
-              // Light border
-              doc.rect(imgX, y, IMG_W, IMG_H).lineWidth(0.5).strokeColor("#cccccc").stroke();
-            } catch (e) {
-              console.warn(`Embed image failed: ${e}`);
-            }
-
-            col++;
-            if (col >= 2) {
-              col = 0;
-              y += IMG_H + IMG_GAP;
-              rowStartY = y;
-            }
-          }
-          if (col > 0) { y = rowStartY + IMG_H + IMG_GAP; }
-          y += 8;
-        });
-
-        y += 14;
-      });
-
-    // ── 5. Footer ─────────────────────────────────────────────────────────────
-    doc.fillColor(C_FOOTER).font(R).fontSize(8.5)
-      .text(
-        "Báo cáo được tạo bởi report_lms  •  © 2026",
-        X,
-        doc.page.height - 34,
-        { width: W, align: "center", lineBreak: false }
+    sorted.forEach((section, si) => {
+      const fields: InspectionField[] = Array.isArray(section.fields) ? section.fields : [];
+      const sectionHasImages = fields.some((f) =>
+        (Array.isArray(f.imageURLs) ? f.imageURLs : []).some((u) => imageMap.has(u))
       );
+
+      // Force new page only when the section has photos (lots of content) or
+      // when there is not enough room left for at least the section header + one field row.
+      if (sectionHasImages || y + 60 > CONTENT_MAX_Y) {
+        y = newPage();
+      } else {
+        y += si === 0 ? 24 : 20; // vertical gap between sections
+      }
+
+      y = drawSectionHeader(doc, `${si + 1}   ${section.title ?? ""}`, y, fonts);
+      y += 6;
+
+      fields.forEach((field, fi) => {
+        const urls    = Array.isArray(field.imageURLs) ? field.imageURLs : [];
+        const bufs    = urls.map((u) => imageMap.get(u)).filter(Boolean) as Buffer[];
+        const neededH = bufs.length === 0 ? 30 : IMG_H + 40;
+
+        if (y + neededH > CONTENT_MAX_Y) { y = newPage(); }
+
+        // Field heading
+        doc.font(fonts.R).fontSize(11).fillColor(C_MID)
+          .text(`${si + 1}.${fi + 1}   ${field.label ?? ""}`, MARGIN, y,
+            { width: CW, lineBreak: false });
+        y += Math.ceil(11 * 1.2) + 4;
+
+        // 4-column photo grid
+        if (bufs.length > 0) {
+          let col = 0;
+          for (const buf of bufs) {
+            if (col === 0 && y + IMG_H > CONTENT_MAX_Y) { y = newPage(); }
+            const imgX = MARGIN + col * (IMG_W + IMG_GAP);
+            try {
+              doc.image(buf, imgX, y, { width: IMG_W, height: IMG_H });
+              doc.lineWidth(0.5).rect(imgX, y, IMG_W, IMG_H).strokeColor(C_BORDER).stroke();
+            } catch (e) { console.warn(`Embed image failed: ${e}`); }
+            col++;
+            if (col >= IMGS_PER_ROW) { col = 0; y += IMG_H + IMG_GAP; }
+          }
+          if (col > 0) { y += IMG_H + IMG_GAP; }
+        }
+        y += 10;
+      });
+      y += 22;
+    });
 
     doc.end();
   });
 }
 
-// ---------------------------------------------------------------------------
-// Email HTML body
-// ---------------------------------------------------------------------------
+// ── Email HTML ─────────────────────────────────────────────────────────────────
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 function buildEmailHTML(
-  inspectionNumber: string,
-  companyName: string,
-  requestedBy: string
+  inspectionNumber: string, companyName: string, requestedBy: string
 ): string {
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
 <style>
@@ -429,13 +545,13 @@ function buildEmailHTML(
 </head>
 <body>
   <div class="card">
-    <div class="header"><h2 style="margin:0">Báo cáo kiểm tra #${inspectionNumber}</h2></div>
+    <div class="header"><h2 style="margin:0">Báo cáo kiểm tra #${esc(inspectionNumber)}</h2></div>
     <p>Kính gửi,</p>
-    <p>Đính kèm là báo cáo kiểm tra <strong>#${inspectionNumber}</strong> cho <strong>${companyName}</strong>.</p>
+    <p>Đính kèm là báo cáo kiểm tra <strong>#${esc(inspectionNumber)}</strong> cho <strong>${esc(companyName)}</strong>.</p>
     <p>Vui lòng xem file PDF đính kèm để biết chi tiết.</p>
-    <p>Trân trọng,<br/><strong>${requestedBy}</strong></p>
+    <p>Trân trọng,<br/><strong>${esc(requestedBy)}</strong></p>
     <div class="footer">Gửi tự động bởi LMS Report App</div>
   </div>
 </body>
-</html>`.trim();
+</html>`;
 }

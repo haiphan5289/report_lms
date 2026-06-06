@@ -156,6 +156,8 @@ final class FinalReportViewModel: ObservableObject {
                 .with(inspection: detail)
                 .with(images: capturedPhotos)
                 .with(location: location)
+                .with(finalStatus: selectedStatus)
+                .with(summaryComments: summaryComments)
                 .build()
             pdfGenerationProgress = 0.30
 
@@ -220,6 +222,8 @@ final class FinalReportViewModel: ObservableObject {
                 .with(inspection: detail)
                 .with(images: capturedPhotos)
                 .with(location: location)
+                .with(finalStatus: selectedStatus)
+                .with(summaryComments: summaryComments)
                 .build()
             
             // Execute with request object
@@ -272,7 +276,9 @@ final class FinalReportViewModel: ObservableObject {
             let taskId = try await queueDeliveryUseCase.execute(
                 inspection: inspection,
                 recipients: allRecipients,
-                location: location
+                location: location,
+                finalStatus: selectedStatus,
+                summaryComments: summaryComments
             )
             logger.log("Report queued: \(taskId)")
             showEmailQueuedAlert = true

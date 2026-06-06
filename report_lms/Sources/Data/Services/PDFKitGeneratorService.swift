@@ -2,586 +2,576 @@
 //  PDFKitGeneratorService.swift
 //  report_lms
 //
-//  Created by GitHub Copilot on 3/4/26.
+//  Qarma-style layout: cover page (title, info table, status banner, summary),
+//  then one section per page with 4-column photo grid and per-page footer.
 //
 
 import Foundation
 import UIKit
 import OSLog
 
-/// Native iOS PDF generation using UIGraphicsPDFRenderer (Solution 3)
-/// Provides highest quality, best performance, and unlimited image capacity
 final class PDFKitGeneratorService: PDFGeneratorType {
-    // MARK: - Properties
     private let logger = Logger(subsystem: "com.reportlms.pdf", category: "pdfkit")
-    
-    // MARK: - Layout Constants
+
+    // MARK: - Layout
+
     private enum Layout {
-        static let pageWidth: CGFloat = 595.2 // A4 width in points (210mm)
-        static let pageHeight: CGFloat = 841.8 // A4 height in points (297mm)
-        static let margin: CGFloat = 40
-        static let contentWidth: CGFloat = pageWidth - (2 * margin)
-        
-        // Typography
-        static let titleFontSize: CGFloat = 24
-        static let headingFontSize: CGFloat = 18
-        static let subheadingFontSize: CGFloat = 14
-        static let bodyFontSize: CGFloat = 12
-        static let captionFontSize: CGFloat = 10
-        
-        // Spacing
-        static let sectionSpacing: CGFloat = 24
-        static let fieldSpacing: CGFloat = 16
-        static let imageSpacing: CGFloat = 12
-        
-        // Images
-        static let imagesPerRow: Int = 2
-        static let imageWidth: CGFloat = (contentWidth - imageSpacing) / 2
-        static let imageHeight: CGFloat = imageWidth * 0.75 // 4:3 aspect ratio
-        
-        // Table
-        static let tableRowHeight: CGFloat = 32
-        static let tableBorderWidth: CGFloat = 1
+        static let pageWidth:    CGFloat = 595.2
+        static let pageHeight:   CGFloat = 841.8
+        static let margin:       CGFloat = 40
+        static let contentWidth: CGFloat = pageWidth - 2 * margin
+
+        // Footer sits at a fixed Y so content never overlaps it
+        static let footerY:      CGFloat = pageHeight - 28
+        static let contentMaxY:  CGFloat = pageHeight - 46   // stop drawing before footer
+
+        // 4-column photo grid
+        static let imagesPerRow: Int     = 4
+        static let imageGap:     CGFloat = 8
+        static let imageWidth:   CGFloat = (contentWidth - imageGap * CGFloat(imagesPerRow - 1)) / CGFloat(imagesPerRow)
+        static let imageHeight:  CGFloat = imageWidth * 0.75   // 4:3
+
+        // Table rows
+        static let infoRowH:     CGFloat = 26
+        static let tableRowH:    CGFloat = 24
+        static let sectionSpacing: CGFloat = 22
+        static let fieldSpacing:   CGFloat = 10
     }
-    
-    // MARK: - Public Methods
+
+    // MARK: - PDFGeneratorType
+
     func generatePDF(
         detail: Inspection,
         images: [String: [InspectionImage]],
         inspectorName: String,
         location: String,
-        defectCounts: (critical: Int, major: Int, minor: Int)
+        defectCounts: (critical: Int, major: Int, minor: Int),
+        finalStatus: FinalReportStatus,
+        summaryComments: String
     ) async throws -> Data {
-        logger.log("Starting PDFKit native generation for inspection #\(detail.inspectionNumber)")
-        
-        let format = UIGraphicsPDFRendererFormat()
+        logger.log("Qarma PDF start: #\(detail.inspectionNumber)")
+
+        let pageRect = CGRect(x: 0, y: 0, width: Layout.pageWidth, height: Layout.pageHeight)
+        let format   = UIGraphicsPDFRendererFormat()
         format.documentInfo = [
             kCGPDFContextCreator as String: "report_lms",
-            kCGPDFContextTitle as String: "Inspection Report \(detail.inspectionNumber)",
-            kCGPDFContextAuthor as String: "LMS Inspection System"
+            kCGPDFContextTitle   as String: "Inspection Report \(detail.inspectionNumber)"
         ]
-        
-        let pageRect = CGRect(x: 0, y: 0, width: Layout.pageWidth, height: Layout.pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: format)
-        
-        let data = renderer.pdfData { context in
-            var yPosition: CGFloat = Layout.margin
-            
-            context.beginPage()
-            
-            // Header fields (new feature)
-            yPosition = drawHeaderFields(
+
+        let df = DateFormatter()
+        df.dateFormat = "MMM dd, yyyy"
+        let dateStr   = df.string(from: detail.createdAt)
+        let orderInfo = "Order: \(detail.inspectionNumber), Item: \(detail.productName)"
+        var pageNum   = 0
+
+        let data = renderer.pdfData { ctx in
+
+            // ── PAGE 1: Cover ──────────────────────────────────────────
+            ctx.beginPage()
+            pageNum += 1
+            drawFooter(orderInfo: orderInfo, dateStr: dateStr, pageNum: pageNum)
+
+            var y = Layout.margin
+            y = drawCoverPage(
+                detail: detail,
+                images: images,
                 inspectorName: inspectorName,
-                inspectionDate: Date(),
-                sampleQuantity: "1",
-                orderQuantity: "\(detail.orderQuantity)",
                 location: location,
-                formName: "Final CheckList",
-                expectedDate: Date(),
-                samplingMethod: "100% inspection",
-                factoryName: detail.factoryName,
-                at: yPosition
+                defectCounts: defectCounts,
+                finalStatus: finalStatus,
+                summaryComments: summaryComments,
+                at: y
             )
-            yPosition += Layout.sectionSpacing
-            
-            // Page 1: Title and Summary
-            yPosition = drawTitle(detail.inspectionNumber, at: yPosition)
-            yPosition = drawDate(at: yPosition)
-            yPosition += Layout.sectionSpacing
-            
-            yPosition = drawSummarySection(defectCounts: defectCounts, at: yPosition)
-            yPosition += Layout.sectionSpacing
-            
-            // Sections with images
-            for section in detail.sections.sorted(by: { $0.order < $1.order }) {
-                // Check if need new page for section header
-                if yPosition > Layout.pageHeight - 150 {
-                    context.beginPage()
-                    yPosition = Layout.margin
-                }
-                
-                yPosition = drawSectionHeader(section.title, at: yPosition)
-                yPosition += Layout.fieldSpacing
-                
-                // Draw fields
-                for field in section.fields {
-                    if let fieldImages = images[field.id], !fieldImages.isEmpty {
-                        // Check if need new page for field
-                        if yPosition > Layout.pageHeight - 200 {
-                            context.beginPage()
-                            yPosition = Layout.margin
-                        }
-                        
-                        yPosition = drawFieldLabel(field.label, at: yPosition)
-                        yPosition = drawFieldImages(fieldImages, at: yPosition, context: context)
-                        yPosition += Layout.fieldSpacing
+
+            // ── PAGES 2+: Checkpoints ──────────────────────────────────
+            let sorted = detail.sections.sorted { $0.order < $1.order }
+            for (si, section) in sorted.enumerated() {
+                let sNum = si + 1
+
+                // Each top-level section always starts on a fresh page
+                ctx.beginPage()
+                pageNum += 1
+                drawFooter(orderInfo: orderInfo, dateStr: dateStr, pageNum: pageNum)
+                y = Layout.margin
+
+                y = drawSectionHeader("\(sNum)   \(section.title)", at: y)
+                y += 6
+
+                for (fi, field) in section.fields.enumerated() {
+                    let fNum       = fi + 1
+                    let fieldImgs  = images[field.id] ?? []
+                    let neededH: CGFloat = fieldImgs.isEmpty ? 30 : Layout.imageHeight + 40
+
+                    if y + neededH > Layout.contentMaxY {
+                        ctx.beginPage()
+                        pageNum += 1
+                        drawFooter(orderInfo: orderInfo, dateStr: dateStr, pageNum: pageNum)
+                        y = Layout.margin
                     }
+
+                    y = drawFieldHeading("\(sNum).\(fNum)   \(field.label)", at: y)
+
+                    if !fieldImgs.isEmpty {
+                        y = drawPhotoGrid(
+                            images: fieldImgs, at: y,
+                            ctx: ctx, pageNum: &pageNum,
+                            orderInfo: orderInfo, dateStr: dateStr
+                        )
+                    }
+
+                    y += Layout.fieldSpacing
                 }
-                
-                yPosition += Layout.sectionSpacing
+
+                y += Layout.sectionSpacing
             }
-            
-            // Footer on last page
-            drawFooter(at: Layout.pageHeight - Layout.margin + 10)
         }
-        
-        logger.log("PDFKit generation completed, size: \(data.count) bytes")
+
+        logger.log("Qarma PDF done: \(pageNum) pages, \(data.count) bytes")
         return data
     }
-    
-    // MARK: - Drawing Methods
-    
-    private func drawTitle(_ inspectionNumber: String, at yPosition: CGFloat) -> CGFloat {
-        let title = "Báo cáo kiểm tra #\(inspectionNumber)"
-        let font = UIFont.boldSystemFont(ofSize: Layout.titleFontSize)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.black
-        ]
-        
-        let titleSize = title.size(withAttributes: attributes)
-        let titleRect = CGRect(
-            x: Layout.margin,
-            y: yPosition,
-            width: Layout.contentWidth,
-            height: titleSize.height
-        )
-        
-        title.draw(in: titleRect, withAttributes: attributes)
-        return yPosition + titleSize.height + 8
-    }
-    
-    private func drawDate(at yPosition: CGFloat) -> CGFloat {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "dd/MM/yyyy HH:mm"
-        dateFormatter.locale = Locale(identifier: "vi_VN")
-        
-        let dateString = "Ngày tạo: \(dateFormatter.string(from: Date()))"
-        let font = UIFont.systemFont(ofSize: Layout.bodyFontSize)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.gray
-        ]
-        
-        let dateSize = dateString.size(withAttributes: attributes)
-        let dateRect = CGRect(
-            x: Layout.margin,
-            y: yPosition,
-            width: Layout.contentWidth,
-            height: dateSize.height
-        )
-        
-        dateString.draw(in: dateRect, withAttributes: attributes)
-        return yPosition + dateSize.height
-    }
-    
-    private func drawHeaderFields(
+
+    // MARK: - Cover Page
+
+    private func drawCoverPage(
+        detail: Inspection,
+        images: [String: [InspectionImage]],
         inspectorName: String,
-        inspectionDate: Date,
-        sampleQuantity: String,
-        orderQuantity: String,
         location: String,
-        formName: String,
-        expectedDate: Date,
-        samplingMethod: String,
-        factoryName: String,
-        at yPosition: CGFloat
+        defectCounts: (critical: Int, major: Int, minor: Int),
+        finalStatus: FinalReportStatus,
+        summaryComments: String,
+        at startY: CGFloat
     ) -> CGFloat {
-        var currentY = yPosition
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "dd/MM/yyyy"
-        dateFormatter.locale = Locale(identifier: "vi_VN")
-        
-        let inspectionDateFormatter = DateFormatter()
-        inspectionDateFormatter.dateFormat = "dd/MM/yyyy"
-        inspectionDateFormatter.locale = Locale(identifier: "vi_VN")
-        
-        let labelFont = UIFont.systemFont(ofSize: Layout.bodyFontSize)
-        let valueFont = UIFont.boldSystemFont(ofSize: Layout.bodyFontSize)
-        
-        // Row 1: Người kiểm tra & Ngày kiểm tra
-        currentY = drawHeaderRow(
-            leftLabel: "Người kiểm tra:",
-            leftValue: inspectorName,
-            rightLabel: "Ngày kiểm tra:",
-            rightValue: inspectionDateFormatter.string(from: inspectionDate),
-            at: currentY,
-            labelFont: labelFont,
-            valueFont: valueFont
+        var y = startY
+
+        // 1. Small grey report title
+        let smallFont  = UIFont.systemFont(ofSize: 11)
+        let greyAttrs: [NSAttributedString.Key: Any] = [.font: smallFont, .foregroundColor: UIColor(white: 0.5, alpha: 1)]
+        "Inspection report, Final: \(detail.inspectionNumber)".draw(
+            at: CGPoint(x: Layout.margin, y: y), withAttributes: greyAttrs
         )
-        
-        // Row 2: Số lượng mẫu & Số lượng đơn hàng
-        currentY = drawHeaderRow(
-            leftLabel: "Số lượng mẫu:",
-            leftValue: sampleQuantity,
-            rightLabel: "Số lượng đơn hàng:",
-            rightValue: orderQuantity,
-            at: currentY,
-            labelFont: labelFont,
-            valueFont: valueFont
+        y += smallFont.lineHeight + 4
+
+        // 2. Large bold product subtitle
+        let bigFont   = UIFont.boldSystemFont(ofSize: 20)
+        let bigAttrs: [NSAttributedString.Key: Any] = [.font: bigFont, .foregroundColor: UIColor.black]
+        let subtitle  = "\(detail.inspectionNumber): \(detail.productName)"
+        let subBounds = subtitle.boundingRect(
+            with: CGSize(width: Layout.contentWidth, height: 80),
+            options: .usesLineFragmentOrigin, attributes: bigAttrs, context: nil
         )
-        
-        // Row 3: Vị trí & Tên biểu mẫu
-        currentY = drawHeaderRow(
-            leftLabel: "Vị trí:",
-            leftValue: location.isEmpty ? "N/A" : location,
-            rightLabel: "Tên biểu mẫu:",
-            rightValue: formName,
-            at: currentY,
-            labelFont: labelFont,
-            valueFont: valueFont
+        subtitle.draw(
+            with: CGRect(x: Layout.margin, y: y, width: Layout.contentWidth, height: subBounds.height),
+            options: .usesLineFragmentOrigin, attributes: bigAttrs, context: nil
         )
-        
-        // Row 4: Ngày dự kiến & Phương pháp lấy mẫu
-        currentY = drawHeaderRow(
-            leftLabel: "Ngày dự kiến:",
-            leftValue: dateFormatter.string(from: expectedDate),
-            rightLabel: "Phương pháp lấy mẫu:",
-            rightValue: samplingMethod,
-            at: currentY,
-            labelFont: labelFont,
-            valueFont: valueFont
-        )
-        
-        // Row 5: Tên nhà máy (full width)
-        let factoryLabel = "Tên nhà máy:"
-        let factoryAttributes: [NSAttributedString.Key: Any] = [
-            .font: labelFont,
-            .foregroundColor: UIColor.black
-        ]
-        let factoryLabelSize = factoryLabel.size(withAttributes: factoryAttributes)
-        factoryLabel.draw(
-            at: CGPoint(x: Layout.margin, y: currentY),
-            withAttributes: factoryAttributes
-        )
-        
-        let factoryValueAttributes: [NSAttributedString.Key: Any] = [
-            .font: valueFont,
-            .foregroundColor: UIColor.black
-        ]
-        factoryName.draw(
-            at: CGPoint(x: Layout.margin + factoryLabelSize.width + 8, y: currentY),
-            withAttributes: factoryValueAttributes
-        )
-        
-        currentY += factoryLabelSize.height + 8
-        
-        // Draw separator line
-        let separatorY = currentY + 8
-        let separatorPath = UIBezierPath()
-        separatorPath.move(to: CGPoint(x: Layout.margin, y: separatorY))
-        separatorPath.addLine(to: CGPoint(x: Layout.margin + Layout.contentWidth, y: separatorY))
-        UIColor.lightGray.setStroke()
-        separatorPath.lineWidth = 1
-        separatorPath.stroke()
-        
-        return separatorY + 8
+        y += subBounds.height + 8
+
+        // 3. Separator
+        drawHLine(y: y)
+        y += 10
+
+        // 4. Info table
+        let df = DateFormatter()
+        df.dateFormat = "MMM dd, yyyy"
+        let dateStr = df.string(from: detail.createdAt)
+
+        y = drawInfoTable(rows: [
+            ("Inspector",             inspectorName,
+             "Inspection Date",       dateStr),
+            ("Planned Sample/Insp.",  "\(detail.aqlInspectionQuantity)/\(detail.inspectedQuantity)",
+             "Order Qty",             "\(detail.orderQuantity)"),
+            ("Location",              location.isEmpty ? "N/A" : location,
+             "Checklist Name",        "Final CheckList"),
+            ("Planned Date",          dateStr,
+             "Sampling Method",       "100% inspection"),
+            ("Supplier Name",         detail.factoryName,
+             nil,                     nil),
+        ], at: y)
+        y += 8
+
+        // 5. Inspector conclusion row
+        y = drawConclusionRow(status: finalStatus, notes: summaryComments, at: y)
+        y += 2
+
+        // 6. Full-width status banner
+        y = drawStatusBanner(status: finalStatus, at: y)
+        y += 16
+
+        // 7. SUMMARY heading
+        let sumFont = UIFont.boldSystemFont(ofSize: 14)
+        let sumAttrs: [NSAttributedString.Key: Any] = [.font: sumFont, .foregroundColor: UIColor.black]
+        "SUMMARY".draw(at: CGPoint(x: Layout.margin, y: y), withAttributes: sumAttrs)
+        y += sumFont.lineHeight + 8
+
+        // 8. Checklist sections table
+        y = drawChecklistTable(sections: detail.sections, images: images, at: y)
+        y += 12
+
+        // 9. Defect count table
+        y = drawDefectTable(defectCounts: defectCounts, at: y)
+
+        return y
     }
-    
-    private func drawHeaderRow(
-        leftLabel: String,
-        leftValue: String,
-        rightLabel: String,
-        rightValue: String,
-        at yPosition: CGFloat,
-        labelFont: UIFont,
-        valueFont: UIFont
+
+    // MARK: - Info Table
+
+    /// rows: (leftLabel, leftValue, rightLabel?, rightValue?)
+    /// When rightLabel is nil, leftValue spans the remaining width.
+    private func drawInfoTable(
+        rows: [(String, String, String?, String?)],
+        at startY: CGFloat
     ) -> CGFloat {
-        let halfWidth = Layout.contentWidth / 2
-        let dashesAttributes: [NSAttributedString.Key: Any] = [
-            .font: labelFont,
-            .foregroundColor: UIColor.lightGray
-        ]
-        
-        // Left side
-        let leftLabelAttributes: [NSAttributedString.Key: Any] = [
-            .font: labelFont,
-            .foregroundColor: UIColor.black
-        ]
-        let leftValueAttributes: [NSAttributedString.Key: Any] = [
-            .font: valueFont,
-            .foregroundColor: UIColor.black
-        ]
-        
-        var xPosition: CGFloat = Layout.margin
-        leftLabel.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: leftLabelAttributes)
-        xPosition += leftLabel.size(withAttributes: leftLabelAttributes).width + 4
-        
-        leftValue.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: leftValueAttributes)
-        xPosition += leftValue.size(withAttributes: leftValueAttributes).width + 8
-        
-        // Dashes separator
-        let dashesText = "---------"
-        dashesText.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: dashesAttributes)
-        
-        // Right side
-        xPosition = Layout.margin + halfWidth + 20
-        rightLabel.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: leftLabelAttributes)
-        xPosition += rightLabel.size(withAttributes: leftLabelAttributes).width + 4
-        
-        rightValue.draw(at: CGPoint(x: xPosition, y: yPosition), withAttributes: leftValueAttributes)
-        
-        let lineHeight = max(
-            leftLabel.size(withAttributes: leftLabelAttributes).height,
-            rightLabel.size(withAttributes: leftLabelAttributes).height
-        )
-        
-        return yPosition + lineHeight + 6
+        let border   = UIColor(white: 0.78, alpha: 1)
+        let labelBg  = UIColor(white: 0.96, alpha: 1)
+        let labelClr = UIColor(white: 0.35, alpha: 1)
+        let labelFnt = UIFont.systemFont(ofSize: 10)
+        let valueFnt = UIFont.systemFont(ofSize: 10)
+        // 22% label + 28% value each side
+        let lw = Layout.contentWidth * 0.22
+        let vw = Layout.contentWidth * 0.28
+        let rh = Layout.infoRowH
+        var y  = startY
+
+        for (ll, lv, rl, rv) in rows {
+            drawCell(ll, rect: CGRect(x: Layout.margin, y: y, width: lw, height: rh),
+                     bg: labelBg, fg: labelClr, font: labelFnt, border: border)
+
+            if let rl, let rv {
+                drawCell(lv, rect: CGRect(x: Layout.margin + lw, y: y, width: vw, height: rh),
+                         bg: .white, fg: .black, font: valueFnt, border: border)
+                drawCell(rl, rect: CGRect(x: Layout.margin + lw + vw, y: y, width: lw, height: rh),
+                         bg: labelBg, fg: labelClr, font: labelFnt, border: border)
+                drawCell(rv, rect: CGRect(x: Layout.margin + lw + vw + lw, y: y, width: vw, height: rh),
+                         bg: .white, fg: .black, font: valueFnt, border: border)
+            } else {
+                drawCell(lv, rect: CGRect(x: Layout.margin + lw, y: y, width: Layout.contentWidth - lw, height: rh),
+                         bg: .white, fg: .black, font: valueFnt, border: border)
+            }
+            y += rh
+        }
+        return y
     }
-    
-    private func drawSummarySection(defectCounts: (critical: Int, major: Int, minor: Int), at yPosition: CGFloat) -> CGFloat {
-        var currentY = yPosition
 
-        let sectionTitle = "Tóm tắt lỗi"
-        let titleFont = UIFont.boldSystemFont(ofSize: Layout.subheadingFontSize)
-        let titleAttributes: [NSAttributedString.Key: Any] = [
-            .font: titleFont,
-            .foregroundColor: UIColor.black
-        ]
+    // MARK: - Conclusion Row
 
-        let titleSize = sectionTitle.size(withAttributes: titleAttributes)
-        sectionTitle.draw(at: CGPoint(x: Layout.margin, y: currentY), withAttributes: titleAttributes)
-        currentY += titleSize.height + 12
-
-        currentY = drawSummaryTable(
-            critical: defectCounts.critical,
-            major: defectCounts.major,
-            minor: defectCounts.minor,
-            at: currentY
+    private func drawConclusionRow(status: FinalReportStatus, notes: String, at y: CGFloat) -> CGFloat {
+        let labelFnt = UIFont.systemFont(ofSize: 10)
+        let noteFnt  = UIFont.systemFont(ofSize: 9)
+        let labelClr = UIColor(white: 0.30, alpha: 1)
+        "Inspector Conclusion".draw(
+            at: CGPoint(x: Layout.margin, y: y + 6),
+            withAttributes: [.font: labelFnt, .foregroundColor: labelClr]
         )
-        return currentY
+
+        let badgeX = Layout.margin + 130
+        let badgeW = drawStatusBadge(status: status, at: CGPoint(x: badgeX, y: y + 4))
+
+        if !notes.isEmpty {
+            let notesX = badgeX + badgeW + 10
+            let notesW = Layout.margin + Layout.contentWidth - notesX
+            notes.draw(
+                with: CGRect(x: notesX, y: y + 4, width: notesW, height: Layout.infoRowH),
+                options: .usesLineFragmentOrigin,
+                attributes: [.font: noteFnt, .foregroundColor: labelClr],
+                context: nil
+            )
+        }
+        return y + Layout.infoRowH
     }
-    
-    private func drawSummaryTable(critical: Int, major: Int, minor: Int, at yPosition: CGFloat) -> CGFloat {
-        let columnWidth = Layout.contentWidth / 4
-        let rowHeight = Layout.tableRowHeight
-        var currentY = yPosition
-        
-        let headerFont = UIFont.boldSystemFont(ofSize: Layout.bodyFontSize)
-        let cellFont = UIFont.systemFont(ofSize: Layout.bodyFontSize)
-        
+
+    // MARK: - Status Badge
+
+    @discardableResult
+    private func drawStatusBadge(status: FinalReportStatus, at point: CGPoint) -> CGFloat {
+        let text = status.displayName.uppercased()
+        let font = UIFont.boldSystemFont(ofSize: 9)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.white]
+        let tSz  = text.size(withAttributes: attrs)
+        let hPad: CGFloat = 8, vPad: CGFloat = 3
+        let bW = tSz.width + hPad * 2
+        let bH = tSz.height + vPad * 2
+
+        statusColor(status).setFill()
+        UIBezierPath(roundedRect: CGRect(x: point.x, y: point.y, width: bW, height: bH), cornerRadius: 2).fill()
+        text.draw(at: CGPoint(x: point.x + hPad, y: point.y + vPad), withAttributes: attrs)
+        return bW
+    }
+
+    // MARK: - Status Banner
+
+    private func drawStatusBanner(status: FinalReportStatus, at y: CGFloat) -> CGFloat {
+        let h: CGFloat = 26
+        statusColor(status).setFill()
+        UIBezierPath(rect: CGRect(x: Layout.margin, y: y, width: Layout.contentWidth, height: h)).fill()
+
+        let font  = UIFont.boldSystemFont(ofSize: 10)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.white]
+        let labelFnt = UIFont.systemFont(ofSize: 10)
+        "Status:".draw(
+            at: CGPoint(x: Layout.margin + 10, y: y + 6),
+            withAttributes: [.font: labelFnt, .foregroundColor: UIColor.white]
+        )
+        status.displayName.uppercased().draw(
+            at: CGPoint(x: Layout.margin + 64, y: y + 6),
+            withAttributes: attrs
+        )
+        return y + h
+    }
+
+    // MARK: - Checklist Summary Table
+
+    private func drawChecklistTable(
+        sections: [InspectionSection],
+        images: [String: [InspectionImage]],
+        at startY: CGFloat
+    ) -> CGFloat {
+        let border    = UIColor(white: 0.82, alpha: 1)
+        let headerBg  = UIColor(white: 0.95, alpha: 1)
+        let boldFnt   = UIFont.boldSystemFont(ofSize: 10)
+        let regFnt    = UIFont.systemFont(ofSize: 10)
+        let rh        = Layout.tableRowH
+        let nameW     = Layout.contentWidth * 0.82
+        let statusW   = Layout.contentWidth - nameW
+        var y         = startY
+
+        // Header
+        drawCell("Checklist Section",
+                 rect: CGRect(x: Layout.margin, y: y, width: nameW, height: rh),
+                 bg: headerBg, fg: .black, font: boldFnt, border: border)
+        drawCell("Status",
+                 rect: CGRect(x: Layout.margin + nameW, y: y, width: statusW, height: rh),
+                 bg: headerBg, fg: .black, font: boldFnt, border: border)
+        y += rh
+
+        for (i, section) in sections.sorted(by: { $0.order < $1.order }).enumerated() {
+            let hasPhotos = section.fields.contains {
+                !(images[$0.id]?.isEmpty ?? true)
+            }
+            let rowBg    = i % 2 == 0 ? UIColor.white : UIColor(white: 0.985, alpha: 1)
+            let indicator = hasPhotos ? "✓" : "—"
+            let indColor  = hasPhotos
+                ? UIColor(red: 0.20, green: 0.63, blue: 0.29, alpha: 1)
+                : UIColor(white: 0.6, alpha: 1)
+
+            drawCell("\(i + 1)   \(section.title)",
+                     rect: CGRect(x: Layout.margin, y: y, width: nameW, height: rh),
+                     bg: rowBg, fg: .black, font: regFnt, border: border)
+            drawCell(indicator,
+                     rect: CGRect(x: Layout.margin + nameW, y: y, width: statusW, height: rh),
+                     bg: rowBg, fg: indColor, font: boldFnt, border: border)
+            y += rh
+        }
+        return y
+    }
+
+    // MARK: - Defect Count Table
+
+    private func drawDefectTable(
+        defectCounts: (critical: Int, major: Int, minor: Int),
+        at startY: CGFloat
+    ) -> CGFloat {
+        let border   = UIColor(white: 0.82, alpha: 1)
+        let headerBg = UIColor(white: 0.95, alpha: 1)
+        let bold     = UIFont.boldSystemFont(ofSize: 10)
+        let rh       = Layout.tableRowH
+        let descW    = Layout.contentWidth * 0.52
+        let colW     = (Layout.contentWidth - descW) / 3
+        var y        = startY
+
+        let critClr  = UIColor(red: 0.78, green: 0.15, blue: 0.15, alpha: 1)
+        let majClr   = UIColor(red: 0.90, green: 0.55, blue: 0.05, alpha: 1)
+        let minClr   = UIColor(red: 0.15, green: 0.45, blue: 0.80, alpha: 1)
+
         // Header row
-        let headers = ["", "CRITICAL", "MAJOR", "MINOR"]
-        for (index, header) in headers.enumerated() {
-            let cellRect = CGRect(
-                x: Layout.margin + CGFloat(index) * columnWidth,
-                y: currentY,
-                width: columnWidth,
-                height: rowHeight
-            )
-            
-            // Background
-            UIColor(white: 0.95, alpha: 1.0).setFill()
-            UIBezierPath(rect: cellRect).fill()
-            
-            // Border
-            UIColor.black.setStroke()
-            let borderPath = UIBezierPath(rect: cellRect)
-            borderPath.lineWidth = Layout.tableBorderWidth
-            borderPath.stroke()
-            
-            // Text
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: headerFont,
-                .foregroundColor: UIColor.black
-            ]
-            let textSize = header.size(withAttributes: attributes)
-            let textRect = CGRect(
-                x: cellRect.origin.x + (cellRect.width - textSize.width) / 2,
-                y: cellRect.origin.y + (cellRect.height - textSize.height) / 2,
-                width: textSize.width,
-                height: textSize.height
-            )
-            header.draw(in: textRect, withAttributes: attributes)
-        }
-        currentY += rowHeight
-        
-        // Data row
-        let values = ["TOTAL", "\(critical)", "\(major)", "\(minor)"]
-        let colors: [UIColor] = [.black, .systemRed, .systemOrange, .systemYellow]
-        
-        for (index, value) in values.enumerated() {
-            let cellRect = CGRect(
-                x: Layout.margin + CGFloat(index) * columnWidth,
-                y: currentY,
-                width: columnWidth,
-                height: rowHeight
-            )
-            
-            // Background
-            if index == 0 {
-                UIColor(white: 0.97, alpha: 1.0).setFill()
-                UIBezierPath(rect: cellRect).fill()
-            }
-            
-            // Border
-            UIColor.black.setStroke()
-            let borderPath = UIBezierPath(rect: cellRect)
-            borderPath.lineWidth = Layout.tableBorderWidth
-            borderPath.stroke()
-            
-            // Text
-            let font = index == 0 ? headerFont : cellFont
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: colors[index]
-            ]
-            let textSize = value.size(withAttributes: attributes)
-            let textRect = CGRect(
-                x: cellRect.origin.x + (cellRect.width - textSize.width) / 2,
-                y: cellRect.origin.y + (cellRect.height - textSize.height) / 2,
-                width: textSize.width,
-                height: textSize.height
-            )
-            value.draw(in: textRect, withAttributes: attributes)
-        }
-        currentY += rowHeight
-        
-        return currentY
+        drawCell("", rect: CGRect(x: Layout.margin, y: y, width: descW, height: rh),
+                 bg: headerBg, fg: .black, font: bold, border: border)
+        drawCell("CRITICAL", rect: CGRect(x: Layout.margin + descW, y: y, width: colW, height: rh),
+                 bg: headerBg, fg: critClr, font: bold, border: border)
+        drawCell("MAJOR",    rect: CGRect(x: Layout.margin + descW + colW, y: y, width: colW, height: rh),
+                 bg: headerBg, fg: majClr, font: bold, border: border)
+        drawCell("MINOR",    rect: CGRect(x: Layout.margin + descW + colW * 2, y: y, width: colW, height: rh),
+                 bg: headerBg, fg: minClr, font: bold, border: border)
+        y += rh
+
+        // TOTAL row
+        let cVal = defectCounts.critical
+        let mVal = defectCounts.major
+        let nVal = defectCounts.minor
+        drawCell("TOTAL", rect: CGRect(x: Layout.margin, y: y, width: descW, height: rh),
+                 bg: .white, fg: .black, font: bold, border: border)
+        drawCell("\(cVal)", rect: CGRect(x: Layout.margin + descW, y: y, width: colW, height: rh),
+                 bg: .white, fg: cVal > 0 ? critClr : .black, font: bold, border: border)
+        drawCell("\(mVal)", rect: CGRect(x: Layout.margin + descW + colW, y: y, width: colW, height: rh),
+                 bg: .white, fg: mVal > 0 ? majClr : .black, font: bold, border: border)
+        drawCell("\(nVal)", rect: CGRect(x: Layout.margin + descW + colW * 2, y: y, width: colW, height: rh),
+                 bg: .white, fg: nVal > 0 ? minClr : .black, font: bold, border: border)
+        y += rh
+
+        return y
     }
-    
-    private func drawSectionHeader(_ title: String, at yPosition: CGFloat) -> CGFloat {
-        let font = UIFont.boldSystemFont(ofSize: Layout.headingFontSize)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.black
-        ]
-        
-        // Draw text
-        let textSize = title.size(withAttributes: attributes)
+
+    // MARK: - Section & Field Headers
+
+    private func drawSectionHeader(_ title: String, at y: CGFloat) -> CGFloat {
+        let font  = UIFont.boldSystemFont(ofSize: 14)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.black]
+        let bounds = title.boundingRect(
+            with: CGSize(width: Layout.contentWidth, height: 40),
+            options: .usesLineFragmentOrigin, attributes: attrs, context: nil
+        )
         title.draw(
-            at: CGPoint(x: Layout.margin, y: yPosition),
-            withAttributes: attributes
+            with: CGRect(x: Layout.margin, y: y, width: Layout.contentWidth, height: bounds.height),
+            options: .usesLineFragmentOrigin, attributes: attrs, context: nil
         )
-        
-        // Draw underline
-        let underlineY = yPosition + textSize.height + 4
-        let underlinePath = UIBezierPath()
-        underlinePath.move(to: CGPoint(x: Layout.margin, y: underlineY))
-        underlinePath.addLine(to: CGPoint(x: Layout.margin + Layout.contentWidth, y: underlineY))
-        UIColor.systemBlue.setStroke()
-        underlinePath.lineWidth = 2
-        underlinePath.stroke()
-        
-        return underlineY + 4
+        let lineY = y + bounds.height + 3
+        let path  = UIBezierPath()
+        path.move(to: CGPoint(x: Layout.margin, y: lineY))
+        path.addLine(to: CGPoint(x: Layout.margin + Layout.contentWidth, y: lineY))
+        UIColor(red: 0.20, green: 0.40, blue: 0.85, alpha: 1).setStroke()
+        path.lineWidth = 1.5
+        path.stroke()
+        return lineY + 6
     }
-    
-    private func drawFieldLabel(_ label: String, at yPosition: CGFloat) -> CGFloat {
-        let font = UIFont.systemFont(ofSize: Layout.subheadingFontSize)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.darkGray
-        ]
-        
-        let labelSize = label.size(withAttributes: attributes)
-        label.draw(
-            at: CGPoint(x: Layout.margin, y: yPosition),
-            withAttributes: attributes
-        )
-        
-        return yPosition + labelSize.height + 8
+
+    private func drawFieldHeading(_ text: String, at y: CGFloat) -> CGFloat {
+        let font  = UIFont.systemFont(ofSize: 11)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor(white: 0.25, alpha: 1)]
+        text.draw(at: CGPoint(x: Layout.margin, y: y), withAttributes: attrs)
+        return y + font.lineHeight + 4
     }
-    
-    private func drawFieldImages(_ images: [InspectionImage], at yPosition: CGFloat, context: UIGraphicsPDFRendererContext) -> CGFloat {
-        var currentY = yPosition
-        var currentColumn = 0
-        
-        logger.log("Drawing \(images.count) images for field")
-        
-        for (index, inspectionImage) in images.enumerated() {
-            let image = inspectionImage.image
-            // Check if need new page
-            if currentY + Layout.imageHeight > Layout.pageHeight - Layout.margin {
-                context.beginPage()
-                currentY = Layout.margin
-                currentColumn = 0
+
+    // MARK: - 4-Column Photo Grid
+
+    private func drawPhotoGrid(
+        images: [InspectionImage],
+        at startY: CGFloat,
+        ctx: UIGraphicsPDFRendererContext,
+        pageNum: inout Int,
+        orderInfo: String,
+        dateStr: String
+    ) -> CGFloat {
+        var y   = startY
+        var col = 0
+
+        for img in images {
+            // Row-level page break: check at the start of every new row
+            if col == 0 && y + Layout.imageHeight > Layout.contentMaxY {
+                ctx.beginPage()
+                pageNum += 1
+                drawFooter(orderInfo: orderInfo, dateStr: dateStr, pageNum: pageNum)
+                y = Layout.margin
             }
-            
-            let xPosition = Layout.margin + CGFloat(currentColumn) * (Layout.imageWidth + Layout.imageSpacing)
-            let imageRect = CGRect(
-                x: xPosition,
-                y: currentY,
-                width: Layout.imageWidth,
-                height: Layout.imageHeight
-            )
-            
-            logger.log("Drawing image #\(index + 1) at position (\(xPosition), \(currentY))")
-            
-            // Save graphics state before clipping
-            context.cgContext.saveGState()
-            
-            // Draw shadow
-            let shadowPath = UIBezierPath(roundedRect: imageRect, cornerRadius: 6)
-            UIColor.black.withAlphaComponent(0.1).setFill()
-            shadowPath.fill()
-            
-            // Draw image with slight inset for shadow effect
-            let imageInsetRect = imageRect.insetBy(dx: 1, dy: 1)
-            
-            // Resize image for optimal quality (2x rendering size)
-            let targetSize = CGSize(
-                width: Layout.imageWidth * 2,
-                height: Layout.imageHeight * 2
-            )
-            let resizedImage = resizeImage(image, to: targetSize)
-            
-            // Draw with rounded corners
-            let imagePath = UIBezierPath(roundedRect: imageInsetRect, cornerRadius: 6)
-            imagePath.addClip()
-            resizedImage.draw(in: imageInsetRect)
-            
-            // Restore graphics state after clipping
-            context.cgContext.restoreGState()
-            
-            // Draw border
-            UIColor.lightGray.setStroke()
-            let borderPath = UIBezierPath(roundedRect: imageInsetRect, cornerRadius: 6)
-            borderPath.lineWidth = 0.5
-            borderPath.stroke()
-            
-            // Move to next position
-            currentColumn += 1
-            if currentColumn >= Layout.imagesPerRow {
-                currentColumn = 0
-                currentY += Layout.imageHeight + Layout.imageSpacing
+
+            let x       = Layout.margin + CGFloat(col) * (Layout.imageWidth + Layout.imageGap)
+            let imgRect = CGRect(x: x, y: y, width: Layout.imageWidth, height: Layout.imageHeight)
+            let inset   = imgRect.insetBy(dx: 1, dy: 1)
+
+            ctx.cgContext.saveGState()
+            UIBezierPath(roundedRect: inset, cornerRadius: 4).addClip()
+            let resized = resizeImage(img.image, to: CGSize(width: Layout.imageWidth * 2, height: Layout.imageHeight * 2))
+            resized.draw(in: inset)
+            ctx.cgContext.restoreGState()
+
+            UIColor(white: 0.75, alpha: 1).setStroke()
+            let border = UIBezierPath(roundedRect: inset, cornerRadius: 4)
+            border.lineWidth = 0.5
+            border.stroke()
+
+            col += 1
+            if col >= Layout.imagesPerRow {
+                col = 0
+                y  += Layout.imageHeight + Layout.imageGap
             }
         }
-        
-        // If we ended mid-row, move to next row
-        if currentColumn > 0 {
-            currentY += Layout.imageHeight + Layout.imageSpacing
+
+        if col > 0 {
+            y += Layout.imageHeight + Layout.imageGap
         }
-        
-        return currentY
+        return y
     }
-    
-    private func drawFooter(at yPosition: CGFloat) {
-        let footerText = "Báo cáo được tạo bởi report_lms • © 2026"
-        let font = UIFont.systemFont(ofSize: Layout.captionFontSize)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.gray
-        ]
-        
-        let textSize = footerText.size(withAttributes: attributes)
-        let textRect = CGRect(
-            x: Layout.margin + (Layout.contentWidth - textSize.width) / 2,
-            y: yPosition,
-            width: textSize.width,
-            height: textSize.height
+
+    // MARK: - Per-Page Footer
+
+    private func drawFooter(orderInfo: String, dateStr: String, pageNum: Int) {
+        let font  = UIFont.systemFont(ofSize: 8)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor(white: 0.5, alpha: 1)]
+
+        // Separator line
+        let lineY = Layout.footerY - 5
+        let sep   = UIBezierPath()
+        sep.move(to: CGPoint(x: Layout.margin, y: lineY))
+        sep.addLine(to: CGPoint(x: Layout.margin + Layout.contentWidth, y: lineY))
+        UIColor(white: 0.82, alpha: 1).setStroke()
+        sep.lineWidth = 0.5
+        sep.stroke()
+
+        // Left: creator credit
+        "Report created with report_lms.".draw(
+            at: CGPoint(x: Layout.margin, y: Layout.footerY),
+            withAttributes: attrs
         )
-        
-        footerText.draw(in: textRect, withAttributes: attributes)
+
+        // Right: order info + date + page
+        let rightText = "\(orderInfo)   \(dateStr), page: \(pageNum)"
+        let rightW    = rightText.size(withAttributes: attrs).width
+        rightText.draw(
+            at: CGPoint(x: Layout.margin + Layout.contentWidth - rightW, y: Layout.footerY),
+            withAttributes: attrs
+        )
     }
-    
-    // MARK: - Helper Methods
-    
+
+    // MARK: - Generic Cell Drawer
+
+    private func drawCell(
+        _ text: String,
+        rect: CGRect,
+        bg: UIColor,
+        fg: UIColor,
+        font: UIFont,
+        border: UIColor
+    ) {
+        bg.setFill()
+        UIBezierPath(rect: rect).fill()
+
+        border.setStroke()
+        let bp = UIBezierPath(rect: rect)
+        bp.lineWidth = 0.5
+        bp.stroke()
+
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: fg]
+        let pad: CGFloat = 5
+        text.draw(
+            with: rect.insetBy(dx: pad, dy: pad * 0.6),
+            options: .usesLineFragmentOrigin,
+            attributes: attrs,
+            context: nil
+        )
+    }
+
+    // MARK: - Helpers
+
+    private func drawHLine(y: CGFloat) {
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: Layout.margin, y: y))
+        path.addLine(to: CGPoint(x: Layout.margin + Layout.contentWidth, y: y))
+        UIColor(white: 0.75, alpha: 1).setStroke()
+        path.lineWidth = 0.75
+        path.stroke()
+    }
+
+    private func statusColor(_ status: FinalReportStatus) -> UIColor {
+        switch status {
+        case .accepted: return UIColor(red: 0.20, green: 0.63, blue: 0.29, alpha: 1)
+        case .rejected: return UIColor(red: 0.78, green: 0.15, blue: 0.15, alpha: 1)
+        case .pending:  return UIColor(red: 0.90, green: 0.60, blue: 0.05, alpha: 1)
+        }
+    }
+
     private func resizeImage(_ image: UIImage, to size: CGSize) -> UIImage {
         let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { context in
+        return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: size))
         }
     }
-    
 }

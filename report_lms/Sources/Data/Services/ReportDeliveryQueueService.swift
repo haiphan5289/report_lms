@@ -26,6 +26,8 @@ final class ReportDeliveryQueueService {
         let inspectionNumber: String
         let recipientEmails: [String]
         let location: String
+        let finalStatus: String
+        let summaryComments: String
     }
 
     /// Writes a delivery task document to Firestore. Returns the new document ID.
@@ -35,6 +37,8 @@ final class ReportDeliveryQueueService {
             "inspectionNumber": payload.inspectionNumber,
             "recipientEmails": payload.recipientEmails,
             "location": payload.location,
+            "finalStatus": payload.finalStatus,
+            "summaryComments": payload.summaryComments,
             "status": ReportDeliveryStatus.queued.rawValue,
             "requestedAt": Timestamp(),
             "requestedBy": Auth.auth().currentUser?.email ?? "unknown"
