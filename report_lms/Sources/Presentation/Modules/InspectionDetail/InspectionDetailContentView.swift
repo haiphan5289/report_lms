@@ -123,6 +123,7 @@ struct InspectionDetailContentView: View {
         InspectionSectionView(
             title: section.localizedTitle(using: localizationManager),
             itemCount: section.itemCount,
+            completedCount: contentViewModel.completedCount(for: section),
             isExpanded: contentViewModel.isExpanded(section.id),
             onToggle: { contentViewModel.toggleSection(section.id) },
             content: {

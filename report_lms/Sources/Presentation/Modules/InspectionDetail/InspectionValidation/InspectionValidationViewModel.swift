@@ -7,6 +7,8 @@
 
 import Foundation
 import SwiftUI
+import Network
+import CoreTelephony
 
 
 @MainActor
@@ -189,10 +191,10 @@ final class InspectionValidationViewModel: ObservableObject {
         let doneCb = onImageDone
         let failCb = onImageFail
 
-        // Phase 1 — Compress: run all prepareForUpload() in parallel, capped at 3 concurrent.
+        // Phase 1 — Compress: run all prepareForUpload() in parallel.
         // Each prepareForUpload() peaks ~100MB (pixel buffer + renderer + JPEG output).
         // Decoupling compress from upload means upload slots never idle waiting for CPU work.
-        let maxConcurrentCompress = 3
+        let maxConcurrentCompress = isHighMemoryDevice ? 4 : 3
         let compressedItems: [(index: Int, data: Data)] = await withTaskGroup(of: (Int, Data?).self) { group in
             var pending = Array(localImages.enumerated())
             var nextIndex = 0
@@ -228,8 +230,8 @@ final class InspectionValidationViewModel: ObservableObject {
         }
 
         // Phase 2 — Upload: each slot holds only ~600KB Data (pixel buffer already released).
-        // Safe to run 6 concurrent — peak memory ≈ 6 × 600KB ≈ 3.6MB, negligible.
-        let maxConcurrentUpload = 6
+        // 8 slots on fast networks (WiFi/5G), 6 on slower cellular — memory cost is negligible either way.
+        let maxConcurrentUpload = await isFastNetwork() ? 8 : 6
         let newlyUploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
             var nextIndex = 0
             var results: [(Int, String)] = []
@@ -340,6 +342,33 @@ final class InspectionValidationViewModel: ObservableObject {
         }
         let renderer = UIGraphicsImageRenderer(size: newSize)
         return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
+    }
+
+    // MARK: - Device & Network Helpers
+
+    /// true when physical RAM >= 6 GB — allows 4 concurrent compress slots instead of 3.
+    private var isHighMemoryDevice: Bool {
+        ProcessInfo.processInfo.physicalMemory >= 6 * 1_024 * 1_024 * 1_024
+    }
+
+    /// true when the current path is WiFi or 5G NR — allows 8 concurrent upload slots instead of 6.
+    private func isFastNetwork() async -> Bool {
+        await withCheckedContinuation { continuation in
+            let monitor = NWPathMonitor()
+            let queue = DispatchQueue(label: "com.reportlms.network.check", qos: .utility)
+            monitor.pathUpdateHandler = { path in
+                let isWifi = path.usesInterfaceType(.wifi)
+                let is5G = path.usesInterfaceType(.cellular) && {
+                    let info = CTTelephonyNetworkInfo()
+                    return info.serviceCurrentRadioAccessTechnology?.values.contains {
+                        $0 == CTRadioAccessTechnologyNRNSA || $0 == CTRadioAccessTechnologyNR
+                    } ?? false
+                }()
+                continuation.resume(returning: isWifi || is5G)
+                monitor.cancel()
+            }
+            monitor.start(queue: queue)
+        }
     }
 
     private func updateDirtyState() {

@@ -50,6 +50,10 @@ final class InspectionDetailContentViewModel: ObservableObject {
     var fieldsWithPhotos: Int {
         capturedPhotos.filter { !$0.value.isEmpty }.count
     }
+
+    func completedCount(for section: InspectionSection) -> Int {
+        section.fields.filter { !(capturedPhotos[$0.id]?.isEmpty ?? true) }.count
+    }
     
     // MARK: - Initialization
     init(

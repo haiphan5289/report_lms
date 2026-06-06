@@ -54,7 +54,8 @@
       "Bash(curl -L \"https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf\" -o /Users/haiphan/Desktop/haiphan/report_lms/functions/fonts/NotoSans-Regular.ttf)",
       "Bash(curl -L \"https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf\" -o /Users/haiphan/Desktop/haiphan/report_lms/functions/fonts/NotoSans-Bold.ttf)",
       "Bash(firebase functions:log --only processReportQueue)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(grep \"\\\\.swift$\")"
     ],
     "additionalDirectories": [
       "/private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440",
