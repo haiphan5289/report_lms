@@ -18,6 +18,10 @@ final class FirebaseStorageRepository: StorageRepositoryType {
         try await service.uploadImage(imageData, path: path)
     }
 
+    func uploadImageWithProgress(_ imageData: Data, path: String, onProgress: @Sendable @escaping (Double) -> Void) async throws -> String {
+        try await service.uploadImageWithProgress(imageData, path: path, onProgress: onProgress)
+    }
+
     func downloadImage(from url: String) async throws -> Data {
         try await service.downloadImage(from: url)
     }

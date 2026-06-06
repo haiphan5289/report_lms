@@ -33,6 +33,10 @@ final class InspectionValidationViewModel: ObservableObject {
     let fieldLabel: String
     private var onSave: ((FieldValidation) -> Void)?
     private var onUploadComplete: (() -> Void)?
+    private var onTaskCompleted: (() -> Void)?
+    private var onImageProgress: (@Sendable (Int, Double) -> Void)?
+    private var onImageDone: (@Sendable (Int) -> Void)?
+    private var onImageFail: (@Sendable (Int) -> Void)?
     private let initialStatus: ValidationStatus
     private let initialComments: String
     private let initialImagesCount: Int
@@ -49,7 +53,11 @@ final class InspectionValidationViewModel: ObservableObject {
         inspectionId: String? = nil,
         storageService: InspectionStorageServiceType? = nil,
         onSave: ((FieldValidation) -> Void)? = nil,
-        onUploadComplete: (() -> Void)? = nil
+        onUploadComplete: (() -> Void)? = nil,
+        onTaskCompleted: (() -> Void)? = nil,
+        onImageProgress: (@Sendable (Int, Double) -> Void)? = nil,
+        onImageDone: (@Sendable (Int) -> Void)? = nil,
+        onImageFail: (@Sendable (Int) -> Void)? = nil
     ) {
         self.fieldId = fieldId
         self.fieldLabel = fieldLabel
@@ -64,6 +72,10 @@ final class InspectionValidationViewModel: ObservableObject {
         self.uploadUseCase = Container.shared.resolve(UploadInspectionMediaUseCase.self)
         self.onSave = onSave
         self.onUploadComplete = onUploadComplete
+        self.onTaskCompleted = onTaskCompleted
+        self.onImageProgress = onImageProgress
+        self.onImageDone = onImageDone
+        self.onImageFail = onImageFail
     }
     
     // MARK: - Computed Properties
@@ -145,6 +157,7 @@ final class InspectionValidationViewModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 500_000_000)
             withAnimation(.easeOut(duration: 0.4)) { isUploading = false }
             uploadProgress = 0.0
+            onTaskCompleted?()
         }
 
         // Call save callback
@@ -171,27 +184,61 @@ final class InspectionValidationViewModel: ObservableObject {
         let existingRemoteURLs = images.compactMap { $0.isRemote ? $0.remoteURL?.absoluteString : nil }
         let localImages = images.filter { !$0.isRemote }
 
+        // Capture callbacks before entering the TaskGroup (required for @MainActor isolation).
+        let progressCb = onImageProgress
+        let doneCb = onImageDone
+        let failCb = onImageFail
+
+        // Limit concurrent uploads to 2 to prevent OOM when processing many high-res images.
+        // Each prepareForUpload() peaks at ~100MB (pixel buffer + render + JPEG); unbounded concurrency
+        // on 10+ images easily exceeds the 3GB process limit.
+        let maxConcurrent = 2
         let newlyUploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
-            for (index, inspectionImage) in localImages.enumerated() {
+            var pending = Array(localImages.enumerated())
+            var nextIndex = 0
+            var results: [(Int, String)] = []
+
+            func addTask(for item: (offset: Int, element: InspectionImage)) {
+                let (index, inspectionImage) = (item.offset, item.element)
                 let image = inspectionImage.image
                 group.addTask {
-                    // Resize + compress on background thread
                     let imageData = await Task.detached(priority: .userInitiated) {
                         image.prepareForUpload()
                     }.value
-                    guard let imageData else { return (index, nil) }
+                    guard let imageData else {
+                        failCb?(index)
+                        return (index, nil)
+                    }
                     do {
-                        let url = try await uploadUseCase.execute(imageData: imageData, inspectionId: inspectionId)
+                        let url = try await uploadUseCase.executeWithProgress(
+                            imageData: imageData,
+                            inspectionId: inspectionId,
+                            onProgress: { progress in progressCb?(index, progress) }
+                        )
+                        doneCb?(index)
                         return (index, url)
                     } catch {
+                        failCb?(index)
                         return (index, nil)
                     }
                 }
             }
-            var results: [(Int, String)] = []
+
+            // Seed initial batch
+            while nextIndex < min(maxConcurrent, pending.count) {
+                addTask(for: pending[nextIndex])
+                nextIndex += 1
+            }
+
+            // As each task finishes, start the next one
             for await (index, url) in group {
                 if let url { results.append((index, url)) }
+                if nextIndex < pending.count {
+                    addTask(for: pending[nextIndex])
+                    nextIndex += 1
+                }
             }
+
             return results.sorted { $0.0 < $1.0 }.map { $0.1 }
         }
 

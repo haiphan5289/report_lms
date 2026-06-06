@@ -69,6 +69,7 @@ struct InspectionDetailView: View {
             }
         }
         .navigationDestination(item: $viewModel.selectedValidationField) { field in
+            let callbacks = viewModel.makeUploadCallbacks(for: field.id)
             InspectionValidationView(
                 fieldId: field.id,
                 fieldLabel: field.label,
@@ -80,8 +81,28 @@ struct InspectionDetailView: View {
                 onUploadComplete: {
                     viewModel.refreshInspection()
                     viewModel.snackbarMessage = "Ảnh đã được lưu thành công!"
-                }
+                },
+                onTaskCompleted: {
+                    viewModel.notifyUploadCompleted()
+                },
+                onImageProgress: callbacks.onProgress,
+                onImageDone: callbacks.onDone,
+                onImageFail: callbacks.onFail
             )
+        }
+        .sheet(isPresented: $viewModel.showUploadStatusSheet) {
+            UploadStatusBottomSheet(
+                sessions: viewModel.uploadSessions,
+                isPresented: $viewModel.showUploadStatusSheet
+            )
+        }
+        .fullScreenCover(isPresented: $viewModel.shouldShowFinalReport) {
+            if let detail = viewModel.inspection {
+                FinalReportView(
+                    inspection: detail,
+                    capturedPhotos: viewModel.capturedPhotos
+                )
+            }
         }
         .navigationDestination(item: $viewModel.selectedErrorItem) { item in
             PhotoCaptureErrorReviewView(
@@ -180,7 +201,11 @@ struct InspectionDetailView: View {
                     onErrorSaved: { saved, images in
                         viewModel.errorHomeViewModel.upsertErrorItem(saved, thumbnails: images)
                         viewModel.errorHomeViewModel.scrollToTopTrigger += 1
-                    }
+                    },
+                    hasActiveUploads: viewModel.activeUploadCount > 0,
+                    activeUploadCount: viewModel.totalUploadingImageCount,
+                    onCompleteInspection: { viewModel.requestFinalReport() },
+                    onShowUploadStatus: { viewModel.showUploadStatusSheet = true }
                 )
             case .error:
                 errorTabContent

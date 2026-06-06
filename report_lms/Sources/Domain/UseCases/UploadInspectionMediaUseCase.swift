@@ -18,4 +18,13 @@ final class UploadInspectionMediaUseCase {
         let path = "inspections/\(inspectionId)/\(UUID().uuidString).jpg"
         return try await storageRepository.uploadImage(imageData, path: path)
     }
+
+    func executeWithProgress(
+        imageData: Data,
+        inspectionId: String,
+        onProgress: @Sendable @escaping (Double) -> Void
+    ) async throws -> String {
+        let path = "inspections/\(inspectionId)/\(UUID().uuidString).jpg"
+        return try await storageRepository.uploadImageWithProgress(imageData, path: path, onProgress: onProgress)
+    }
 }

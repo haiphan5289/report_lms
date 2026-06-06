@@ -26,6 +26,24 @@ final class InspectionDetailViewModel: ObservableObject {
     @Published var isSubmitted = false
     @Published var selectedValidationField: ValidationFieldSelection?
     @Published var selectedTab: Tab = .inspectionDetail
+
+    // MARK: - Upload Tracking (Option B)
+    @Published var activeUploadCount: Int = 0
+    @Published var shouldShowFinalReport: Bool = false
+    @Published var showUploadStatusSheet: Bool = false
+    @Published var uploadSessions: [FieldUploadSession] = []
+    private var pendingFinalReport: Bool = false
+
+    /// Total number of images still in-flight (pending or uploading) across all active sessions.
+    var totalUploadingImageCount: Int {
+        uploadSessions.reduce(0) { count, session in
+            count + session.items.filter {
+                if case .done = $0.status { return false }
+                if case .failed = $0.status { return false }
+                return true
+            }.count
+        }
+    }
     @Published var selectedErrorItem: SavedErrorItem? = nil {
         didSet {
             print("🔍 [InspectionDetailVM] selectedErrorItem changed:")
@@ -122,6 +140,93 @@ final class InspectionDetailViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Upload Tracking
+
+    func notifyUploadStarted() {
+        activeUploadCount += 1
+    }
+
+    func notifyUploadCompleted() {
+        activeUploadCount = max(0, activeUploadCount - 1)
+        if activeUploadCount == 0 && pendingFinalReport {
+            pendingFinalReport = false
+            shouldShowFinalReport = true
+        }
+        if activeUploadCount == 0 {
+            uploadSessions.removeAll { $0.isComplete }
+        }
+    }
+
+    /// Called when user taps "Hoàn tất kiểm tra".
+    func requestFinalReport() {
+        if activeUploadCount > 0 {
+            pendingFinalReport = true
+        } else {
+            shouldShowFinalReport = true
+        }
+    }
+
+    // MARK: - Per-Image Progress Tracking
+
+    func startUploadSession(fieldId: String, images: [InspectionImage]) {
+        let localImages = images.filter { !$0.isRemote }
+        guard !localImages.isEmpty else { return }
+        let label = findFieldLabel(for: fieldId)
+        let session = FieldUploadSession(
+            id: fieldId,
+            fieldLabel: label,
+            items: localImages.enumerated().map { idx, img in
+                ImageUploadItem(id: "\(fieldId)-\(idx)", imageIndex: idx, thumbnail: img.image, status: .pending)
+            }
+        )
+        uploadSessions.removeAll { $0.id == fieldId }
+        uploadSessions.append(session)
+        notifyUploadStarted()
+    }
+
+    func updateImageProgress(fieldId: String, imageIndex: Int, progress: Double) {
+        guard let si = uploadSessions.firstIndex(where: { $0.id == fieldId }),
+              uploadSessions[si].items.indices.contains(imageIndex) else { return }
+        uploadSessions[si].items[imageIndex].status = .uploading(progress: progress)
+    }
+
+    func markImageDone(fieldId: String, imageIndex: Int) {
+        guard let si = uploadSessions.firstIndex(where: { $0.id == fieldId }),
+              uploadSessions[si].items.indices.contains(imageIndex) else { return }
+        uploadSessions[si].items[imageIndex].status = .done
+    }
+
+    func markImageFailed(fieldId: String, imageIndex: Int) {
+        guard let si = uploadSessions.firstIndex(where: { $0.id == fieldId }),
+              uploadSessions[si].items.indices.contains(imageIndex) else { return }
+        uploadSessions[si].items[imageIndex].status = .failed
+    }
+
+    /// Returns @Sendable callbacks for a field's upload session to be passed into InspectionValidationViewModel.
+    func makeUploadCallbacks(for fieldId: String) -> (
+        onProgress: @Sendable (Int, Double) -> Void,
+        onDone: @Sendable (Int) -> Void,
+        onFail: @Sendable (Int) -> Void
+    ) {
+        return (
+            onProgress: { [weak self] index, progress in
+                Task { @MainActor [weak self] in
+                    self?.updateImageProgress(fieldId: fieldId, imageIndex: index, progress: progress)
+                }
+            },
+            onDone: { [weak self] index in
+                Task { @MainActor [weak self] in
+                    self?.markImageDone(fieldId: fieldId, imageIndex: index)
+                }
+            },
+            onFail: { [weak self] index in
+                Task { @MainActor [weak self] in
+                    self?.markImageFailed(fieldId: fieldId, imageIndex: index)
+                }
+            }
+        )
+    }
+
     func getImages(for fieldId: String) -> [InspectionImage] {
         return capturedPhotos[fieldId] ?? []
     }
@@ -143,6 +248,7 @@ final class InspectionDetailViewModel: ObservableObject {
     func handleValidationSave(_ validation: FieldValidation) {
         capturedPhotos[validation.id] = validation.images
         selectedValidationField = nil
+        startUploadSession(fieldId: validation.id, images: validation.images)
     }
     
     private func findFieldLabel(for fieldId: String) -> String {

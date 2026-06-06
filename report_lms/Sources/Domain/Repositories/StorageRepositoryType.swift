@@ -9,6 +9,7 @@ import Foundation
 
 protocol StorageRepositoryType {
     func uploadImage(_ imageData: Data, path: String) async throws -> String
+    func uploadImageWithProgress(_ imageData: Data, path: String, onProgress: @Sendable @escaping (Double) -> Void) async throws -> String
     func downloadImage(from url: String) async throws -> Data
     func deleteImage(at path: String) async throws
 }

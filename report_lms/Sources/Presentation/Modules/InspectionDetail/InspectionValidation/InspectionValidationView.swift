@@ -45,7 +45,11 @@ struct InspectionValidationView: View {
         initialImages: [InspectionImage],
         inspectionId: String? = nil,
         onSave: @escaping (FieldValidation) -> Void,
-        onUploadComplete: (() -> Void)? = nil
+        onUploadComplete: (() -> Void)? = nil,
+        onTaskCompleted: (() -> Void)? = nil,
+        onImageProgress: (@Sendable (Int, Double) -> Void)? = nil,
+        onImageDone: (@Sendable (Int) -> Void)? = nil,
+        onImageFail: (@Sendable (Int) -> Void)? = nil
     ) {
         _viewModel = StateObject(
             wrappedValue: InspectionValidationViewModel(
@@ -54,7 +58,11 @@ struct InspectionValidationView: View {
                 initialImages: initialImages,
                 inspectionId: inspectionId,
                 onSave: onSave,
-                onUploadComplete: onUploadComplete
+                onUploadComplete: onUploadComplete,
+                onTaskCompleted: onTaskCompleted,
+                onImageProgress: onImageProgress,
+                onImageDone: onImageDone,
+                onImageFail: onImageFail
             )
         )
     }
