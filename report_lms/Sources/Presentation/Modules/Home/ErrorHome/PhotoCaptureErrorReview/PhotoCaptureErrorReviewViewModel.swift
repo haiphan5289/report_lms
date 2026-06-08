@@ -20,12 +20,9 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     @Published var selectedGeneralCondition: Int?
     @Published var selectedDefectType: DefectType?
     @Published var comments: String = ""
-    @Published var isLoading = false
     @Published var isDownloading = false
     @Published var errorMessage: String?
     @Published var snackbarMessage: String?
-    @Published var uploadSessions: [FieldUploadSession] = []
-    @Published var showUploadStatusSheet = false
 
     // MARK: - Private Properties
     let inspectionId: String  // Internal for debug access
@@ -69,38 +66,42 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
 
     func setInitialImages(_ initialImages: [ImageWithNote]) async {
         images = initialImages
-        
-        // AC-14: Auto-download remote images in edit mode
-        if isEditMode {
-            // Check if there are any remote images to download
-            let remoteImages = images.filter { 
-                if case .remote = $0.source { return true }
-                return false
-            }
-            
-            guard !remoteImages.isEmpty else {
-                print("🔍 [PhotoCaptureErrorReviewVM] No remote images to download - all images are local ✅")
-                return
-            }
-            
-            print("🔍 [PhotoCaptureErrorReviewVM] Auto-downloading \(remoteImages.count) remote images in edit mode")
-            isDownloading = true
-            
-            for (index, imageWithNote) in images.enumerated() {
-                if case .remote(let url) = imageWithNote.source {
-                    do {
-                        let downloadedImage = try await downloadImage(from: url)
-                        images[index] = ImageWithNote(source: .local(image: downloadedImage), note: imageWithNote.note)
-                        print("   - Downloaded image \(index + 1)/\(remoteImages.count)")
-                    } catch {
-                        print("   - Failed to download image \(index): \(error)")
-                    }
+
+        guard isEditMode, let itemId = editingItemId else { return }
+
+        // Check LocalImageStore first — avoids Storage download for pending-upload items
+        let cachedImages = await LocalImageStore.shared.load(for: itemId)
+        if !cachedImages.isEmpty {
+            print("🔍 [PhotoCaptureErrorReviewVM] Loaded \(cachedImages.count) images from LocalImageStore (cache hit)")
+            images = cachedImages.map { ImageWithNote(source: .local(image: $0)) }
+            return
+        }
+
+        // AC-14: Fall back to downloading remote images
+        let remoteImages = images.filter {
+            if case .remote = $0.source { return true }
+            return false
+        }
+        guard !remoteImages.isEmpty else {
+            print("🔍 [PhotoCaptureErrorReviewVM] No remote images to download - all images are local ✅")
+            return
+        }
+
+        print("🔍 [PhotoCaptureErrorReviewVM] Auto-downloading \(remoteImages.count) remote images in edit mode")
+        isDownloading = true
+        for (index, imageWithNote) in images.enumerated() {
+            if case .remote(let url) = imageWithNote.source {
+                do {
+                    let downloadedImage = try await downloadImage(from: url)
+                    images[index] = ImageWithNote(source: .local(image: downloadedImage), note: imageWithNote.note)
+                    print("   - Downloaded image \(index + 1)/\(remoteImages.count)")
+                } catch {
+                    print("   - Failed to download image \(index): \(error)")
                 }
             }
-            
-            isDownloading = false
-            print("   - Auto-download complete ✅")
         }
+        isDownloading = false
+        print("   - Auto-download complete ✅")
     }
 
     func replaceImage(at index: Int, with image: UIImage) {
@@ -189,83 +190,68 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     }
 
     // MARK: - Persistence
-    func saveReview() async -> SavedErrorItem? {
+
+    /// Builds SavedErrorItem and returns immediately (dismiss-first).
+    /// Disk save + Firestore write run in a background Task — does not block UI.
+    func saveReview() -> SavedErrorItem? {
         guard !images.isEmpty else {
             errorMessage = "Vui lòng chụp ít nhất một ảnh"
             return nil
         }
 
-        let localItems: [ImageUploadItem] = images.enumerated().compactMap { i, imgWithNote in
-            guard case .local(let img) = imgWithNote.source else { return nil }
-            return ImageUploadItem(id: "err-\(i)", imageIndex: i, thumbnail: img, status: .pending)
-        }
-        if !localItems.isEmpty {
-            uploadSessions = [FieldUploadSession(id: "error-upload", fieldLabel: "Ảnh lỗi", items: localItems)]
-            showUploadStatusSheet = true
-        } else {
-            isLoading = true
-        }
-
         let item = buildSavedErrorItem()
+        let localImages: [UIImage] = images.compactMap {
+            if case .local(let img) = $0.source { return img } else { return nil }
+        }
         logger.debug("[saveReview] START inspectionId=\(self.inspectionId, privacy: .public) imageCount=\(self.images.count, privacy: .public)")
 
-        do {
-            let saved = try await errorRepository.saveErrorItem(
-                item,
-                imageSources: images.map { $0.source },
-                for: inspectionId,
-                onImageProgress: { [weak self] index, progress in
-                    Task { @MainActor [weak self] in self?.updateImageProgress(index: index, progress: progress) }
-                },
-                onImageDone: { [weak self] index in
-                    Task { @MainActor [weak self] in self?.markImageStatus(index: index, status: .done) }
-                },
-                onImageFail: { [weak self] index in
-                    Task { @MainActor [weak self] in self?.markImageStatus(index: index, status: .failed) }
+        Task {
+            if !localImages.isEmpty {
+                do {
+                    _ = try await LocalImageStore.shared.save(localImages, for: item.id)
+                    logger.debug("[saveReview] ✅ Saved \(localImages.count, privacy: .public) images to LocalImageStore")
+                } catch {
+                    logger.warning("[saveReview] ⚠️ LocalImageStore save failed: \(error.localizedDescription, privacy: .public)")
                 }
-            )
-            logger.debug("[saveReview] ✅ saveErrorItem succeeded")
-            try? await Task.sleep(for: .milliseconds(600))
-            showUploadStatusSheet = false
-            isLoading = false
-            return saved
-        } catch {
-            showUploadStatusSheet = false
-            isLoading = false
-            logger.error("[saveReview] ❌ saveErrorItem failed: \(error, privacy: .public)")
-            errorMessage = "Không thể lưu đánh giá: \(error.localizedDescription)"
-            return nil
+            }
+            do {
+                _ = try await errorRepository.saveErrorItem(item, imageSources: [], for: inspectionId)
+                logger.debug("[saveReview] ✅ Firestore metadata saved")
+            } catch {
+                logger.error("[saveReview] ❌ Firestore write failed: \(error, privacy: .public)")
+            }
         }
+
+        return item
     }
 
-    private func updateImageProgress(index: Int, progress: Double) {
-        guard !uploadSessions.isEmpty,
-              let i = uploadSessions[0].items.firstIndex(where: { $0.imageIndex == index }) else { return }
-        uploadSessions[0].items[i].status = .uploading(progress: progress)
-    }
-
-    private func markImageStatus(index: Int, status: ImageUploadStatus) {
-        guard !uploadSessions.isEmpty,
-              let i = uploadSessions[0].items.firstIndex(where: { $0.imageIndex == index }) else { return }
-        uploadSessions[0].items[i].status = status
-    }
-
-    func updateReview() async -> SavedErrorItem? {
-        isLoading = true
-        defer { isLoading = false }
-
+    /// Returns immediately (dismiss-first). Disk save + Firestore write run in a background Task.
+    /// No Firebase Storage upload — mirrors saveReview() behavior.
+    func updateReview() -> SavedErrorItem? {
         let item = buildSavedErrorItem()
+        let localImages: [UIImage] = images.compactMap {
+            if case .local(let img) = $0.source { return img } else { return nil }
+        }
         logger.debug("[updateReview] START inspectionId=\(self.inspectionId, privacy: .public) imageCount=\(self.images.count, privacy: .public)")
 
-        do {
-            let saved = try await errorRepository.saveErrorItem(item, imageSources: images.map { $0.source }, for: inspectionId)
-            logger.debug("[updateReview] ✅ saveErrorItem succeeded")
-            return saved
-        } catch {
-            logger.error("[updateReview] ❌ saveErrorItem failed: \(error, privacy: .public)")
-            errorMessage = "Không thể cập nhật đánh giá: \(error.localizedDescription)"
-            return nil
+        Task {
+            if !localImages.isEmpty {
+                do {
+                    _ = try await LocalImageStore.shared.save(localImages, for: item.id)
+                    logger.debug("[updateReview] ✅ Saved \(localImages.count, privacy: .public) images to LocalImageStore")
+                } catch {
+                    logger.warning("[updateReview] ⚠️ LocalImageStore save failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            do {
+                _ = try await errorRepository.saveErrorItem(item, imageSources: [], for: inspectionId)
+                logger.debug("[updateReview] ✅ Firestore metadata saved")
+            } catch {
+                logger.error("[updateReview] ❌ Firestore write failed: \(error, privacy: .public)")
+            }
         }
+
+        return item
     }
 
     // MARK: - Private Methods

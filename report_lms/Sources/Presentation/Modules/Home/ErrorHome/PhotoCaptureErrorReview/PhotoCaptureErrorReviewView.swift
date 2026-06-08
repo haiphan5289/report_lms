@@ -113,12 +113,10 @@ struct PhotoCaptureErrorReviewView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(localizationManager.localize("common.done")) {
-                        Task {
-                            if let saved = await viewModel.saveReview() {
-                                onImagesUpdated(viewModel.images)
-                                onSaved(saved, viewModel.localImages)
-                                dismiss()
-                            }
+                        if let saved = viewModel.saveReview() {
+                            onImagesUpdated(viewModel.images)
+                            onSaved(saved, viewModel.localImages)
+                            dismiss()
                         }
                     }
                 }
@@ -184,7 +182,7 @@ struct PhotoCaptureErrorReviewView: View {
             Button(localizationManager.localize("common.cancel"), role: .cancel) {}
         }
         .overlay {
-            if viewModel.isDownloading || (viewModel.isLoading && !viewModel.showUploadStatusSheet) {
+            if viewModel.isDownloading {
                 LMSLoadingOverlay()
             }
         }
@@ -221,12 +219,6 @@ struct PhotoCaptureErrorReviewView: View {
             if let image = sharingImage {
                 ShareSheet(items: [image])
             }
-        }
-        .sheet(isPresented: $viewModel.showUploadStatusSheet) {
-            UploadStatusBottomSheet(
-                sessions: viewModel.uploadSessions,
-                isPresented: $viewModel.showUploadStatusSheet
-            )
         }
         .lmsSnackbar(message: $viewModel.snackbarMessage, type: .error)
         .safeAreaInset(edge: .bottom) {
@@ -529,12 +521,10 @@ struct PhotoCaptureErrorReviewView: View {
                 icon: "pencil",
                 variant: .primary
             ) {
-                Task {
-                    if let saved = await viewModel.updateReview() {
-                        onImagesUpdated(viewModel.images)
-                        onSaved(saved, viewModel.localImages)
-                        dismiss()
-                    }
+                if let saved = viewModel.updateReview() {
+                    onImagesUpdated(viewModel.images)
+                    onSaved(saved, viewModel.localImages)
+                    dismiss()
                 }
             }
         }

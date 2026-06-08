@@ -55,7 +55,12 @@
       "Bash(curl -L \"https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf\" -o /Users/haiphan/Desktop/haiphan/report_lms/functions/fonts/NotoSans-Bold.ttf)",
       "Bash(firebase functions:log --only processReportQueue)",
       "Bash(npx tsc *)",
-      "Bash(grep \"\\\\.swift$\")"
+      "Bash(grep \"\\\\.swift$\")",
+      "Bash(xcodebuild -scheme report_lms -destination \"generic/platform=iOS Simulator\" -quiet build)",
+      "Bash(xcodebuild -scheme report_lms -destination \"platform=iOS Simulator,name=iPhone 16 Pro\" -quiet build)",
+      "Bash(xcodebuild -scheme report_lms -destination \"platform=iOS Simulator,name=iPhone 16 Pro\" build)",
+      "Bash(xcodebuild -scheme report_lms -sdk iphonesimulator build)",
+      "Bash(grep -v \"^$\")"
     ],
     "additionalDirectories": [
       "/private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440",

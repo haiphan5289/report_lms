@@ -1,5 +1,7 @@
 # Photo Capture Error Review Workflow
 
+**Last updated:** 2026-06-08
+
 ## Tổng quan
 
 Tài liệu này mô tả kiến trúc, luồng dữ liệu, và cách tích hợp `PhotoCaptureErrorReviewView` — màn hình cho phép người dùng xem lại, gắn nhãn và lưu các ảnh lỗi sau khi chụp.
@@ -16,6 +18,9 @@ Màn hình hỗ trợ hai chế độ:
 Sources/Presentation/Modules/Home/ErrorHome/PhotoCaptureErrorReview/
 ├── PhotoCaptureErrorReviewView.swift       # SwiftUI View, nhận initialImages + callbacks
 └── PhotoCaptureErrorReviewViewModel.swift  # @MainActor ViewModel, quản lý state + business logic
+
+Sources/Common/Helpers/
+└── LocalImageStore.swift                   # Actor — lưu ảnh xuống Caches/
 ```
 
 ---
@@ -29,7 +34,7 @@ Sources/Presentation/Modules/Home/ErrorHome/PhotoCaptureErrorReview/
 │   PhotoCaptureErrorReviewView (SwiftUI)                    │
 │   ├── @StateObject PhotoCaptureErrorReviewViewModel        │
 │   ├── @EnvironmentObject LocalizationManager               │
-│   ├── imagesSection       (LazyVGrid 2-col, delete)        │
+│   ├── imagesSection       (LazyVStack, ImageRowCard)       │
 │   ├── takeMorePhotosSection (opens CameraView)             │
 │   ├── severityLevelSection  (radio buttons)                │
 │   ├── generalConditionSection (1–10 chip picker)           │
@@ -40,17 +45,20 @@ Sources/Presentation/Modules/Home/ErrorHome/PhotoCaptureErrorReview/
 │   PhotoCaptureErrorReviewViewModel (@MainActor)            │
 │   ├── @Published images, selectedSeverity, comments…       │
 │   ├── localImages: [UIImage]  (computed, local-only)       │
-│   ├── defectTypeSearchableData() → [ListItemProtocol]      │
-│   ├── selectDefectType(from:)                              │
 │   ├── saveReview() async → SavedErrorItem?                 │
 │   └── updateReview() async → SavedErrorItem?               │
 └────────────────────────────────┬───────────────────────────┘
-                                 │ async/await
+                                 │
 ┌────────────────────────────────▼───────────────────────────┐
-│                      Domain Layer                           │
-│                                                            │
-│   ErrorRepositoryType (protocol)                           │
-│   └── saveErrorItem(_:imageSources:for:) async throws      │
+│                    Common Layer                             │
+│   LocalImageStore (actor, singleton)                       │
+│   └── Caches/pending-uploads/{userId}/{itemId}/            │
+└────────────────────────────────────────────────────────────┘
+                                 │ (edit mode only)
+┌────────────────────────────────▼───────────────────────────┐
+│                      Domain / Data Layer                    │
+│   ErrorRepositoryType → ErrorRepository (actor)            │
+│   └── saveErrorItem / updateReview → Firebase Storage      │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -66,7 +74,7 @@ Sources/Presentation/Modules/Home/ErrorHome/PhotoCaptureErrorReview/
 // New mode
 PhotoCaptureErrorReviewView(
     inspectionId: inspectionId,
-    initialImages: capturedImages.map { .local(image: $0) },
+    initialImages: capturedImages.map { ImageWithNote(source: .local(image: $0)) },
     onImagesUpdated: { images in viewModel.updateImages(images) },
     onSaved: { item, localImages in viewModel.appendErrorItem(item, images: localImages) }
 )
@@ -87,7 +95,6 @@ PhotoCaptureErrorReviewView(
 ```
 PhotoCaptureErrorReviewView.onAppear
     └── viewModel.setInitialImages(initialImages)
-            └── images = initialImages  [@Published → UI update]
 ```
 
 ---
@@ -101,63 +108,77 @@ User tap "Chụp ảnh"
                     └── User chụp xong, tap "Hoàn thành"
                             └── onPhotoCaptured([UIImage])
                                     ├── viewModel.addImages(newImages)
-                                    │       └── images.append(contentsOf: …map { .local })
                                     └── onImagesUpdated(viewModel.images)  [callback lên caller]
 ```
 
 ---
 
-### Bước 3: Chọn phân loại lỗi (Defect Type)
+### Bước 3: Lưu (New mode) — nhấn "Xong"
+
+> **Không có upload Storage, không có Firestore write. Dismiss ngay lập tức.**
 
 ```
-User tap defectTypesSection
-    └── defectTypeSearchableVM = SearchableListViewModel(
-    │       sections: viewModel.defectTypeSearchableData(),
-    │       title: "Các loại phân lỗi"
-    │   )
-    └── showingDefectTypeList = true   [sheet present]
-            └── SearchableListView(viewModel: defectTypeSearchableVM) { selectedItem in
-                    viewModel.selectDefectType(from: selectedItem)
-                        └── code = selectedItem.name.split(" - ").first
-                            selectedDefectType = DefectType(rawValue: code)
-                    showingDefectTypeList = false
-                }
-```
-
-> `defectTypeSearchableVM` là `@State` — được khởi tạo **một lần khi tap**, không bị recreate mỗi render cycle.
-
----
-
-### Bước 4: Lưu (New mode)
-
-```
-User tap "Hoàn thành" (toolbar)
+User tap "Xong" (toolbar)
     └── Task { await viewModel.saveReview() }
-            ├── guard !images.isEmpty   → errorMessage nếu không có ảnh
-            ├── buildSavedErrorItem()   → SavedErrorItem (ID mới, remote URLs + form data)
-            └── errorRepository.saveErrorItem(item, imageSources: images, for: inspectionId)
-                    ├── withThrowingTaskGroup → upload TẤT CẢ local images CONCURRENT
-                    │     └── Task.detached { image.prepareForUpload() }
-                    │           ├── Resize to ≤2048px
-                    │           └── JPEG 0.8 → ~500KB/ảnh
-                    ├── success → onImagesUpdated(viewModel.images)
-                    │            onSaved(saved, viewModel.localImages)
-                    │            dismiss()
-                    └── failure → errorMessage = "Không thể lưu…"
+            │
+            ├─ guard !images.isEmpty
+            │         └─ Nếu rỗng → errorMessage = "Vui lòng chụp ít nhất một ảnh"
+            │
+            ├─ [LocalImageStore] Save ảnh local xuống disk
+            │     Path: Caches/pending-uploads/{userId}/{itemId}/{index}_{UUID}.jpg
+            │     • userId = Firebase Auth UID (fallback "anonymous")
+            │     • Chỉ save ảnh .local, bỏ qua .remote
+            │     • Không upload lên Firebase Storage
+            │     • Không write Firestore
+            │
+            └─ return SavedErrorItem (built locally, không có network call)
+                    │
+                    ▼
+            [View] onSaved(saved, localImages) → dismiss()
 ```
-
-> **Performance:** Upload concurrent — 3 ảnh mất ~2s thay vì ~6s sequential.
 
 ---
 
-### Bước 5: Cập nhật (Edit mode)
+### Bước 4: Mở lại item (Edit mode) — setInitialImages
+
+```
+[View] onAppear → setInitialImages(initialImages)
+       │
+       ▼
+[ViewModel] setInitialImages()
+       │
+       ├─ isEditMode && editingItemId != nil
+       │
+       ├─ Check LocalImageStore.hasImages(for: itemId)
+       │         │
+       │    Cache HIT ──▶ Load UIImages từ Caches/
+       │         │         images = [.local(img), ...]
+       │         │         RETURN sớm (không download Storage)
+       │         │
+       │    Cache MISS ──▶ isDownloading = true
+       │                   Download remote URLs từ Firebase Storage
+       │                   (legacy flow — dành cho items cũ có imageURLs)
+       │                   isDownloading = false
+       │
+       └─ images sẵn sàng để edit
+```
+
+---
+
+### Bước 5: Cập nhật (Edit mode) — nhấn "Lưu thay đổi"
+
+> Flow cũ giữ nguyên — có upload Storage và write Firestore.
 
 ```
 User tap "Lưu thay đổi" (actionButtonsSection)
     └── Task { await viewModel.updateReview() }
+            ├── isLoading = true
             ├── buildSavedErrorItem()  → SavedErrorItem (editingItemId preserved)
-            └── errorRepository.saveErrorItem(…)
-                    ├── success → onImagesUpdated / onSaved / dismiss()
+            └── errorRepository.saveErrorItem(item, imageSources: images, for: inspectionId)
+                    ├── withThrowingTaskGroup → upload local images lên Firebase Storage
+                    │     └── image.prepareForUpload() → resize ≤2048px, JPEG 0.8
+                    ├── Write Firestore: inspections/{id}/errorItems/{itemId}
+                    ├── success → onSaved / dismiss()
                     └── failure → errorMessage
 ```
 
@@ -168,12 +189,66 @@ User tap "Lưu thay đổi" (actionButtonsSection)
 ```
 User tap "Xoá"
     └── showDeleteConfirmation = true   [confirmationDialog]
-            └── User xác nhận "Xoá lỗi"
+            └── User xác nhận
                     └── onDeleted?(editingItem)   [callback lên caller]
                         dismiss()
 ```
 
-> Xoá không đi qua repository — trách nhiệm thuộc về caller (ví dụ: `ErrorHomeViewModel`).
+> Xoá không đi qua repository — trách nhiệm thuộc về caller.
+
+---
+
+## Local Image Storage
+
+### Helper: `LocalImageStore`
+
+**File:** `Sources/Common/Helpers/LocalImageStore.swift`
+
+| Method | Description |
+|--------|-------------|
+| `save(_ images:, for itemId:)` | Lưu `[UIImage]` xuống Caches/, trả về `[URL]` |
+| `load(for itemId:)` | Đọc ảnh theo thứ tự index, trả về `[UIImage]` |
+| `hasImages(for itemId:)` | Check folder có file `.jpg` không |
+| `clear(for itemId:)` | Xóa toàn bộ folder của item |
+
+**Path structure:**
+```
+Caches/
+└── pending-uploads/
+    └── {Firebase Auth UID}/
+        └── {itemId}/
+            ├── 0_{UUID}.jpg
+            ├── 1_{UUID}.jpg
+            └── 2_{UUID}.jpg
+```
+
+**Notes:**
+- `Caches/` có thể bị OS xóa khi low storage — đây là by design.
+- Mỗi ảnh có UUID để tránh collision.
+- Sort theo `lastPathComponent` (prefix index) để giữ đúng thứ tự.
+
+---
+
+## So sánh saveReview vs updateReview
+
+| | `saveReview()` (New mode) | `updateReview()` (Edit mode) |
+|---|---|---|
+| Firebase Storage | Không | Có (upload local images) |
+| Firestore write | Không | Có |
+| LocalImageStore | Save ảnh xuống Caches/ | Không |
+| Loading overlay | Không | Có (`isLoading`) |
+| Network | Offline-capable | Cần network |
+
+---
+
+## iOS 26.5 Gotchas
+
+### ScrollView freeze
+`DragGesture(minimumDistance: 0)` với `.simultaneousGesture` chặn toàn bộ scroll trên iOS 26.5.
+Đã xóa toàn bộ gesture này khỏi `imagesSection`, `takeMorePhotosSection`, `ImageRowCard`.
+
+### Không dùng `UploadStatusBottomSheet`
+`saveReview()` không upload nên không cần progress sheet. Sheet chỉ dùng ở `InspectionValidationView`.
 
 ---
 
@@ -183,11 +258,11 @@ User tap "Xoá"
 
 ```swift
 var localImages: [UIImage] {
-    images.compactMap { if case .local(let img) = $0 { return img } else { return nil } }
+    images.compactMap { if case .local(let img) = $0.source { return img } else { return nil } }
 }
 ```
 
-Được dùng trong callback `onSaved(saved, viewModel.localImages)` để caller có thể upload hoặc hiển thị ảnh ngay mà không cần phân biệt lại `ImageSource`.
+Được pass qua callback `onSaved(saved, viewModel.localImages)` để caller hiển thị ảnh mà không cần re-download.
 
 ### `isEditMode: Bool`
 
@@ -195,126 +270,39 @@ var localImages: [UIImage] {
 var isEditMode: Bool { editingItemId != nil }
 ```
 
-Điều khiển:
-- Navigation title: "Đánh giá ảnh chụp" ↔ "Chỉnh sửa lỗi"
-- Toolbar button "Hoàn thành" (chỉ hiện ở new mode)
-- `actionButtonsSection` (chỉ hiện ở edit mode)
-
----
-
-## ImageSource
-
-```swift
-enum ImageSource {
-    case local(image: UIImage)    // ảnh vừa chụp, chưa upload
-    case remote(url: String)      // ảnh đã upload, load qua URL
-}
-```
-
-`buildSavedErrorItem()` chỉ extract `.remote(url:)` vào `imageURLs` — ảnh local sẽ được upload bởi tầng repository.
+Điều khiển navigation title, toolbar button "Xong", và `actionButtonsSection`.
 
 ---
 
 ## Localization
 
-Tất cả chuỗi UI đều đi qua `LocalizationManager`. View **yêu cầu** `LocalizationManager` được inject qua `@EnvironmentObject` — thiếu sẽ crash ở runtime.
+Tất cả chuỗi UI đều đi qua `LocalizationManager`. View **yêu cầu** inject qua `@EnvironmentObject` — thiếu sẽ crash runtime.
 
-| Key | VI | EN |
-|---|---|---|
-| `errorReview.title.new` | Đánh giá ảnh chụp | Review Photos |
-| `errorReview.title.edit` | Chỉnh sửa lỗi | Edit Error |
-| `errorReview.section.images` | Ảnh đã chụp | Captured Photos |
-| `errorReview.images.empty` | Chưa có ảnh nào | No photos yet |
-| `errorReview.section.takeMorePhotos` | Chụp thêm ảnh | Take More Photos |
-| `errorReview.button.takePhoto` | Chụp ảnh | Take Photo |
-| `errorReview.section.severity` | Mức độ nặng nhẹ | Severity Level |
-| `errorReview.section.generalCondition` | Tình trạng chung | General Condition |
-| `errorReview.section.defectTypes` | Các loại phân lỗi | Defect Types |
-| `errorReview.section.comments` | Viết nhận xét tại đây | Add comments here |
-| `errorReview.button.delete` | Xoá | Delete |
-| `errorReview.button.saveChanges` | Lưu thay đổi | Save Changes |
-| `errorReview.delete.title` | Bạn có chắc muốn xoá lỗi này không? | Are you sure you want to delete this error? |
-| `errorReview.delete.confirm` | Xoá lỗi | Delete Error |
-
----
-
-## Design System
-
-Tất cả màu sắc dùng LMS tokens — không dùng raw `Color.*`:
-
-| Token | Dùng ở đâu |
+| Key | VI |
 |---|---|
-| `LMSColor.primary` | Selected severity icon, selected chip border |
-| `LMSColor.primaryLight` | Selected chip background |
-| `LMSColor.background` | Card section background |
-| `LMSColor.backgroundSecondary` | Unselected chip background, TextEditor background, remote image placeholder |
-| `LMSColor.secondary` | Unselected chip border, TextEditor border |
-| `LMSColor.textTertiary` | Unselected severity icon, defect chevron/xmark |
-| `LMSColor.shadow` | Section card shadow |
-| `LMSTextColor.secondary.color` | Empty state text, defect type display name |
-
----
-
-## Thread Safety
-
-| Thao tác | Queue |
-|---|---|
-| `@Published` property updates | Main thread (`@MainActor`) |
-| `saveReview()` / `updateReview()` | Async task, awaits on `@MainActor` |
-| `errorRepository.saveErrorItem` | `actor ErrorRepository` — serial actor executor |
-| JPEG resize + compress | `Task.detached(priority: .userInitiated)` — background thread |
-| Firebase Storage upload | Concurrent — `withThrowingTaskGroup` (N images upload song song) |
+| `errorReview.title.new` | Đánh giá ảnh chụp |
+| `errorReview.title.edit` | Chỉnh sửa lỗi |
+| `errorReview.section.images` | Ảnh đã chụp |
+| `errorReview.images.empty` | Chưa có ảnh nào |
+| `errorReview.section.takeMorePhotos` | Chụp thêm ảnh |
+| `errorReview.button.takePhoto` | Chụp ảnh |
+| `errorReview.section.severity` | Mức độ nặng nhẹ |
+| `errorReview.section.generalCondition` | Tình trạng chung |
+| `errorReview.section.defectTypes` | Các loại phân lỗi |
+| `errorReview.section.comments` | Viết nhận xét tại đây |
+| `errorReview.button.delete` | Xoá |
+| `errorReview.button.saveChanges` | Lưu thay đổi |
 
 ---
 
 ## Lưu ý quan trọng
 
-1. **`@EnvironmentObject LocalizationManager`** — Bắt buộc inject khi present `PhotoCaptureErrorReviewView`. Bao gồm cả khi present từ `.sheet`.
+1. **`@EnvironmentObject LocalizationManager`** — Bắt buộc inject khi present view, kể cả từ `.sheet`.
 
-2. **`defectTypeSearchableVM` là `@State`** — Được khởi tạo một lần khi user tap vào section, không bị recreate mỗi lần render. Sheet chỉ hiện khi VM đã sẵn sàng.
+2. **`defectTypeSearchableVM` là `@State`** — Khởi tạo một lần khi user tap, không recreate mỗi render cycle.
 
-3. **Xoá ảnh không ảnh hưởng remote URLs** — `deleteImage(at:)` chỉ xoá khỏi `images` array. `buildSavedErrorItem()` sẽ chỉ đưa các `.remote` URLs còn lại vào `imageURLs`.
+3. **Xoá ảnh không ảnh hưởng remote URLs** — `deleteImage(at:)` chỉ xoá khỏi `images` array trong memory.
 
-4. **Không có `deleteReview()` ở ViewModel** — Xoá `SavedErrorItem` là trách nhiệm của caller qua `onDeleted` callback, không phải ViewModel.
+4. **Không có `deleteReview()` ở ViewModel** — Xoá là trách nhiệm của caller qua `onDeleted` callback.
 
-5. **`CameraView` trong sheet cần `LocalizationManager`** — Sheet `CameraView` được inject `localizationManager` qua `.environmentObject(localizationManager)` để đảm bảo localization hoạt động đúng.
-
----
-
-## Sơ đồ state
-
-```
-                    ┌─────────────┐
-                    │    Init     │
-                    │ (no images) │
-                    └──────┬──────┘
-                           │ .onAppear → setInitialImages
-                    ┌──────▼──────┐
-                    │  Review     │
-                    │  Screen     │◄──── chụp thêm / xoá ảnh
-                    └──────┬──────┘
-              ┌────────────┤
-              │            │
-       ┌──────▼──────┐ ┌───▼─────────┐
-       │  Edit mode  │ │  New mode   │
-       │ (editingItem│ │             │
-       │  != nil)    │ │             │
-       └──────┬──────┘ └──────┬──────┘
-              │               │
-       ┌──────▼──────┐ ┌──────▼──────┐
-       │ updateReview│ │ saveReview  │
-       │    async    │ │   async     │
-       └──────┬──────┘ └──────┬──────┘
-              │               │
-              └───────┬───────┘
-                      │ success
-               ┌──────▼──────┐
-               │  callbacks  │
-               │ onSaved /   │
-               │ onImagesUpdated│
-               └──────┬──────┘
-                      │
-               ┌──────▼──────┐
-               │   dismiss() │
-               └─────────────┘
-```
+5. **`CameraView` trong sheet cần `LocalizationManager`** — Inject `.environmentObject(localizationManager)` khi present.

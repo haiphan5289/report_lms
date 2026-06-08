@@ -35,13 +35,25 @@ final class ErrorHomeViewModel: ObservableObject {
     func loadErrorInspections() async {
         isLoading = true
         errorMessage = nil
-
         defer { isLoading = false }
 
         do {
             errorInspections = try await errorRepository.fetchErrorItems(for: inspectionId)
+            await loadLocalThumbnails()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// For items with no remote imageURLs, load first image from LocalImageStore into thumbnailCache.
+    private func loadLocalThumbnails() async {
+        let pendingItems = errorInspections.filter { $0.imageURLs.isEmpty && thumbnailCache[$0.id] == nil }
+        guard !pendingItems.isEmpty else { return }
+        for item in pendingItems {
+            let imgs = await LocalImageStore.shared.load(for: item.id)
+            if let first = imgs.first {
+                thumbnailCache[item.id] = first
+            }
         }
     }
 
