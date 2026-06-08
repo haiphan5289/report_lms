@@ -67,7 +67,14 @@ actor ErrorRepository: ErrorRepositoryType {
     ///
     /// Storage path: `inspections/{inspectionId}/errors/{item.id}/{index}.jpg`
     /// Firestore path: `inspections/{inspectionId}/errorItems/{item.id}`
-    func saveErrorItem(_ item: SavedErrorItem, imageSources: [ImageSource], for inspectionId: String) async throws -> SavedErrorItem {
+    func saveErrorItem(
+        _ item: SavedErrorItem,
+        imageSources: [ImageSource],
+        for inspectionId: String,
+        onImageProgress: (@Sendable (Int, Double) -> Void)?,
+        onImageDone: (@Sendable (Int) -> Void)?,
+        onImageFail: (@Sendable (Int) -> Void)?
+    ) async throws -> SavedErrorItem {
         let firebaseUser = Auth.auth().currentUser
         logger.debug("[saveErrorItem] auth uid=\(firebaseUser?.uid ?? "nil", privacy: .public)")
         logger.debug("[saveErrorItem] inspectionId=\(inspectionId, privacy: .public)")
@@ -96,12 +103,26 @@ actor ErrorRepository: ErrorRepositoryType {
                     }.value
                     guard let imageData else {
                         logger.warning("[saveErrorItem] Skipping image[\(index, privacy: .public)] — prepareForUpload returned nil")
+                        onImageFail?(index)
                         throw UploadError.compressionFailed
                     }
                     logger.debug("[saveErrorItem] Uploading image[\(index, privacy: .public)] → \(path, privacy: .public)")
-                    let url = try await self.storageService.uploadImage(imageData, path: path)
-                    logger.debug("[saveErrorItem] Upload succeeded[\(index, privacy: .public)] url=\(url, privacy: .public)")
-                    return (index, url)
+                    do {
+                        let url: String
+                        if let progressCb = onImageProgress {
+                            url = try await self.storageService.uploadImageWithProgress(imageData, path: path) { progress in
+                                progressCb(index, progress)
+                            }
+                        } else {
+                            url = try await self.storageService.uploadImage(imageData, path: path)
+                        }
+                        logger.debug("[saveErrorItem] Upload succeeded[\(index, privacy: .public)] url=\(url, privacy: .public)")
+                        onImageDone?(index)
+                        return (index, url)
+                    } catch {
+                        onImageFail?(index)
+                        throw error
+                    }
                 }
             }
             var results: [(Int, String)] = []

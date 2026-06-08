@@ -155,6 +155,7 @@ private struct IconOnlyButtonStyle: ButtonStyle {
                     } else if let icon = icon {
                         Image(systemName: icon)
                             .font(.title2)
+                            .symbolEffectsRemoved()
                     }
                 }
                 .foregroundColor(variant.foregroundColor)

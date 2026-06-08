@@ -24,6 +24,8 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     @Published var isDownloading = false
     @Published var errorMessage: String?
     @Published var snackbarMessage: String?
+    @Published var uploadSessions: [FieldUploadSession] = []
+    @Published var showUploadStatusSheet = false
 
     // MARK: - Private Properties
     let inspectionId: String  // Internal for debug access
@@ -188,26 +190,64 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
 
     // MARK: - Persistence
     func saveReview() async -> SavedErrorItem? {
-        isLoading = true
-        defer { isLoading = false }
-
         guard !images.isEmpty else {
             errorMessage = "Vui lòng chụp ít nhất một ảnh"
             return nil
+        }
+
+        let localItems: [ImageUploadItem] = images.enumerated().compactMap { i, imgWithNote in
+            guard case .local(let img) = imgWithNote.source else { return nil }
+            return ImageUploadItem(id: "err-\(i)", imageIndex: i, thumbnail: img, status: .pending)
+        }
+        if !localItems.isEmpty {
+            uploadSessions = [FieldUploadSession(id: "error-upload", fieldLabel: "Ảnh lỗi", items: localItems)]
+            showUploadStatusSheet = true
+        } else {
+            isLoading = true
         }
 
         let item = buildSavedErrorItem()
         logger.debug("[saveReview] START inspectionId=\(self.inspectionId, privacy: .public) imageCount=\(self.images.count, privacy: .public)")
 
         do {
-            let saved = try await errorRepository.saveErrorItem(item, imageSources: images.map { $0.source }, for: inspectionId)
+            let saved = try await errorRepository.saveErrorItem(
+                item,
+                imageSources: images.map { $0.source },
+                for: inspectionId,
+                onImageProgress: { [weak self] index, progress in
+                    Task { @MainActor [weak self] in self?.updateImageProgress(index: index, progress: progress) }
+                },
+                onImageDone: { [weak self] index in
+                    Task { @MainActor [weak self] in self?.markImageStatus(index: index, status: .done) }
+                },
+                onImageFail: { [weak self] index in
+                    Task { @MainActor [weak self] in self?.markImageStatus(index: index, status: .failed) }
+                }
+            )
             logger.debug("[saveReview] ✅ saveErrorItem succeeded")
+            try? await Task.sleep(for: .milliseconds(600))
+            showUploadStatusSheet = false
+            isLoading = false
             return saved
         } catch {
+            showUploadStatusSheet = false
+            isLoading = false
             logger.error("[saveReview] ❌ saveErrorItem failed: \(error, privacy: .public)")
             errorMessage = "Không thể lưu đánh giá: \(error.localizedDescription)"
             return nil
         }
+    }
+
+    private func updateImageProgress(index: Int, progress: Double) {
+        guard !uploadSessions.isEmpty,
+              let i = uploadSessions[0].items.firstIndex(where: { $0.imageIndex == index }) else { return }
+        uploadSessions[0].items[i].status = .uploading(progress: progress)
+    }
+
+    private func markImageStatus(index: Int, status: ImageUploadStatus) {
+        guard !uploadSessions.isEmpty,
+              let i = uploadSessions[0].items.firstIndex(where: { $0.imageIndex == index }) else { return }
+        uploadSessions[0].items[i].status = status
     }
 
     func updateReview() async -> SavedErrorItem? {

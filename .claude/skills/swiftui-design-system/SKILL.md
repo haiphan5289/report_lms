@@ -51,6 +51,55 @@ Complete reference for CTDesignSystem tokens and components (v3.0+).
 - Color sub-protocol access: `theme.text.textPrimary` NOT `theme.textPrimary`
 - Dark mode NOT available yet. All themes light mode only.
 
+## iOS 26 Gotchas (Liquid Glass)
+
+### 1. `DragGesture(minimumDistance: 0)` blocks `ScrollView`
+iOS 26.5 changed gesture priority: `DragGesture(minimumDistance: 0)` với `.simultaneousGesture` giờ chặn toàn bộ touch trước khi `ScrollView` nhận được — kể cả scroll gesture. Mỗi view con trong `ScrollView` có gesture này = 1 blocker. Nhiều item → scroll đứng hình.
+
+```swift
+// ❌ Forbidden inside ScrollView on iOS 26+
+.simultaneousGesture(
+    DragGesture(minimumDistance: 0)
+        .updating($isPressed) { _, state, _ in state = true }
+)
+
+// ✅ Use ButtonStyle instead for press feedback
+.buttonStyle(ScalePressButtonStyle())
+```
+
+### 2. SF Symbol auto-animation trong button context
+iOS 26 tự động apply variable color / breathe animation lên một số SF Symbols (vd: `"cloud"`, `"clock"`) khi nằm trong button. Simulator không thấy (dùng Mac Metal stack), real device thấy liên tục.
+
+```swift
+// ❌ Symbols animate continuously on real device
+Image(systemName: "cloud")
+    .font(.title2)
+
+// ✅ Disable automatic symbol effects
+Image(systemName: "cloud")
+    .font(.title2)
+    .symbolEffectsRemoved()
+```
+
+Áp dụng `.symbolEffectsRemoved()` cho tất cả `Image(systemName:)` trong `LMSButton` iconOnly variant.
+
+### 3. Double animation spec gây re-animate liên tục
+Dùng đồng thời `withAnimation` + `.animation(_:value:)` trên cùng 1 state value → implicit animation propagate xuống toàn bộ child views, re-trigger mỗi khi bất kỳ `@Published` nào trong ViewModel thay đổi.
+
+```swift
+// ❌ Double spec — gây liên tục animate child views
+.onAppear {
+    withAnimation(.easeOut(duration: 0.4)) { headerVisible = true }  // (1)
+}
+.animation(.easeOut(duration: 0.4), value: headerVisible)            // (2) — redundant
+
+// ✅ Chỉ dùng một trong hai
+.onAppear {
+    withAnimation(.easeOut(duration: 0.4)) { headerVisible = true }
+}
+// Xóa .animation(_:value:) modifier
+```
+
 ## Source
 
 > ⚠️ Path contains a DerivedData build hash — if DerivedData is cleared, regenerate via `pod install` or build once.

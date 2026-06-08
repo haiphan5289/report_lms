@@ -184,7 +184,7 @@ struct PhotoCaptureErrorReviewView: View {
             Button(localizationManager.localize("common.cancel"), role: .cancel) {}
         }
         .overlay {
-            if viewModel.isLoading || viewModel.isDownloading {
+            if viewModel.isDownloading || (viewModel.isLoading && !viewModel.showUploadStatusSheet) {
                 LMSLoadingOverlay()
             }
         }
@@ -222,6 +222,12 @@ struct PhotoCaptureErrorReviewView: View {
                 ShareSheet(items: [image])
             }
         }
+        .sheet(isPresented: $viewModel.showUploadStatusSheet) {
+            UploadStatusBottomSheet(
+                sessions: viewModel.uploadSessions,
+                isPresented: $viewModel.showUploadStatusSheet
+            )
+        }
         .lmsSnackbar(message: $viewModel.snackbarMessage, type: .error)
         .safeAreaInset(edge: .bottom) {
             if viewModel.isEditMode {
@@ -234,8 +240,6 @@ struct PhotoCaptureErrorReviewView: View {
     }
 
     // MARK: - Images Section
-    @GestureState private var imagesSectionPressed = false
-    
     private var imagesSection: some View {
         VStack(alignment: .leading, spacing: Layout.innerSpacing) {
             HStack(spacing: 8) {
@@ -293,16 +297,9 @@ struct PhotoCaptureErrorReviewView: View {
             RoundedRectangle(cornerRadius: Layout.cornerRadius)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
-        .scaleEffect(imagesSectionPressed ? 0.98 : 1.0)
-        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: imagesSectionPressed)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .updating($imagesSectionPressed) { _, state, _ in state = true }
-        )
     }
 
     // MARK: - Take More Photos Section
-    @GestureState private var photoButtonPressed = false
     
     private var takeMorePhotosSection: some View {
         VStack(alignment: .leading, spacing: Layout.innerSpacing) {
@@ -321,12 +318,6 @@ struct PhotoCaptureErrorReviewView: View {
             ) {
                 viewModel.showCamera = true
             }
-            .scaleEffect(photoButtonPressed ? 0.96 : 1.0)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: photoButtonPressed)
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .updating($photoButtonPressed) { _, state, _ in state = true }
-            )
         }
         .padding(Layout.sectionPadding)
         .background(
@@ -620,8 +611,6 @@ private struct ImageRowCard: View {
     let cornerRadius: CGFloat
     let onMenu: () -> Void
 
-    @GestureState private var isPressed = false
-
     var body: some View {
         VStack(spacing: 0) {
             // Full-width image with overlaid controls
@@ -660,12 +649,6 @@ private struct ImageRowCard: View {
                         .padding(8)
                 }
             }
-            .scaleEffect(isPressed ? 0.98 : 1.0)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .updating($isPressed) { _, state, _ in state = true }
-            )
 
             // Note text field
             TextField("Thêm ghi chú cho ảnh này...", text: $note, axis: .vertical)

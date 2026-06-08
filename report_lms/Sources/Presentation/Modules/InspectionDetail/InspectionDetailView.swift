@@ -63,7 +63,9 @@ struct InspectionDetailView: View {
         .task {
             await viewModel.loadInspectionDetail()
         }
-        .fullScreenCover(isPresented: $viewModel.showCamera) {
+        .fullScreenCover(isPresented: $viewModel.showCamera, onDismiss: {
+            viewModel.selectedFieldId = nil
+        }) {
             CameraView(source: .inspection) { images in
                 viewModel.handlePhotoSelection(images)
             }

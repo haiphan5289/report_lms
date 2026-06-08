@@ -167,7 +167,6 @@ struct LMSHomeView: View {
         )
         .opacity(headerVisible ? 1 : 0)
         .offset(y: headerVisible ? 0 : -12)
-        .animation(.easeOut(duration: 0.4), value: headerVisible)
     }
 
     private var menuButton: some View {
