@@ -136,8 +136,8 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
         await MainActor.run { cache.removeAll { $0.id == id } }
         NotificationCenter.default.post(name: .inspectionDidUpdate, object: nil)
 
-        // 4. Fire & forget: delete photos + delivery queue tasks
-        let photoURLs = inspection.sections
+        // 4. Fire & forget: delete photos + error items + delivery queue tasks
+        let fieldPhotoURLs = inspection.sections
             .flatMap { $0.fields }
             .flatMap { field -> [String] in
                 var urls = field.imageURLs
@@ -147,14 +147,35 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
             .filter { !$0.isEmpty }
 
         let storageService = self.storageService
+        let firestoreService = self.firestoreService
         let deliveryQueueService = self.deliveryQueueService
+        let logger = self.logger
         Task {
-            for url in photoURLs {
+            // Delete field photos from Firebase Storage
+            for url in fieldPhotoURLs {
                 try? await storageService.deleteImage(fromURL: url)
             }
-            if !photoURLs.isEmpty {
-                logger.log("Deleted \(photoURLs.count) photos for inspection \(id)")
+            if !fieldPhotoURLs.isEmpty {
+                logger.log("Deleted \(fieldPhotoURLs.count) field photos for inspection \(id)")
             }
+
+            // Fetch + delete errorItems subcollection (Firestore + Storage + disk)
+            if let errorItems = try? await firestoreService.fetchErrorItemsForDeletion(inspectionId: id) {
+                for item in errorItems {
+                    // Firebase Storage error images
+                    for url in item.imageURLs {
+                        try? await storageService.deleteImage(fromURL: url)
+                    }
+                    // Firestore errorItems doc
+                    try? await firestoreService.deleteErrorItem(inspectionId: id, errorItemId: item.id)
+                    // LocalImageStore disk cache
+                    await LocalImageStore.shared.clear(for: item.id)
+                }
+                if !errorItems.isEmpty {
+                    logger.log("Deleted \(errorItems.count) error items for inspection \(id)")
+                }
+            }
+
             try? await deliveryQueueService.deleteTasksForInspection(inspectionId: id)
         }
 

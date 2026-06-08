@@ -8,18 +8,19 @@
 
 > Cho phép user theo dõi tiến trình upload từng ảnh kiểm tra lên Firebase Storage theo thời gian thực.
 
-- **Goal:** Hiển thị bottom sheet progress upload per-image, grouped by inspection field — giải quyết vấn đề user không biết ảnh đang upload khi bấm "Hoàn tất kiểm tra"
-- **User story:** As an inspector, I want to see the upload progress of each photo so that I know when it's safe to complete the inspection
+- **Goal:** Hiển thị bottom sheet progress upload per-image, grouped by inspection field — triggered khi user nhấn "Gửi Email" trong khi ảnh đang upload
+- **User story:** As an inspector, I want to see the upload progress of each photo so that I know my report email will include all photos
 - **Acceptance criteria:**
-  - [x] Button "Hoàn tất kiểm tra" hiển thị spinner + "Đang tải ảnh (N)..." khi có upload đang chạy
-  - [x] Nhấn vào button khi đang upload → mở `UploadStatusBottomSheet`
+  - [x] Button "Hoàn tất kiểm tra" navigate thẳng vào `FinalReportView` — không block, không check upload
+  - [x] Button "Gửi Email" trong `FinalReportView` hiển thị spinner + "Đang tải ảnh (N)..." khi có upload đang chạy
+  - [x] Nhấn "Gửi Email" khi đang upload → mở `UploadStatusBottomSheet` + set `pendingEmailSend = true`
+  - [x] Khi tất cả upload xong và `pendingEmailSend == true` → auto gửi email
   - [x] Bottom sheet nhóm ảnh theo từng field (section header = field label)
   - [x] Mỗi ảnh hiển thị: thumbnail, "Ảnh N", progress bar %, status icon
   - [x] Progress % là số thực từ Firebase Storage (`fractionCompleted`)
   - [x] 4 trạng thái: `.pending`, `.uploading(progress:)`, `.done`, `.failed`
   - [x] Khi failed: hiển thị ❌ + "Thất bại" — không có retry
   - [x] Session tự xóa khỏi list khi `activeUploadCount == 0`
-  - [x] FinalReport tự mở khi tất cả upload xong nếu user đã tap "Hoàn tất" trước
 
 ---
 
@@ -28,9 +29,10 @@
 | Rule | Description |
 |------|-------------|
 | No retry on failure | Ảnh upload thất bại chỉ hiển thị ❌ — user phải quay lại ValidationView để chụp lại |
-| Auto-open FinalReport | Nếu user tap "Hoàn tất" khi đang upload → `pendingFinalReport = true` → FinalReport mở tự động khi upload xong |
+| "Hoàn tất" không block | Button "Hoàn tất kiểm tra" luôn navigate thẳng vào FinalReport, bất kể upload đang chạy hay không |
+| Auto-send email | Nếu user tap "Gửi Email" khi đang upload → `pendingEmailSend = true` → email tự động gửi khi upload xong (via `FinalReportView.onChange`) |
 | Session cleanup | `uploadSessions.removeAll { $0.isComplete }` chỉ chạy khi `activeUploadCount == 0` |
-| Count = images, not fields | `totalUploadingImageCount` đếm ảnh còn pending/uploading (không phải số field) để hiển thị đúng trên button |
+| Count = images, not fields | `totalUploadingImageCount` đếm ảnh còn pending/uploading (không phải số field) để hiển thị đúng trên button "Gửi Email" |
 | Concurrent upload throttled | Tối đa 4 ảnh upload đồng thời (`maxConcurrent = 4`). Unbounded concurrency gây OOM crash khi nhiều ảnh 12MP (xem § Bugs Fixed) |
 | Image resize capped at 1600px | `prepareForUpload(maxDimension: 1600, compressionQuality: 0.8)` — giảm từ 2048px để tối ưu upload speed (~35% nhỏ hơn) mà không ảnh hưởng chất lượng PDF A4 |
 | Callbacks are @Sendable | `onImageProgress`, `onImageDone`, `onImageFail` phải `@Sendable` vì được gọi từ trong TaskGroup (non-isolated context) |
@@ -44,9 +46,9 @@
 | Layer | File | Role |
 |-------|------|------|
 | Presentation | [`UploadStatusBottomSheet.swift`](UploadStatusBottomSheet.swift) | Bottom sheet UI grouped by field |
-| Presentation | [`InspectionDetailView.swift`](InspectionDetailView.swift) | Hosts sheet + wires callbacks vào `InspectionValidationView` |
-| Presentation | [`InspectionDetailContentView.swift`](InspectionDetailContentView.swift) | Button upload-aware, tap → `onShowUploadStatus()` |
-| Presentation | [`InspectionDetailViewModel.swift`](InspectionDetailViewModel.swift) | Source of truth: `uploadSessions`, `showUploadStatusSheet`, `totalUploadingImageCount` |
+| Presentation | [`InspectionDetailView.swift`](InspectionDetailView.swift) | Hosts sheet; "Hoàn tất" → `showFinalReport = true` trực tiếp |
+| Presentation | [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift) | "Gửi Email" upload-aware; `@EnvironmentObject InspectionDetailViewModel`; `onChange` auto-send |
+| Presentation | [`InspectionDetailViewModel.swift`](InspectionDetailViewModel.swift) | Source of truth: `uploadSessions`, `showUploadStatusSheet`, `totalUploadingImageCount`, `pendingEmailSend` |
 | Presentation | [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) | Nhận và forward 3 callbacks vào VM |
 | Presentation | [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) | Gọi callbacks per-image trong `uploadPhotosAndUpdateField` |
 | Domain | [`ImageUploadItem.swift`](../../../Domain/Entities/ImageUploadItem.swift) | `ImageUploadStatus`, `ImageUploadItem`, `FieldUploadSession` models |
@@ -71,6 +73,28 @@ Firebase Storage
                         updateImageProgress / markImageDone / markImageFailed
                           → @Published uploadSessions → SwiftUI re-render
                             → UploadStatusBottomSheet (live progress bar)
+                              → activeUploadCount → 0
+                                → FinalReportView.onChange(totalUploadingImageCount)
+                                    pendingEmailSend == true → sendReport() auto-trigger
+```
+
+### "Gửi Email" Button Flow
+
+```
+User ở FinalReportView, tap "Gửi Email"
+  │
+  ├─ totalUploadingImageCount == 0
+  │     → sendReport() trực tiếp
+  │
+  └─ totalUploadingImageCount > 0
+        → inspectionDetailVM.showUploadStatusSheet = true   (show sheet)
+        → inspectionDetailVM.pendingEmailSend = true
+              │
+              └─ [background] upload hoàn tất
+                    → activeUploadCount → 0
+                    → FinalReportView.onChange:
+                          pendingEmailSend = false
+                          sendReport() auto-trigger ✅
 ```
 
 ### Architecture Diagram
@@ -79,15 +103,17 @@ Firebase Storage
 graph TD
     A[InspectionDetailView] -->|makeUploadCallbacks| B[InspectionDetailViewModel]
     A -->|onTaskCompleted| B
-    A -->|sheet isPresented| C[UploadStatusBottomSheet]
+    A -->|fullScreenCover| J[FinalReportView]
+    J -->|@EnvironmentObject| B
+    J -->|sheet isPresented| C[UploadStatusBottomSheet]
     C -->|reads| B
-    D[InspectionDetailContentView] -->|onShowUploadStatus| A
     E[InspectionValidationView] -->|onImageProgress/Done/Fail| F[InspectionValidationViewModel]
     F -->|executeWithProgress| G[UploadInspectionMediaUseCase]
     G -->|uploadImageWithProgress| H[FirebaseStorageService]
     H -->|observe .progress| H
     F -->|callbacks @Sendable| B
     B -->|uploadSessions| C
+    J -->|onChange totalUploadingImageCount| J
 ```
 
 ---
@@ -101,15 +127,18 @@ graph TD
 - [`InspectionDetailViewModel.swift`](InspectionDetailViewModel.swift)
   - `@Published var uploadSessions: [FieldUploadSession]`
   - `@Published var showUploadStatusSheet: Bool`
+  - `var pendingEmailSend: Bool` — khi upload xong + flag này true → FinalReportView auto-send email
   - `var totalUploadingImageCount: Int` — computed, counts pending+uploading images
   - `func startUploadSession(fieldId:images:)` — creates session, calls `notifyUploadStarted()`
   - `func makeUploadCallbacks(for:)` — returns 3 `@Sendable` closures for per-image tracking
   - `func updateImageProgress(fieldId:imageIndex:progress:)`
   - `func markImageDone(fieldId:imageIndex:)`
   - `func markImageFailed(fieldId:imageIndex:)`
-- [`InspectionDetailView.swift`](InspectionDetailView.swift) — wires callbacks, hosts `.sheet(isPresented: $viewModel.showUploadStatusSheet)`
-- [`InspectionDetailContentView.swift`](InspectionDetailContentView.swift) — `let onShowUploadStatus: () -> Void`; tappable overlay khi `hasActiveUploads`
-- [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) — 3 new init params: `onImageProgress`, `onImageDone`, `onImageFail`
+  - ~~`shouldShowFinalReport`~~ — removed; `pendingFinalReport` — removed; `requestFinalReport()` — removed
+- [`InspectionDetailView.swift`](InspectionDetailView.swift) — `@State showFinalReport`; "Hoàn tất" sets `showFinalReport = true` trực tiếp; FinalReportView inject `.environmentObject(viewModel)`; **không** host sheet nữa
+- [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift) — `@EnvironmentObject InspectionDetailViewModel`; "Gửi Email" upload-aware (spinner + count); `.onChange(totalUploadingImageCount)` auto-send; **hosts** `.sheet(isPresented: $inspectionDetailVM.showUploadStatusSheet)` — sheet phải present từ trong `fullScreenCover` context để tránh dismiss conflict
+- [`InspectionDetailContentView.swift`](InspectionDetailContentView.swift) — "Hoàn tất" là simple button, không còn `hasActiveUploads`/`onShowUploadStatus`
+- [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) — 3 init params: `onImageProgress`, `onImageDone`, `onImageFail`
 - [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) — stores và gọi 3 `@Sendable` callbacks từ trong `TaskGroup`
 
 ### Domain — New Files
@@ -217,6 +246,40 @@ func prepareForUpload(maxDimension: CGFloat = 1600, compressionQuality: CGFloat 
 
 ---
 
+### B4 — UploadStatusBottomSheet dismiss FinalReportView khi present
+
+**Ngày fix:** 2026-06-08
+**File:** [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift), [`InspectionDetailView.swift`](InspectionDetailView.swift)
+
+**Root cause:**
+`.sheet(showUploadStatusSheet)` được attach vào `InspectionDetailView`. Khi `FinalReportView` (presented qua `fullScreenCover`) trigger `showUploadStatusSheet = true`, SwiftUI cố present sheet từ `InspectionDetailView` → dismiss `fullScreenCover` (FinalReportView) để giải phóng hierarchy.
+
+```
+BEFORE (broken):
+InspectionDetailView
+  ├── .sheet(showUploadStatusSheet)      ← parent owns sheet
+  └── .fullScreenCover(showFinalReport)
+        └── FinalReportView
+              └── showUploadStatusSheet = true
+                    → SwiftUI dismiss fullScreenCover ❌
+```
+
+**Fix:** Move `.sheet(showUploadStatusSheet)` từ `InspectionDetailView` sang `FinalReportView`. Sheet phải present từ cùng context với view trigger nó.
+
+```
+AFTER (fixed):
+InspectionDetailView
+  └── .fullScreenCover(showFinalReport)
+        └── FinalReportView
+              ├── .sheet(showUploadStatusSheet)   ← same context ✅
+              └── showUploadStatusSheet = true → sheet present tại chỗ ✅
+```
+
+**Rule to remember:**
+> `.sheet` phải được attach vào view **cùng level hoặc là ancestor trực tiếp** của view trigger nó. Khi view presenter là `fullScreenCover` hay `sheet`, sheet con phải được attach vào chính view đó — không phải parent bên ngoài.
+
+---
+
 ### B2 — Button "Đóng" bị che khi scroll
 
 **Ngày fix:** 2026-06-06  
@@ -265,4 +328,4 @@ Thêm 2 modifier vào `NavigationStack` body:
 
 ---
 
-*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-06 (B1 OOM fix, B2 toolbar fix, B3 upload speed)*
+*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-08 (Move upload gate từ "Hoàn tất" sang "Gửi Email"; add pendingEmailSend; FinalReportView @EnvironmentObject; B4 sheet context fix)*

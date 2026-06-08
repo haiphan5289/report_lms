@@ -37,4 +37,27 @@ final class FirestoreService {
     func deleteInspection(id: String) async throws {
         try await firestoreDatabase.collection("inspections").document(id).delete()
     }
+
+    /// Fetches error item IDs + image URLs from the `errorItems` subcollection.
+    /// Used during cascade delete to clean up Storage and LocalImageStore.
+    func fetchErrorItemsForDeletion(inspectionId: String) async throws -> [(id: String, imageURLs: [String])] {
+        let snapshot = try await firestoreDatabase
+            .collection("inspections")
+            .document(inspectionId)
+            .collection("errorItems")
+            .getDocuments()
+        return snapshot.documents.map { doc in
+            let urls = doc.data()["imageURLs"] as? [String] ?? []
+            return (id: doc.documentID, imageURLs: urls)
+        }
+    }
+
+    func deleteErrorItem(inspectionId: String, errorItemId: String) async throws {
+        try await firestoreDatabase
+            .collection("inspections")
+            .document(inspectionId)
+            .collection("errorItems")
+            .document(errorItemId)
+            .delete()
+    }
 }

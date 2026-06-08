@@ -13,6 +13,10 @@ extension UIImage {
         return resized.jpegData(compressionQuality: compressionQuality)
     }
 
+    func resized(maxDimension: CGFloat = 1600) -> UIImage {
+        resizedIfNeeded(maxDimension: maxDimension)
+    }
+
     private func resizedIfNeeded(maxDimension: CGFloat) -> UIImage {
         guard size.width > maxDimension || size.height > maxDimension else { return self }
         let ratio = min(maxDimension / size.width, maxDimension / size.height)

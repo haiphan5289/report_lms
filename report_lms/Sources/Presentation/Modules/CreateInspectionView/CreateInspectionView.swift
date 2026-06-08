@@ -73,13 +73,6 @@ struct CreateInspectionView: View {
                 print("🔴 [CreateInspectionView] newInspection is nil - not dismissing")
             }
         }
-        .alert("Thành công", isPresented: $viewModel.showSuccessAlert) {
-            Button("OK") {
-                viewModel.showSuccessAlert = false
-            }
-        } message: {
-            Text("Đã tạo báo cáo kiểm tra thành công!")
-        }
         .task {
             withAnimation(.easeOut(duration: 0.4)) { formVisible = true }
             try? await Task.sleep(for: .milliseconds(150))

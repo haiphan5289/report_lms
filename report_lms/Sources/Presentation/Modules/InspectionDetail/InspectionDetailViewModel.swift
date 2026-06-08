@@ -27,12 +27,11 @@ final class InspectionDetailViewModel: ObservableObject {
     @Published var selectedValidationField: ValidationFieldSelection?
     @Published var selectedTab: Tab = .inspectionDetail
 
-    // MARK: - Upload Tracking (Option B)
+    // MARK: - Upload Tracking
     @Published var activeUploadCount: Int = 0
-    @Published var shouldShowFinalReport: Bool = false
     @Published var showUploadStatusSheet: Bool = false
     @Published var uploadSessions: [FieldUploadSession] = []
-    private var pendingFinalReport: Bool = false
+    var pendingEmailSend: Bool = false
 
     /// Total number of images still in-flight (pending or uploading) across all active sessions.
     var totalUploadingImageCount: Int {
@@ -148,21 +147,8 @@ final class InspectionDetailViewModel: ObservableObject {
 
     func notifyUploadCompleted() {
         activeUploadCount = max(0, activeUploadCount - 1)
-        if activeUploadCount == 0 && pendingFinalReport {
-            pendingFinalReport = false
-            shouldShowFinalReport = true
-        }
         if activeUploadCount == 0 {
             uploadSessions.removeAll { $0.isComplete }
-        }
-    }
-
-    /// Called when user taps "Hoàn tất kiểm tra".
-    func requestFinalReport() {
-        if activeUploadCount > 0 {
-            pendingFinalReport = true
-        } else {
-            shouldShowFinalReport = true
         }
     }
 

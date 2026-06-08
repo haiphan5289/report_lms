@@ -19,6 +19,7 @@ struct FinalReportView: View {
     // MARK: - Properties
     @StateObject private var viewModel: FinalReportViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
+    @EnvironmentObject private var inspectionDetailVM: InspectionDetailViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
@@ -93,6 +94,12 @@ struct FinalReportView: View {
             .task {
                 withAnimation(.easeOut(duration: 0.35)) { contentVisible = true }
             }
+        }
+        .sheet(isPresented: $inspectionDetailVM.showUploadStatusSheet) {
+            UploadStatusBottomSheet(
+                sessions: inspectionDetailVM.uploadSessions,
+                isPresented: $inspectionDetailVM.showUploadStatusSheet
+            )
         }
         .sheet(isPresented: $viewModel.isShowingRecipientsPicker) {
             recipientsPickerView
@@ -314,26 +321,51 @@ struct FinalReportView: View {
     }
 
     private var actionButtonsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let isUploading = inspectionDetailVM.totalUploadingImageCount > 0
+        let uploadCount = inspectionDetailVM.totalUploadingImageCount
+
+        return VStack(alignment: .leading, spacing: 12) {
             LMSLabel(localizationManager.localize("finalReport.section.endInspection"), style: .headline)
                 .padding(.horizontal)
 
             HStack(spacing: 12) {
-                LMSButton(
-                    localizationManager.localize("finalReport.button.sendEmail"),
-                    icon: viewModel.isSendingToServer ? "clock.arrow.circlepath" : "paperplane.fill",
-                    variant: .primary,
-                    size: .large,
-                    isFullWidth: true,
-                    isLoading: $viewModel.isSendingToServer,
-                    isDisabled: viewModel.isGeneratingPDF || viewModel.isSendingToServer
-                ) {
-                    Task {
-                        await viewModel.sendReport()
+                ZStack {
+                    LMSButton(
+                        isUploading
+                            ? "Đang tải ảnh (\(uploadCount))..."
+                            : localizationManager.localize("finalReport.button.sendEmail"),
+                        icon: isUploading ? "clock.arrow.circlepath" : (viewModel.isSendingToServer ? "clock.arrow.circlepath" : "paperplane.fill"),
+                        variant: .primary,
+                        size: .large,
+                        isFullWidth: true,
+                        isLoading: $viewModel.isSendingToServer,
+                        isDisabled: viewModel.isGeneratingPDF || viewModel.isSendingToServer
+                    ) {
+                        if isUploading {
+                            inspectionDetailVM.showUploadStatusSheet = true
+                            inspectionDetailVM.pendingEmailSend = true
+                        } else {
+                            Task { await viewModel.sendReport() }
+                        }
+                    }
+
+                    if isUploading {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                inspectionDetailVM.showUploadStatusSheet = true
+                                inspectionDetailVM.pendingEmailSend = true
+                            }
                     }
                 }
             }
             .padding(.horizontal)
+            .animation(.easeInOut(duration: 0.25), value: isUploading)
+        }
+        .onChange(of: inspectionDetailVM.totalUploadingImageCount) { _, count in
+            guard count == 0, inspectionDetailVM.pendingEmailSend else { return }
+            inspectionDetailVM.pendingEmailSend = false
+            Task { await viewModel.sendReport() }
         }
     }
 

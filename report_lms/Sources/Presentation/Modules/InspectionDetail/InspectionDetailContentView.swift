@@ -33,10 +33,7 @@ struct InspectionDetailContentView: View {
     let errorMessage: String?
     let onSwitchToErrorTab: () -> Void
     let onErrorSaved: (SavedErrorItem, [UIImage]) -> Void
-    let hasActiveUploads: Bool
-    let activeUploadCount: Int
     let onCompleteInspection: () -> Void
-    let onShowUploadStatus: () -> Void
 
     @State private var showAddCustomField = false
     @State private var showErrorCamera = false
@@ -259,61 +256,38 @@ struct InspectionDetailContentView: View {
     }
 
     private func completeInspectionButton() -> some View {
-        ZStack {
-            // Base button — "Hoàn tất" or dimmed waiting state
-            Button(action: { onCompleteInspection() }) {
-                HStack(spacing: 12) {
-                    if hasActiveUploads {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: LMSColor.white))
-                            .scaleEffect(0.85)
-                    } else {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: Layout.actionButtonIconSize, weight: .medium))
-                            .foregroundColor(LMSColor.white)
-                    }
-
-                    Text(hasActiveUploads
-                         ? "Đang tải ảnh (\(activeUploadCount))..."
-                         : localizationManager.localize("inspection.button.complete"))
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(LMSColor.white)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: Layout.actionButtonHeight)
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            hasActiveUploads ? LMSColor.primary.opacity(0.6) : LMSColor.primary,
-                            hasActiveUploads ? LMSColor.primary.opacity(0.5) : LMSColor.primary.opacity(0.85)
-                        ]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+        Button(action: { onCompleteInspection() }) {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: Layout.actionButtonIconSize, weight: .medium))
+                    .foregroundColor(LMSColor.white)
+                Text(localizationManager.localize("inspection.button.complete"))
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(LMSColor.white)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: Layout.actionButtonHeight)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [LMSColor.primary, LMSColor.primary.opacity(0.85)]),
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
-                .cornerRadius(Layout.actionButtonCornerRadius)
-                .shadow(color: LMSColor.primary.opacity(0.25), radius: 8, x: 0, y: 4)
-            }
-            .buttonStyle(.plain)
-            .scaleEffect(completePressed ? 0.97 : 1.0)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: completePressed)
-            .animation(.easeInOut(duration: 0.25), value: hasActiveUploads)
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .updating($completePressed) { _, state, _ in state = true }
             )
-
-            // Tap-anywhere-on-button overlay when uploading → open status sheet
-            if hasActiveUploads {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { onShowUploadStatus() }
-            }
+            .cornerRadius(Layout.actionButtonCornerRadius)
+            .shadow(color: LMSColor.primary.opacity(0.25), radius: 8, x: 0, y: 4)
         }
+        .buttonStyle(.plain)
+        .scaleEffect(completePressed ? 0.97 : 1.0)
+        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: completePressed)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .updating($completePressed) { _, state, _ in state = true }
+        )
         .frame(height: Layout.actionButtonHeight)
         .padding(.top, 8)
-        .accessibilityLabel(hasActiveUploads ? "Đang tải ảnh lên — nhấn để xem chi tiết" : "Hoàn tất kiểm tra")
-        .accessibilityHint(hasActiveUploads ? "Mở trạng thái tải ảnh" : "Mở màn hình hoàn tất kiểm tra và gửi báo cáo")
+        .accessibilityLabel("Hoàn tất kiểm tra")
+        .accessibilityHint("Mở màn hình hoàn tất kiểm tra và gửi báo cáo")
     }
 }
 
@@ -334,10 +308,7 @@ private struct PreviewWrapper: View {
             errorMessage: errorMessage,
             onSwitchToErrorTab: {},
             onErrorSaved: { _, _ in },
-            hasActiveUploads: false,
-            activeUploadCount: 0,
-            onCompleteInspection: {},
-            onShowUploadStatus: {}
+            onCompleteInspection: {}
         )
     }
 }

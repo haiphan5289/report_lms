@@ -56,7 +56,12 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
 
     // MARK: - Image Management
     func addImages(_ newImages: [UIImage]) {
-        images.append(contentsOf: newImages.map { ImageWithNote(source: .local(image: $0)) })
+        Task {
+            let resized = await Task.detached(priority: .userInitiated) {
+                newImages.map { $0.resized(maxDimension: 1600) }
+            }.value
+            images.append(contentsOf: resized.map { ImageWithNote(source: .local(image: $0)) })
+        }
     }
 
     func deleteImage(at index: Int) {

@@ -93,6 +93,17 @@ User taps floating orange button
   → showErrorCamera = true → CameraView(source: .errorReport)
   → capturedErrorImages → showErrorReview = true → PhotoCaptureErrorReviewView
   → onSaved → onSwitchToErrorTab() → selectedTab = .error
+
+User taps "Hoàn tất kiểm tra" (InspectionDetailContentView)
+  → showFinalReport = true (InspectionDetailView @State)
+  → fullScreenCover → FinalReportView.environmentObject(viewModel)
+  [upload continues in background — không block navigation]
+
+User taps "Gửi Email" in FinalReportView (uploads still running)
+  → inspectionDetailVM.showUploadStatusSheet = true
+  → inspectionDetailVM.pendingEmailSend = true
+  → UploadStatusBottomSheet shows live progress
+  → upload completes → FinalReportView.onChange → sendReport() auto-trigger
 ```
 
 ### Parent ↔ Child ViewModel Relationship

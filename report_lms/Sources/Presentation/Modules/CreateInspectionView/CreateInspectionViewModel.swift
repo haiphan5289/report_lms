@@ -90,7 +90,6 @@ final class CreateInspectionViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var createdInspection: Inspection?
-    @Published var showSuccessAlert: Bool = false
 
     // MARK: - Field Error Messages
     @Published var productNameError: String?
@@ -198,8 +197,7 @@ final class CreateInspectionViewModel: ObservableObject {
             print("✅ [CreateInspectionViewModel] Inspection ID: \(inspection.id)")
             
             createdInspection = inspection
-            showSuccessAlert = true
-            
+
             print("✅ [CreateInspectionViewModel] createdInspection is now: \(String(describing: createdInspection))")
         } catch {
             print("🔴 [CreateInspectionViewModel] Error creating inspection: \(error.localizedDescription)")

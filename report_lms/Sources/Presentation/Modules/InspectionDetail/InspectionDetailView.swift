@@ -25,6 +25,7 @@ struct InspectionDetailView: View {
     @Namespace private var tabBarNamespace
     @State private var tabBarVisible = false
     @GestureState private var submitPressed = false
+    @State private var showFinalReport = false
 
     // MARK: - Initialization
     init(inspectionId: String, inspectionNumber: String, homeViewModel: LMSHomeViewModel? = nil) {
@@ -92,18 +93,13 @@ struct InspectionDetailView: View {
                 onImageFail: callbacks.onFail
             )
         }
-        .sheet(isPresented: $viewModel.showUploadStatusSheet) {
-            UploadStatusBottomSheet(
-                sessions: viewModel.uploadSessions,
-                isPresented: $viewModel.showUploadStatusSheet
-            )
-        }
-        .fullScreenCover(isPresented: $viewModel.shouldShowFinalReport) {
+        .fullScreenCover(isPresented: $showFinalReport) {
             if let detail = viewModel.inspection {
                 FinalReportView(
                     inspection: detail,
                     capturedPhotos: viewModel.capturedPhotos
                 )
+                .environmentObject(viewModel)
             }
         }
         .navigationDestination(item: $viewModel.selectedErrorItem) { item in
@@ -204,10 +200,7 @@ struct InspectionDetailView: View {
                         viewModel.errorHomeViewModel.upsertErrorItem(saved, thumbnails: images)
                         viewModel.errorHomeViewModel.scrollToTopTrigger += 1
                     },
-                    hasActiveUploads: viewModel.activeUploadCount > 0,
-                    activeUploadCount: viewModel.totalUploadingImageCount,
-                    onCompleteInspection: { viewModel.requestFinalReport() },
-                    onShowUploadStatus: { viewModel.showUploadStatusSheet = true }
+                    onCompleteInspection: { showFinalReport = true }
                 )
             case .error:
                 errorTabContent
