@@ -321,7 +321,7 @@ struct FinalReportView: View {
     }
 
     private var actionButtonsSection: some View {
-        let isUploading = inspectionDetailVM.totalUploadingImageCount > 0
+        let isUploading = inspectionDetailVM.activeUploadCount > 0
         let uploadCount = inspectionDetailVM.totalUploadingImageCount
 
         return VStack(alignment: .leading, spacing: 12) {
@@ -362,7 +362,7 @@ struct FinalReportView: View {
             .padding(.horizontal)
             .animation(.easeInOut(duration: 0.25), value: isUploading)
         }
-        .onChange(of: inspectionDetailVM.totalUploadingImageCount) { _, count in
+        .onChange(of: inspectionDetailVM.activeUploadCount) { _, count in
             guard count == 0, inspectionDetailVM.pendingEmailSend else { return }
             inspectionDetailVM.pendingEmailSend = false
             Task { await viewModel.sendReport() }

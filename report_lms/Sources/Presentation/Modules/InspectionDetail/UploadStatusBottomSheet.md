@@ -280,6 +280,39 @@ InspectionDetailView
 
 ---
 
+### B5 — PDF không có ảnh: auto-send email trước khi Firestore update
+
+**Ngày fix:** 2026-06-09
+**File:** [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift) — `actionButtonsSection`
+
+**Root cause:**
+`onChange(of: totalUploadingImageCount)` trigger `sendReport()` ngay khi tất cả ảnh upload xong (per-image `doneCb`). Nhưng `imageURLs` chỉ được write vào Firestore SAU KHI toàn bộ TaskGroup hoàn tất — tức là sau `storageService.updateInspection()` ở cuối `uploadPhotosAndUpdateField`. Kết quả: Cloud Function `processReportQueue` đọc Firestore khi `field.imageURLs = []` → PDF không có ảnh.
+
+```
+[Upload] image N → doneCb(N) → totalUploadingImageCount = 0
+[onChange] fires → sendReport() → report_delivery_queue created
+[CF] reads inspections/{id} → field.imageURLs = [] ← stale ❌
+     ↓ (quá trễ)
+[iOS] storageService.updateInspection → imageURLs = ["gs://..."] ✅
+```
+
+**Fix:** Đổi từ watch `totalUploadingImageCount` sang `activeUploadCount`. `activeUploadCount` về 0 chỉ sau `onTaskCompleted` → `notifyUploadCompleted()` — fires SAU `uploadPhotosAndUpdateField` (gồm cả Firestore update). Đồng thời đổi `isUploading` sang dùng `activeUploadCount > 0` để block button trong window ngắn giữa "ảnh upload xong" và "Firestore write xong".
+
+```swift
+// Trước (trigger sai):
+let isUploading = inspectionDetailVM.totalUploadingImageCount > 0
+.onChange(of: inspectionDetailVM.totalUploadingImageCount) { ... }
+
+// Sau (trigger đúng — sau Firestore update):
+let isUploading = inspectionDetailVM.activeUploadCount > 0
+.onChange(of: inspectionDetailVM.activeUploadCount) { ... }
+```
+
+**Rule to remember:**
+> Khi auto-trigger action phụ thuộc vào data đã được write vào Firestore, phải dùng signal fires SAU write — không dùng signal fires SAU network upload.
+
+---
+
 ### B2 — Button "Đóng" bị che khi scroll
 
 **Ngày fix:** 2026-06-06  

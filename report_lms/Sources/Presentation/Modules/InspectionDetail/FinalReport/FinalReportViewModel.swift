@@ -304,7 +304,10 @@ final class FinalReportViewModel: ObservableObject {
 
     /// Marks inspection as completed in Firestore, then triggers navigation to the Report tab.
     private func markInspectionCompleted() async {
-        guard var updated = inspection else { return }
+        // Read fresh from cache — self.inspection is a snapshot taken when the view opened,
+        // before uploads ran. Using it would overwrite imageURLs back to [] in Firestore.
+        guard let id = inspection?.id,
+              var updated = storageService.getInspection(by: id) else { return }
         updated.status = .completed
         do {
             try await storageService.updateInspection(updated)
