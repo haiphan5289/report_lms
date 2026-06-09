@@ -32,8 +32,9 @@
 | "Hoàn tất" không block | Button "Hoàn tất kiểm tra" luôn navigate thẳng vào FinalReport, bất kể upload đang chạy hay không |
 | Auto-send email | Nếu user tap "Gửi Email" khi đang upload → `pendingEmailSend = true` → email tự động gửi khi upload xong (via `FinalReportView.onChange`) |
 | Session cleanup | `uploadSessions.removeAll { $0.isComplete }` chỉ chạy khi `activeUploadCount == 0` |
-| Count = images, not fields | `totalUploadingImageCount` đếm ảnh còn pending/uploading (không phải số field) để hiển thị đúng trên button "Gửi Email" |
-| Concurrent upload throttled | Tối đa 4 ảnh upload đồng thời (`maxConcurrent = 4`). Unbounded concurrency gây OOM crash khi nhiều ảnh 12MP (xem § Bugs Fixed) |
+| Count = images, not fields | `totalUploadingImageCount` đếm ảnh còn pending/uploading (không phải số field) — dùng cho UI display count trên button "Gửi Email" |
+| `activeUploadCount` là trigger, không phải display | `activeUploadCount` (1 per field session) về 0 SAU `onTaskCompleted` → SAU Firestore write. Dùng làm trigger auto-send và `isUploading` guard. `totalUploadingImageCount` về 0 sớm hơn (per-image doneCb) — **không** dùng làm trigger |
+| Concurrent upload throttled | Phase 1 compress: max 4 slots (3 on low-RAM). Phase 2 upload: max 8 slots trên WiFi/5G, 6 trên cellular. Unbounded concurrency gây OOM crash khi nhiều ảnh 12MP (xem § Bugs Fixed) |
 | Image resize capped at 1600px | `prepareForUpload(maxDimension: 1600, compressionQuality: 0.8)` — giảm từ 2048px để tối ưu upload speed (~35% nhỏ hơn) mà không ảnh hưởng chất lượng PDF A4 |
 | Callbacks are @Sendable | `onImageProgress`, `onImageDone`, `onImageFail` phải `@Sendable` vì được gọi từ trong TaskGroup (non-isolated context) |
 
@@ -74,7 +75,7 @@ Firebase Storage
                           → @Published uploadSessions → SwiftUI re-render
                             → UploadStatusBottomSheet (live progress bar)
                               → activeUploadCount → 0
-                                → FinalReportView.onChange(totalUploadingImageCount)
+                                → FinalReportView.onChange(activeUploadCount)
                                     pendingEmailSend == true → sendReport() auto-trigger
 ```
 
@@ -83,10 +84,10 @@ Firebase Storage
 ```
 User ở FinalReportView, tap "Gửi Email"
   │
-  ├─ totalUploadingImageCount == 0
+  ├─ activeUploadCount == 0  (isUploading = false)
   │     → sendReport() trực tiếp
   │
-  └─ totalUploadingImageCount > 0
+  └─ activeUploadCount > 0  (isUploading = true)
         → inspectionDetailVM.showUploadStatusSheet = true   (show sheet)
         → inspectionDetailVM.pendingEmailSend = true
               │
@@ -136,7 +137,7 @@ graph TD
   - `func markImageFailed(fieldId:imageIndex:)`
   - ~~`shouldShowFinalReport`~~ — removed; `pendingFinalReport` — removed; `requestFinalReport()` — removed
 - [`InspectionDetailView.swift`](InspectionDetailView.swift) — `@State showFinalReport`; "Hoàn tất" sets `showFinalReport = true` trực tiếp; FinalReportView inject `.environmentObject(viewModel)`; **không** host sheet nữa
-- [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift) — `@EnvironmentObject InspectionDetailViewModel`; "Gửi Email" upload-aware (spinner + count); `.onChange(totalUploadingImageCount)` auto-send; **hosts** `.sheet(isPresented: $inspectionDetailVM.showUploadStatusSheet)` — sheet phải present từ trong `fullScreenCover` context để tránh dismiss conflict
+- [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift) — `@EnvironmentObject InspectionDetailViewModel`; `isUploading = activeUploadCount > 0` (display count = `totalUploadingImageCount`); `.onChange(activeUploadCount)` auto-send sau Firestore write; **hosts** `.sheet(isPresented: $inspectionDetailVM.showUploadStatusSheet)` — sheet phải present từ trong `fullScreenCover` context để tránh dismiss conflict
 - [`InspectionDetailContentView.swift`](InspectionDetailContentView.swift) — "Hoàn tất" là simple button, không còn `hasActiveUploads`/`onShowUploadStatus`
 - [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) — 3 init params: `onImageProgress`, `onImageDone`, `onImageFail`
 - [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) — stores và gọi 3 `@Sendable` callbacks từ trong `TaskGroup`
@@ -313,6 +314,38 @@ let isUploading = inspectionDetailVM.activeUploadCount > 0
 
 ---
 
+### B6 — markInspectionCompleted ghi đè imageURLs = [] (stale snapshot)
+
+**Ngày fix:** 2026-06-09
+**File:** [`FinalReport/FinalReportViewModel.swift`](FinalReport/FinalReportViewModel.swift) — `markInspectionCompleted()`
+
+**Root cause:**
+`FinalReportViewModel.inspection` là Swift `struct` value-type snapshot từ khi view được init — trước khi upload chạy. `markInspectionCompleted()` gọi `storageService.updateInspection(self.inspection)`, ghi đè Firestore với `imageURLs = []`. Cloud Function `processReportQueue` được trigger bởi `report_delivery_queue` doc ngay trước đó → đọc Firestore → thấy `imageURLs = []` → PDF không có ảnh.
+
+```
+Timeline:
+[iOS] queueDeliveryUseCase.execute()   → report_delivery_queue doc created → CF wakes up
+[CF]  reads inspections/{id}            ← imageURLs = ["gs://..."] (có thể kịp đọc đúng)
+[iOS] markInspectionCompleted()         → updateInspection(stale self.inspection)
+      → Firestore imageURLs = []        ← nếu CF chưa đọc xong → PDF không có ảnh ❌
+```
+
+**Fix:** Đọc fresh từ `storageService.getInspection(by: id)` — singleton cache đã được `uploadPhotosAndUpdateField` update với đúng URLs.
+
+```swift
+// Trước (BUG):
+guard var updated = inspection else { return }  // stale snapshot, imageURLs = []
+
+// Sau (FIXED):
+guard let id = inspection?.id,
+      var updated = storageService.getInspection(by: id) else { return }  // fresh từ cache
+```
+
+**Rule to remember:**
+> Không dùng `self.inspection` (struct snapshot) khi gọi `storageService.updateInspection()` sau một upload flow. Luôn đọc fresh từ `storageService.getInspection(by: id)` để có đủ data đã được upload update vào cache.
+
+---
+
 ### B2 — Button "Đóng" bị che khi scroll
 
 **Ngày fix:** 2026-06-06  
@@ -361,4 +394,4 @@ Thêm 2 modifier vào `NavigationStack` body:
 
 ---
 
-*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-08 (Move upload gate từ "Hoàn tất" sang "Gửi Email"; add pendingEmailSend; FinalReportView @EnvironmentObject; B4 sheet context fix)*
+*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-09 (B5: activeUploadCount trigger; B6: markInspectionCompleted stale snapshot; two-phase upload throttle docs)*

@@ -3,7 +3,7 @@
 **Module:** InspectionDetail / InspectionValidation  
 **Pattern:** MVVM (SwiftUI + `@StateObject`)  
 **Created:** 2026-01-03  
-**Last updated:** 2026-06-06
+**Last updated:** 2026-06-09
 
 ---
 
@@ -41,14 +41,18 @@ InspectionValidationView(
     fieldLabel: String,                     // Navigation title & display label
     initialImages: [InspectionImage],       // Pre-loaded images (local or remote)
     inspectionId: String? = nil,            // Parent inspection ID; required for cloud upload
-    onSave: @escaping (FieldValidation) -> Void,   // Called immediately when status is set
-    onUploadComplete: (() -> Void)? = nil          // Called after Firestore write succeeds
+    onSave: ((FieldValidation) -> Void)? = nil,            // Called immediately when status is set
+    onUploadComplete: (() -> Void)? = nil,                 // Called after Firestore write succeeds
+    onTaskCompleted: (() -> Void)? = nil,                  // Called after isUploading resets — triggers notifyUploadCompleted()
+    onImageProgress: (@Sendable (Int, Double) -> Void)? = nil,  // Per-image upload progress (0.0→1.0)
+    onImageDone: (@Sendable (Int) -> Void)? = nil,         // Per-image upload success
+    onImageFail: (@Sendable (Int) -> Void)? = nil          // Per-image upload failure
 )
 ```
 
 > `inspectionId` is **required** for upload to work. Without it, `uploadPhotosAndUpdateField` returns early and no photos are written to Firebase.
 
-`onSave` fires synchronously so the parent list can update immediately. `onUploadComplete` fires later, after Firebase Storage upload and Firestore write succeed.
+`onSave` fires synchronously so the parent list can update immediately. `onUploadComplete` fires after Firestore write. `onTaskCompleted` fires last — after `isUploading` resets — and is wired to `InspectionDetailViewModel.notifyUploadCompleted()` which decrements `activeUploadCount`.
 
 ---
 
@@ -141,22 +145,31 @@ User taps "Đã kiểm tra" / "Không áp dụng"
             └── Task {
                     uploadPhotosAndUpdateField(fieldId, images)
                         ├── localImages = images.filter { !$0.isRemote }
-                        ├── withTaskGroup → concurrent upload of all local images
-                        │     └── Task.detached { image.prepareForUpload() }
-                        │           ├── Resize to ≤2048px
-                        │           └── JPEG 0.8 quality (~500KB)
-                        ├── uploadUseCase.execute(imageData, inspectionId) → URL
-                        └── storageService.updateInspection(inspection) → Firestore
+                        ├── Phase 1 — Compress (max 4 concurrent on high-RAM, 3 on low-RAM):
+                        │     withTaskGroup → Task.detached(priority: .userInitiated) {
+                        │           image.prepareForUpload()
+                        │               ├── Resize to ≤1600px (aspect-ratio preserved)
+                        │               └── JPEG 0.8 quality (~600KB)
+                        │     }
+                        ├── Phase 2 — Upload (max 8 concurrent on WiFi/5G, 6 on cellular):
+                        │     withTaskGroup → uploadUseCase.executeWithProgress(data, inspectionId,
+                        │           onProgress: progressCb(index, fraction)   ← UI progress bar
+                        │           onDone:     doneCb(index)                  ← mark item .done
+                        │           onFail:     failCb(index)                  ← mark item .failed
+                        │     ) → [String URL]
+                        ├── merge existingRemoteURLs + newlyUploadedURLs
+                        └── storageService.updateInspection(inspection) → Firestore  ← imageURLs written here
                     updateInspectionStatus()
                         └── inspection.status = .inProgress → Firestore
                     withAnimation { uploadProgress = 1.0 }
                     sleep 0.5s
                     withAnimation { isUploading = false }   ← toast slides down
                     onUploadComplete?()
+                    onTaskCompleted?()   ← InspectionDetailViewModel.notifyUploadCompleted() → activeUploadCount -= 1
                 }
 ```
 
-> **Performance:** Resize + compress runs in `Task.detached(priority: .userInitiated)` — does not block `@MainActor`. 3 images concurrent ≈ 2s vs 6s sequential.
+> **Performance:** Phase 1 compress runs in `Task.detached(priority: .userInitiated)` — off main thread. Phase 2 upload uses throttled `withTaskGroup` — 8 slots on fast network, 6 on cellular. Decoupling compress/upload means upload slots never idle waiting for CPU work.
 
 ---
 
@@ -262,9 +275,10 @@ Full image data is **not** persisted in the draft; only metadata. Call `viewMode
 |---|---|
 | `@Published` property updates | `@MainActor` — always on main thread |
 | `saveValidation` → `uploadPhotosAndUpdateField` | `@MainActor` starts Task → suspends at first `await` |
-| JPEG resize + compress | `Task.detached(priority: .userInitiated)` — background thread |
-| Firebase Storage upload | Concurrent — `withTaskGroup` (N images upload in parallel) |
-| Firestore write | `storageService` actor — serial executor |
+| Phase 1: JPEG resize + compress | `Task.detached(priority: .userInitiated)` — background thread; max 4 slots (3 on low-RAM) |
+| Phase 2: Firebase Storage upload | `withTaskGroup`; max 8 slots on WiFi/5G, 6 on cellular |
+| `progressCb` / `doneCb` / `failCb` | `@Sendable` — called from non-isolated TaskGroup; dispatch back via `Task { @MainActor }` in `InspectionDetailViewModel` |
+| Firestore write | `storageService` actor — serial executor; fires AFTER Phase 2 completes |
 
 ---
 
