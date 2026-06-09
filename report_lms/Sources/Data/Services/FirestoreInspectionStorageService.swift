@@ -31,6 +31,11 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
     @MainActor
     private var cache: [Inspection] = []
 
+    /// Tail of the serial write chain for field-level image URL updates.
+    /// New writes chain onto this task so reads always see the previous write's result.
+    @MainActor
+    private var pendingFieldWrite: Task<Void, Error>?
+
     // MARK: - Initialization
     init(
         firestoreService: FirestoreService,
@@ -113,6 +118,31 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
         logger.log("Inspection updated in Firestore successfully")
     }
 
+    /// Serialized field-level write: chains onto any in-flight write so the read always
+    /// sees the previous write's result, preventing concurrent uploads from overwriting
+    /// each other's imageURLs via last-writer-wins `setData`.
+    @MainActor
+    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String]) async throws {
+        let previous = pendingFieldWrite
+        let newTask = Task { @MainActor in
+            // Wait for any in-flight write to land before reading cache.
+            // Ignore the previous task's error — our write should still proceed.
+            _ = try? await previous?.value
+
+            guard var inspection = self.getInspection(by: inspectionId) else { return }
+            for si in inspection.sections.indices {
+                if let fi = inspection.sections[si].fields.firstIndex(where: { $0.id == fieldId }) {
+                    inspection.sections[si].fields[fi].imageURLs = imageURLs
+                    inspection.sections[si].fields[fi].photoURL = imageURLs.first
+                    break
+                }
+            }
+            try await self.updateInspection(inspection)
+        }
+        pendingFieldWrite = newTask
+        try await newTask.value
+    }
+
     /// Cascade delete: Firestore doc + cache + notification (blocking), then photos + delivery tasks (fire & forget).
     func deleteInspection(by id: String) async throws {
         logger.log("Cascade deleting inspection \(id)...")
@@ -136,7 +166,13 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
         await MainActor.run { cache.removeAll { $0.id == id } }
         NotificationCenter.default.post(name: .inspectionDidUpdate, object: nil)
 
-        // 4. Fire & forget: delete photos + error items + delivery queue tasks
+        // 4. Evict durable image cache + pending upload set
+        Task.detached(priority: .background) {
+            await InspectionImageCacheActor.shared.evictInspection(id)
+            PendingUploadStore.shared.clearInspection(id)
+        }
+
+        // 5. Fire & forget: delete photos + error items + delivery queue tasks
         let fieldPhotoURLs = inspection.sections
             .flatMap { $0.fields }
             .flatMap { field -> [String] in

@@ -312,6 +312,14 @@ final class FinalReportViewModel: ObservableObject {
         do {
             try await storageService.updateInspection(updated)
             logger.log("Inspection \(updated.inspectionNumber) marked as completed")
+
+            // Evict durable image cache + pending upload set for this inspection.
+            // Inspection is done — no retry needed and disk space can be reclaimed.
+            Task.detached(priority: .background) {
+                await InspectionImageCacheActor.shared.evictInspection(id)
+                PendingUploadStore.shared.clearInspection(id)
+            }
+
             NotificationCenter.default.post(
                 name: .navigateToReportTab,
                 object: nil,

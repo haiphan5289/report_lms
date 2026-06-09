@@ -15,42 +15,63 @@ struct ImageGalleryItemView: View {
     let onMenu: () -> Void
     @Binding var description: String
 
+    /// Inspection context for durable docs-dir cache. nil = fall back to CachedAsyncImage.
+    var inspectionId: String?
+    var fieldId: String?
+
     init(
         inspectionImage: InspectionImage,
         isReorderMode: Bool,
         onDelete: @escaping () -> Void,
         onMenu: @escaping () -> Void,
-        descriptionBinding: Binding<String>
+        descriptionBinding: Binding<String>,
+        inspectionId: String? = nil,
+        fieldId: String? = nil
     ) {
         self.inspectionImage = inspectionImage
         self.isReorderMode = isReorderMode
         self.onDelete = onDelete
         self.onMenu = onMenu
         self._description = descriptionBinding
+        self.inspectionId = inspectionId
+        self.fieldId = fieldId
     }
-    
+
     @ViewBuilder
     private var inspectionImageView: some View {
         if let remoteURL = inspectionImage.remoteURL {
-            CachedAsyncImage(url: remoteURL) { phase in
-                switch phase {
-                case .success(let img):
-                    img.resizable().scaledToFill()
-                case .failure:
-                    Image(systemName: "photo.slash")
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(.systemGray5))
-                case .empty:
-                    Color(.systemGray5).overlay(ProgressView())
-                @unknown default:
-                    EmptyView()
+            if let iid = inspectionId, let fid = fieldId {
+                // Durable 3-tier loader: docs-dir → Caches-dir → Firebase Storage
+                InspectionCachedImage(url: remoteURL, inspectionId: iid, fieldId: fid) { phase in
+                    imagePhaseView(phase)
+                }
+            } else {
+                // Generic loader (no inspection context available)
+                CachedAsyncImage(url: remoteURL) { phase in
+                    imagePhaseView(phase)
                 }
             }
         } else {
             Image(uiImage: inspectionImage.image)
                 .resizable()
                 .scaledToFill()
+        }
+    }
+
+    @ViewBuilder
+    private func imagePhaseView(_ phase: AsyncImagePhase) -> some View {
+        switch phase {
+        case .success(let img):
+            img.resizable().scaledToFill()
+        case .failure:
+            Image(systemName: "photo.slash")
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGray5))
+        case .empty:
+            Color(.systemGray5).overlay(ProgressView())
+        @unknown default:
+            EmptyView()
         }
     }
 

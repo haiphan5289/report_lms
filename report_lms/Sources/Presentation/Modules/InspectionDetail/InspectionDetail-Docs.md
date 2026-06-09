@@ -38,8 +38,13 @@
 | Status transition | Submit luôn set status về `.inProgress`, không phải `.completed`. Completion xảy ra qua `FinalReportView` (luồng khác) |
 | `markInspectionCompleted` fresh read | `FinalReportViewModel.markInspectionCompleted()` đọc fresh từ `storageService.getInspection(by: id)` thay vì `self.inspection` (stale struct snapshot từ khi view init). Tránh ghi đè `imageURLs = []` lên Firestore sau khi upload chạy xong |
 | Upload trigger signal | `activeUploadCount` (field-session counter) về 0 SAU Firestore write — dùng cho auto-send trigger và `isUploading` guard. `totalUploadingImageCount` về 0 sớm hơn (per-image doneCb) — chỉ dùng cho UI display count |
+| Concurrent field write safety | Mỗi field upload gọi `storageService.updateFieldImageURLs()` thay vì `updateInspection()`. Method này chạy serial qua `@MainActor pendingFieldWrite` task chain trong `FirestoreInspectionStorageService` — write sau luôn đọc fresh cache sau khi write trước landing |
 | PDF inspector name | Tên inspector lấy từ `KeychainManager.getStoredUsername()` — không phải user input |
 | Mail guard | PDF email chỉ mở nếu `MailComposerView.canSendMail` == true; nếu không → alert `showMailUnavailableAlert` |
+| Photo disk cache — write-on-capture | `InspectionValidationViewModel.appendImages()` ngay lập tức ghi ảnh vào `Documents/inspection-images/<inspectionId>/<fieldId>/` và đăng ký file path vào `PendingUploadStore`. Xảy ra trước khi Firebase upload — đảm bảo ảnh không mất khi app bị kill |
+| Photo disk cache — durable remote images | Remote images (từ Firebase Storage) được cache vào `Documents/inspection-images/` (tier 1) thông qua `InspectionCachedImage`. Vượt qua `ImageCacheActor` (caches dir — purgeable) để không bị iOS xóa khi thiếu dung lượng |
+| Auto-retry on re-entry | `InspectionValidationView.task` gọi `loadPendingCaptures()`. Nếu `PendingUploadStore` có pending paths → load ảnh từ disk → prepend vào `images` → auto-trigger upload. User không cần thao tác gì |
+| Cache eviction — inspection-scoped | `InspectionImageCacheActor.evictInspection(id)` và `PendingUploadStore.clearInspection(id)` được gọi khi inspection completed (`markInspectionCompleted`) hoặc deleted (`deleteInspection`). Cache free-grows trong suốt vòng đời inspection |
 
 ---
 
@@ -56,11 +61,16 @@
 | Presentation | [`InspectionDetailContentView.swift`](InspectionDetailContentView.swift) | Tab "Kiểm tra": section list, floating error button, action buttons |
 | Presentation | [`InspectionDetailContentViewModel.swift`](InspectionDetailContentViewModel.swift) | Section expand/collapse, PDF generation, computed access to parent state |
 | Presentation | [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) | Nhập kết quả validation + ảnh cho 1 field |
+| Presentation | [`InspectionValidation/Views/CacheDebugOverlay.swift`](InspectionValidation/Views/CacheDebugOverlay.swift) | Debug bottom sheet: RAM/Disk/Pending stats + realtime event log _(entry point commented out)_ |
+| Presentation | [`InspectionValidation/Views/InspectionCachedImage.swift`](InspectionValidation/Views/InspectionCachedImage.swift) | 3-tier durable remote image loader (Documents → Caches → network) |
 | Presentation | [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift) | Xem lại toàn bộ báo cáo + xuất PDF |
 | Domain | [`GenerateHTMLPDFReportUseCase.swift`](../../../Domain/UseCases/GenerateHTMLPDFReportUseCase.swift) | Tạo HTML-based PDF từ Inspection data + ảnh |
 | Domain | [`Inspection.swift`](../../../Domain/Entities/Inspection.swift) | Entity chính: Inspection, InspectionSection, InspectionField |
 | Data | [`FirestoreInspectionStorageService.swift`](../../Data/Services/FirestoreInspectionStorageService.swift) | Firestore implementation của InspectionStorageServiceType |
 | Data | [`InspectionStorageService.swift`](../../Data/Services/InspectionStorageService.swift) | Local disk implementation |
+| Helper | [`Common/Helpers/InspectionImageCacheActor.swift`](../../../Common/Helpers/InspectionImageCacheActor.swift) | Swift actor: RAM dict + Documents-dir JPEG cache cho inspection photos |
+| Helper | [`Common/Helpers/PendingUploadStore.swift`](../../../Common/Helpers/PendingUploadStore.swift) | UserDefaults wrapper: track file paths of locally-cached images awaiting upload |
+| Helper | [`Common/Helpers/CacheDebugLogger.swift`](../../../Common/Helpers/CacheDebugLogger.swift) | Non-isolated event logger; `log()` callable từ mọi actor/thread |
 
 ### Data Flow
 
@@ -83,6 +93,9 @@ User taps camera icon
   → onCameraTap callback → parentViewModel.openCamera(for:)
   → showCamera = true → navigationDestination → CameraView
   → handlePhotoSelection([UIImage]) → savePhoto() → capturedPhotos[fieldId].append()
+     └── InspectionValidationViewModel.appendImages() [if open]
+           ├── InspectionImageCacheActor.cacheCapture() → Documents/inspection-images/
+           └── PendingUploadStore.addPending(filePath)
 
 User taps Submit (toolbar)
   → viewModel.submitInspection()
@@ -95,6 +108,13 @@ User taps floating orange button
   → showErrorCamera = true → CameraView(source: .errorReport)
   → capturedErrorImages → showErrorReview = true → PhotoCaptureErrorReviewView
   → onSaved → onSwitchToErrorTab() → selectedTab = .error
+
+User re-enters InspectionValidationView with pending uploads
+  → .task → viewModel.loadPendingCaptures()
+       ├── PendingUploadStore.getPendingFilePaths() → [filePath]
+       ├── InspectionImageCacheActor.loadFromPath() → UIImage  (for each)
+       ├── images.insert(loaded, at: 0)
+       └── retryPendingUploads() → uploadPhotosAndUpdateField → PendingUploadStore.clearField()
 
 User taps "Hoàn tất kiểm tra" (InspectionDetailContentView)
   → showFinalReport = true (InspectionDetailView @State)
@@ -163,7 +183,10 @@ graph TD
 
 ### Common Helpers
 
-- [`Common/Helpers/UIImage+Upload.swift`](../../../Common/Helpers/UIImage+Upload.swift) — `prepareForUpload(maxDimension:compressionQuality:)`: resize ảnh về ≤2048px (aspect-ratio preserved) rồi compress JPEG 0.8; dùng chung cho cả 2 luồng upload
+- [`Common/Helpers/UIImage+Upload.swift`](../../../Common/Helpers/UIImage+Upload.swift) — `prepareForUpload(maxDimension:compressionQuality:)`: resize ảnh về ≤1600px (aspect-ratio preserved) rồi compress JPEG 0.8; dùng chung cho cả 2 luồng upload
+- [`Common/Helpers/InspectionImageCacheActor.swift`](../../../Common/Helpers/InspectionImageCacheActor.swift) — Swift `actor` quản lý RAM (FIFO, 200 entries) + durable disk cache (`Documents/inspection-images/<id>/<fid>/`). Key methods: `cacheCapture`, `loadFromPath`, `cacheRemote`, `loadRemote`, `evictInspection`, `stats`
+- [`Common/Helpers/PendingUploadStore.swift`](../../../Common/Helpers/PendingUploadStore.swift) — Thread-safe UserDefaults wrapper. Key: `pendingUploads_<inspectionId>_<fieldId>` → `[String]`. `getPendingFilePaths()` tự lọc stale paths (file không còn tồn tại trên disk)
+- [`Common/Helpers/CacheDebugLogger.swift`](../../../Common/Helpers/CacheDebugLogger.swift) — `ObservableObject` không phải `@MainActor`. `nonisolated(unsafe) static let shared`. `log(_:)` callable từ mọi actor. State (`@Published entries`) được mutate qua `Task { @MainActor in ... }`
 
 ---
 
@@ -174,7 +197,8 @@ graph TD
 | Operation | Method | Description |
 |-----------|--------|-------------|
 | Load inspection | `storageService.getInspection(by: id)` | Synchronous read từ in-memory cache |
-| Update inspection | `storageService.updateInspection(_:)` | Async write về Firestore + update cache |
+| Update inspection (full) | `storageService.updateInspection(_:)` | Async `setData` về Firestore + update cache — dùng khi cần update nhiều field |
+| Update field imageURLs | `storageService.updateFieldImageURLs(inspectionId:fieldId:imageURLs:)` | Serialized field-level write — an toàn khi nhiều field upload đồng thời; reads fresh cache sau write trước |
 | Generate PDF | `generatePDFUseCase.execute(detail:images:inspectorName:location:)` | Returns `Data` — HTML rendered to PDF |
 
 ---
@@ -274,6 +298,11 @@ private func generatePDF() async throws -> Data { ... }
 | `AddCustomFieldView` | InspectionDetail/ | Sheet thêm field tùy chỉnh |
 | `ErrorHomeView` | Home/ErrorHome | Tab "Lỗi" |
 | `InformationPurchaseView` | Home/InformationPurchase | Tab "Thông tin đơn hàng" |
+| `InspectionImageCacheActor` | Common/Helpers | RAM + Documents disk cache cho inspection photos |
+| `PendingUploadStore` | Common/Helpers | UserDefaults tracker cho file paths chưa upload |
+| `CacheDebugLogger` | Common/Helpers | Realtime event logger cho cache + upload pipeline |
+| `CacheDebugOverlay` | InspectionValidation/Views | Debug bottom sheet _(entry point commented out — uncomment `#if DEBUG` block in InspectionValidationView to re-enable)_ |
+| `InspectionCachedImage` | InspectionValidation/Views | 3-tier durable remote image loader |
 
 ---
 
@@ -939,4 +968,4 @@ guard let id = inspection?.id,
 
 ---
 
-*Generated by `/ct-ai-document` on 2026-05-23 | Updated 2026-06-09 — PERF-001: concurrent upload + resize-before-compress; BUG-012: PDF missing images (B5 activeUploadCount + B6 stale snapshot)*
+*Generated by `/ct-ai-document` on 2026-05-23 | Updated 2026-06-09 — PERF-001: concurrent upload + resize-before-compress; BUG-012: PDF missing images (B5 + B6); BUG-013: concurrent field upload data loss → updateFieldImageURLs serial write gate (B7); RAM+disk image cache: InspectionImageCacheActor + PendingUploadStore + auto-retry + CacheDebugOverlay (overlay commented out)*

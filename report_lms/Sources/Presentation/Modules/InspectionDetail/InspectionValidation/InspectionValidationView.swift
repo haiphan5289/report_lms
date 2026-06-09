@@ -37,6 +37,14 @@ struct InspectionValidationView: View {
     @State private var sharingImage: UIImage?
     @State private var showShareSheet = false
     @State private var imageRefreshTrigger: Int = 0
+
+    #if DEBUG
+    @State private var showCacheDebug = false
+    #endif
+
+    // Inspection context stored for gallery + debug panel
+    private let inspectionIdContext: String?
+    private let fieldIdContext: String
     
     // MARK: - Initialization
     init(
@@ -51,6 +59,8 @@ struct InspectionValidationView: View {
         onImageDone: (@Sendable (Int) -> Void)? = nil,
         onImageFail: (@Sendable (Int) -> Void)? = nil
     ) {
+        self.inspectionIdContext = inspectionId
+        self.fieldIdContext = fieldId
         _viewModel = StateObject(
             wrappedValue: InspectionValidationViewModel(
                 fieldId: fieldId,
@@ -113,8 +123,24 @@ struct InspectionValidationView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: viewModel.isUploading)
         .navigationTitle(viewModel.fieldLabel)
         .navigationBarTitleDisplayMode(.inline)
+//        #if DEBUG
+//        .toolbar {
+//            ToolbarItem(placement: .navigationBarTrailing) {
+//                CacheDebugButton(isPresented: $showCacheDebug)
+//            }
+//        }
+//        .sheet(isPresented: $showCacheDebug) {
+//            CacheDebugOverlay(
+//                inspectionId: inspectionIdContext ?? "unknown",
+//                fieldId: fieldIdContext
+//            )
+//            .presentationDetents([.medium, .large])
+//            .presentationDragIndicator(.visible)
+//        }
+//        #endif
         .task {
             withAnimation(.easeOut(duration: 0.35)) { contentVisible = true }
+            await viewModel.loadPendingCaptures()
         }
         .sheet(isPresented: $viewModel.showCamera) {
             CameraView(source: .inspection) { images in
@@ -287,7 +313,9 @@ struct InspectionValidationView: View {
                                 selectedImageIndex = viewModel.images.firstIndex(where: { $0.id == image.id })
                                 showImageMenu = true
                             },
-                            descriptionBinding: $image.description
+                            descriptionBinding: $image.description,
+                            inspectionId: inspectionIdContext,
+                            fieldId: fieldIdContext
                         )
                         .id("\(image.id)-\(imageRefreshTrigger)")
                     }

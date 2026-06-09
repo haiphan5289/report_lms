@@ -44,6 +44,16 @@ protocol InspectionStorageServiceType {
     /// Overwrites the stored copy of `inspection` and refreshes the cache.
     func updateInspection(_ inspection: Inspection) async throws
 
+    /// Updates `imageURLs` for a single field without replacing the entire document.
+    ///
+    /// Concurrent field uploads (two fields uploading simultaneously) would otherwise
+    /// race: each reads the same Firestore snapshot, updates only its own field, then
+    /// `setData` — the second write silently erases the first field's URLs. This method
+    /// serializes those writes so each one reads a fresh snapshot after the previous
+    /// write lands, guaranteeing both fields' URLs survive.
+    @MainActor
+    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String]) async throws
+
     /// Removes the inspection with `id` from both the backing store and the cache.
     func deleteInspection(by id: String) async throws
 

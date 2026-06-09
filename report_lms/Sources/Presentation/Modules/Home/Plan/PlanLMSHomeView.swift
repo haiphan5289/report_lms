@@ -280,6 +280,9 @@ private final class PreviewInspectionStorageService: InspectionStorageServiceTyp
         }
     }
 
+    @MainActor
+    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String]) async throws {}
+
     func deleteInspection(by id: String) async throws {
         mockInspections.removeAll { $0.id == id }
     }

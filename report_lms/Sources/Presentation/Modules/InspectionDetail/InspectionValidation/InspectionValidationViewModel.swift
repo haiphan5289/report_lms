@@ -92,8 +92,25 @@ final class InspectionValidationViewModel: ObservableObject {
     // MARK: - Public Methods
     
     func appendImages(_ newImages: [UIImage]) {
-        images.append(contentsOf: newImages.map { InspectionImage(image: $0) })
+        let wrapped = newImages.map { InspectionImage(image: $0) }
+        images.append(contentsOf: wrapped)
         updateDirtyState()
+
+        // Cache to RAM + docs-dir disk immediately so the image survives an app kill.
+        // The file path is registered in PendingUploadStore so a future session can retry.
+        guard let inspectionId else { return }
+        let fid = fieldId
+        Task {
+            for img in zip(newImages, wrapped) {
+                if let path = await InspectionImageCacheActor.shared.cacheCapture(
+                    image: img.0, inspectionId: inspectionId, fieldId: fid
+                ) {
+                    PendingUploadStore.shared.addPending(
+                        filePath: path, inspectionId: inspectionId, fieldId: fid
+                    )
+                }
+            }
+        }
     }
     
     /// Show confirmation before removing image
@@ -175,6 +192,51 @@ final class InspectionValidationViewModel: ObservableObject {
         updateDirtyState()
     }
     
+    // MARK: - Pending Upload Retry
+
+    /// Called on view appear. Loads any locally-cached images that failed to upload in a
+    /// previous session (e.g. app killed mid-upload) and auto-retries the upload.
+    func loadPendingCaptures() async {
+        guard let inspectionId else { return }
+
+        let paths = PendingUploadStore.shared.getPendingFilePaths(
+            inspectionId: inspectionId, fieldId: fieldId
+        )
+        guard !paths.isEmpty else { return }
+
+        var loadedImages: [InspectionImage] = []
+        for path in paths {
+            guard let img = await InspectionImageCacheActor.shared.loadFromPath(path) else { continue }
+            loadedImages.append(InspectionImage(image: img))
+        }
+
+        guard !loadedImages.isEmpty else {
+            // Disk files gone (iOS purged Documents — shouldn't happen but guard anyway)
+            PendingUploadStore.shared.clearField(inspectionId: inspectionId, fieldId: fieldId)
+            return
+        }
+
+        // Prepend so pending captures appear above existing remote images
+        images.insert(contentsOf: loadedImages, at: 0)
+        CacheDebugLogger.shared.log(.retryStarted(imageCount: loadedImages.count))
+
+        // Auto-retry upload immediately
+        await retryPendingUploads()
+    }
+
+    private func retryPendingUploads() async {
+        withAnimation(.easeOut(duration: 0.3)) {
+            isUploading = true
+            uploadProgress = 0.0
+        }
+        await uploadPhotosAndUpdateField(fieldId: fieldId, images: images)
+        withAnimation(.easeOut(duration: 0.3)) { uploadProgress = 1.0 }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        withAnimation(.easeOut(duration: 0.4)) { isUploading = false }
+        uploadProgress = 0.0
+        onTaskCompleted?()
+    }
+
     // MARK: - Private Methods
 
     private func uploadPhotosAndUpdateField(fieldId: String, images: [InspectionImage]) async {
@@ -272,22 +334,21 @@ final class InspectionValidationViewModel: ObservableObject {
         let uploadedURLs = existingRemoteURLs + newlyUploadedURLs
         guard !uploadedURLs.isEmpty else { return }
 
-        guard var inspection = storageService.getInspection(by: inspectionId) else { return }
-
-        for sectionIndex in inspection.sections.indices {
-            if let fieldIndex = inspection.sections[sectionIndex].fields.firstIndex(where: { $0.id == fieldId }) {
-                inspection.sections[sectionIndex].fields[fieldIndex].imageURLs = uploadedURLs
-                inspection.sections[sectionIndex].fields[fieldIndex].photoURL = uploadedURLs.first
-                break
-            }
-        }
-
         do {
-            try await storageService.updateInspection(inspection)
-            print("✅ [InspectionValidationViewModel] Photo URLs saved to Firestore for field \(fieldId)")
+            // Serialized write — safe when multiple fields upload concurrently.
+            // Each call chains onto the previous so the fresh-cache read always
+            // sees the prior field's URLs before writing back.
+            try await storageService.updateFieldImageURLs(
+                inspectionId: inspectionId,
+                fieldId: fieldId,
+                imageURLs: uploadedURLs
+            )
+            // Upload succeeded → clear pending set for this field.
+            PendingUploadStore.shared.clearField(inspectionId: inspectionId, fieldId: fieldId)
+            CacheDebugLogger.shared.log(.uploadSuccess(fieldId: fieldId))
             onUploadComplete?()
         } catch {
-            print("🔴 [InspectionValidationViewModel] Failed to save photo URLs: \(error)")
+            // Error is already logged in FirestoreInspectionStorageService.updateInspection
         }
     }
 

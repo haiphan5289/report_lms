@@ -140,23 +140,42 @@ final class InspectionStorageService: InspectionStorageServiceType {
         logger.log("Inspection updated successfully")
     }
     
+    @MainActor
+    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String]) async throws {
+        guard var inspection = getInspection(by: inspectionId) else { return }
+        for si in inspection.sections.indices {
+            if let fi = inspection.sections[si].fields.firstIndex(where: { $0.id == fieldId }) {
+                inspection.sections[si].fields[fi].imageURLs = imageURLs
+                inspection.sections[si].fields[fi].photoURL = imageURLs.first
+                break
+            }
+        }
+        try await updateInspection(inspection)
+    }
+
     /// Delete inspection by ID (removes from cache and persists)
     func deleteInspection(by id: String) async throws {
         logger.log("Deleting inspection with ID: \(id)...")
-        
+
         let removed = await MainActor.run { () -> Bool in
             let countBefore = cache.count
             cache.removeAll { $0.id == id }
             return cache.count < countBefore
         }
-        
+
         guard removed else {
             logger.error("Inspection not found for deletion")
             throw InspectionStorageError.inspectionNotFound
         }
-        
+
         try await persistCache()
-        
+
+        // Evict durable image cache + pending upload set
+        Task.detached(priority: .background) {
+            await InspectionImageCacheActor.shared.evictInspection(id)
+            PendingUploadStore.shared.clearInspection(id)
+        }
+
         logger.log("Inspection deleted successfully")
     }
     

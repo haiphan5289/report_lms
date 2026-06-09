@@ -179,13 +179,14 @@ Không có API endpoint mới — feature giao tiếp trực tiếp với **Fire
 | Ảnh upload thất bại | `failCb(index)` → `status = .failed` → ❌ "Thất bại" | ✅ |
 | User tap "Hoàn tất" khi đang upload | `pendingFinalReport = true` → FinalReport tự mở sau | ✅ |
 | Field chỉ có remote images (không có local) | `startUploadSession` early return nếu `localImages.isEmpty` | ✅ |
-| User dismiss FinalReport | `$viewModel.shouldShowFinalReport` set `false` qua binding | ✅ |
+| User dismiss FinalReport | `@State showFinalReport` in `InspectionDetailView` set `false` when `FinalReportView` is dismissed | ✅ |
 | `imageData` resize thất bại (`prepareForUpload()` trả nil) | `failCb(index)` được gọi | ✅ |
 | Nhiều field upload đồng thời | Mỗi field là một `FieldUploadSession` riêng biệt | ✅ |
 | Session cleanup | Xóa sessions đã complete khi `activeUploadCount == 0` | ✅ |
 | Retry thất bại | Không hỗ trợ — intentional design decision | ✅ (by design) |
 | **OOM crash khi nhiều ảnh 12MP** | Throttle `withTaskGroup` xuống max 4 concurrent — xem § Bugs Fixed | ✅ |
 | **Upload chậm do file size lớn** | Giảm `maxDimension` 2048→1600px, file nhỏ hơn ~35–40% — xem § Bugs Fixed | ✅ |
+| **Concurrent field upload ghi đè nhau** | `updateFieldImageURLs` serializes writes qua `pendingFieldWrite` task chain — xem § Bugs Fixed (B7) | ✅ |
 
 ---
 
@@ -346,6 +347,65 @@ guard let id = inspection?.id,
 
 ---
 
+### B7 — Concurrent field upload ghi đè nhau (last-writer-wins data loss)
+
+**Ngày fix:** 2026-06-09
+**Files:**
+- [`../../Domain/Repositories/InspectionStorageServiceType.swift`](../../../Domain/Repositories/InspectionStorageServiceType.swift) — thêm `updateFieldImageURLs` vào protocol
+- [`../../Data/Services/FirestoreInspectionStorageService.swift`](../../../Data/Services/FirestoreInspectionStorageService.swift) — serial write gate
+- [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) — gọi method mới
+
+**Root cause:**
+Khi user kiểm tra Field A, navigate back, rồi kiểm tra Field B — cả hai upload chạy song song (mỗi cái là một Task riêng trong `saveValidation`). Cả hai đều gọi `storageService.updateInspection(inspection)` — là `setData` (full document replace). Cả hai đọc cùng một snapshot từ cache trước khi write nào hoàn tất, rồi write back với chỉ field của mình:
+
+```
+[t=1] Field A reads cache: { field_A.imageURLs: [],  field_B.imageURLs: [] }
+[t=1] Field B reads cache: { field_A.imageURLs: [],  field_B.imageURLs: [] }
+[t=2] Field A writes:      { field_A: ["url_A1"],   field_B: [] }        ✅
+[t=3] Field B writes:      { field_A: [],            field_B: ["url_B1"] } ← OVERWRITES field A ❌
+```
+
+**Fix:** Thêm method `updateFieldImageURLs(inspectionId:fieldId:imageURLs:)` vào protocol và service. `FirestoreInspectionStorageService` giữ `@MainActor private var pendingFieldWrite: Task<Void, Error>?` — mỗi write mới chains lên task trước, đọc cache fresh SAU KHI write trước landing:
+
+```swift
+// FirestoreInspectionStorageService.swift
+@MainActor private var pendingFieldWrite: Task<Void, Error>?
+
+@MainActor
+func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String]) async throws {
+    let previous = pendingFieldWrite
+    let newTask = Task { @MainActor in
+        _ = try? await previous?.value          // chờ write trước xong
+        guard var inspection = self.getInspection(by: inspectionId) else { return }
+        // ...update only this field...
+        try await self.updateInspection(inspection)
+    }
+    pendingFieldWrite = newTask
+    try await newTask.value
+}
+```
+
+`@MainActor` trên method + property đảm bảo read/write của `pendingFieldWrite` là atomic. Khi Field A suspend (`await taskA.value`), Field B có thể chạy trên main actor và thấy `pendingFieldWrite = taskA` — tạo `taskB` chains lên `taskA`. Kết quả:
+
+```
+[t=1] Field A: previous=nil, tạo taskA, pendingFieldWrite=taskA, await taskA.value → suspend
+[t=2] Field B: previous=taskA, tạo taskB (awaits taskA), pendingFieldWrite=taskB, await taskB.value → suspend
+[t=3] taskA: await nil → reads cache → writes field_A: ["url_A1"] ✅
+[t=4] taskB: await taskA → reads FRESH cache → writes { field_A: ["url_A1"], field_B: ["url_B1"] } ✅
+```
+
+`InspectionValidationViewModel.uploadPhotosAndUpdateField` xóa bỏ manual read-modify-write block (cũng xóa luôn 2 `print()` statements), thay bằng:
+```swift
+try await storageService.updateFieldImageURLs(
+    inspectionId: inspectionId, fieldId: fieldId, imageURLs: uploadedURLs
+)
+```
+
+**Rule to remember:**
+> Khi nhiều actors có thể write cùng một Firestore document, không dùng read-modify-write với `setData`. Serialize writes qua một `@MainActor Task` chain — mỗi write đọc fresh cache SAU KHI write trước landing. Nếu cần multi-client safety, dùng Firestore transaction.
+
+---
+
 ### B2 — Button "Đóng" bị che khi scroll
 
 **Ngày fix:** 2026-06-06  
@@ -394,4 +454,4 @@ Thêm 2 modifier vào `NavigationStack` body:
 
 ---
 
-*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-09 (B5: activeUploadCount trigger; B6: markInspectionCompleted stale snapshot; two-phase upload throttle docs)*
+*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-09 (B5: activeUploadCount trigger; B6: markInspectionCompleted stale snapshot; B7: concurrent field upload race condition → updateFieldImageURLs serial write gate; BUG-F04: fixed stale shouldShowFinalReport reference in Edge Cases)*
