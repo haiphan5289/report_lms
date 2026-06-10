@@ -14,6 +14,7 @@ import Foundation
 final class PendingUploadStore {
     static let shared = PendingUploadStore()
     private let defaults = UserDefaults.standard
+    private let inspectionIdsKey = "pendingUploadInspectionIds"
 
     private init() {}
 
@@ -24,6 +25,7 @@ final class PendingUploadStore {
         guard !current.contains(filePath) else { return }
         current.append(filePath)
         defaults.set(current, forKey: key(inspectionId: inspectionId, fieldId: fieldId))
+        registerInspectionId(inspectionId)
         CacheDebugLogger.shared.log(.pendingAdded(fieldId: fieldId, count: current.count))
     }
 
@@ -37,6 +39,21 @@ final class PendingUploadStore {
         for k in defaults.dictionaryRepresentation().keys where k.hasPrefix(prefix) {
             defaults.removeObject(forKey: k)
         }
+        var ids = defaults.stringArray(forKey: inspectionIdsKey) ?? []
+        ids.removeAll { $0 == inspectionId }
+        defaults.set(ids, forKey: inspectionIdsKey)
+    }
+
+    /// Returns all inspectionIds that have at least one registered pending upload.
+    func getAllPendingInspectionIds() -> [String] {
+        defaults.stringArray(forKey: inspectionIdsKey) ?? []
+    }
+
+    private func registerInspectionId(_ inspectionId: String) {
+        var ids = defaults.stringArray(forKey: inspectionIdsKey) ?? []
+        guard !ids.contains(inspectionId) else { return }
+        ids.append(inspectionId)
+        defaults.set(ids, forKey: inspectionIdsKey)
     }
 
     // MARK: - Read
@@ -49,6 +66,20 @@ final class PendingUploadStore {
 
     func hasPending(inspectionId: String, fieldId: String) -> Bool {
         !getPendingFilePaths(inspectionId: inspectionId, fieldId: fieldId).isEmpty
+    }
+
+    /// Returns all (fieldId, filePaths) tuples for an inspection that still have pending uploads on disk.
+    func getAllPendingFields(for inspectionId: String) -> [(fieldId: String, paths: [String])] {
+        let prefix = "pendingUploads_\(inspectionId)_"
+        let prefixLength = prefix.count
+        return defaults.dictionaryRepresentation().keys
+            .filter { $0.hasPrefix(prefix) }
+            .compactMap { key -> (fieldId: String, paths: [String])? in
+                let fieldId = String(key.dropFirst(prefixLength))
+                let paths = (defaults.stringArray(forKey: key) ?? [])
+                    .filter { FileManager.default.fileExists(atPath: $0) }
+                return paths.isEmpty ? nil : (fieldId, paths)
+            }
     }
 
     // MARK: - Private

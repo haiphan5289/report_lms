@@ -91,13 +91,20 @@ actor ErrorRepository: ErrorRepositoryType {
         }
         logger.debug("[saveErrorItem] localImageCount=\(localImages.count, privacy: .public)")
 
-        // Upload all local images concurrently
+        // Pipelined compress + upload: throttled at 4 concurrent slots.
+        // Each slot compresses then immediately uploads — same pattern as InspectionValidationViewModel.
+        let maxConcurrent = ProcessInfo.processInfo.physicalMemory >= 6 * 1_024 * 1_024 * 1_024 ? 4 : 3
+        let errorItemId = item.id
         let uploadedURLs: [String] = try await withThrowingTaskGroup(of: (Int, String).self) { group in
-            for (index, image) in localImages {
-                let path = "inspections/\(inspectionId)/errors/\(item.id)/\(index).jpg"
+            var pending = localImages
+            var nextIndex = 0
+            var results: [(Int, String)] = []
+
+            func addJob(_ job: (index: Int, image: UIImage)) {
+                let (index, image) = job
+                let path = "inspections/\(inspectionId)/errors/\(errorItemId)/\(index).jpg"
                 let logger = self.logger
                 group.addTask {
-                    // Resize + compress on background thread
                     let imageData = await Task.detached(priority: .userInitiated) {
                         image.prepareForUpload()
                     }.value
@@ -125,9 +132,15 @@ actor ErrorRepository: ErrorRepositoryType {
                     }
                 }
             }
-            var results: [(Int, String)] = []
+
+            while nextIndex < min(maxConcurrent, pending.count) {
+                addJob(pending[nextIndex]); nextIndex += 1
+            }
             for try await pair in group {
                 results.append(pair)
+                if nextIndex < pending.count {
+                    addJob(pending[nextIndex]); nextIndex += 1
+                }
             }
             return results.sorted { $0.0 < $1.0 }.map { $0.1 }
         }

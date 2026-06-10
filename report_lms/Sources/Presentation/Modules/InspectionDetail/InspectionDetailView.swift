@@ -81,6 +81,9 @@ struct InspectionDetailView: View {
                 onSave: { validation in
                     viewModel.handleValidationSave(validation)
                 },
+                onSilentSave: { validation in
+                    viewModel.handleValidationUpdate(validation)
+                },
                 onUploadComplete: {
                     viewModel.refreshInspection()
                     viewModel.snackbarMessage = "Ảnh đã được lưu thành công!"

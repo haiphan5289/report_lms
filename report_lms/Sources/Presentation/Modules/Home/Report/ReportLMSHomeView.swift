@@ -227,6 +227,7 @@ private func makePreviewViewModel(inspections: [Inspection]) -> ReportViewModel 
             if let idx = items.firstIndex(where: { $0.id == i.id }) { items[idx] = i }
         }
         @MainActor func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String]) async throws {}
+        func updateInspectionStatus(inspectionId: String, status: InspectionStatus) async throws {}
         func deleteInspection(by id: String) async throws { items.removeAll { $0.id == id } }
         func getDraftInspections() -> [Inspection] { items.filter { $0.status == .plan || $0.status == .inProgress } }
         func getCompletedInspections() -> [Inspection] { items.filter { $0.status == .completed } }

@@ -53,6 +53,7 @@ struct InspectionValidationView: View {
         initialImages: [InspectionImage],
         inspectionId: String? = nil,
         onSave: @escaping (FieldValidation) -> Void,
+        onSilentSave: ((FieldValidation) -> Void)? = nil,
         onUploadComplete: (() -> Void)? = nil,
         onTaskCompleted: (() -> Void)? = nil,
         onImageProgress: (@Sendable (Int, Double) -> Void)? = nil,
@@ -68,6 +69,7 @@ struct InspectionValidationView: View {
                 initialImages: initialImages,
                 inspectionId: inspectionId,
                 onSave: onSave,
+                onSilentSave: onSilentSave,
                 onUploadComplete: onUploadComplete,
                 onTaskCompleted: onTaskCompleted,
                 onImageProgress: onImageProgress,
@@ -113,14 +115,7 @@ struct InspectionValidationView: View {
             }
             // Fixed bottom buttons
             bottomActionsView
-            // Upload progress toast — floats above bottom buttons
-            if viewModel.isUploading {
-                uploadToastView
-                    .padding(.bottom, Layout.bottomButtonHeight + 12)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: viewModel.isUploading)
         .navigationTitle(viewModel.fieldLabel)
         .navigationBarTitleDisplayMode(.inline)
 //        #if DEBUG
@@ -420,39 +415,6 @@ struct InspectionValidationView: View {
         )
     }
     
-    // MARK: - Upload Toast
-
-    private var uploadToastView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: viewModel.uploadProgress >= 1.0
-                      ? "checkmark.circle.fill"
-                      : "arrow.up.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundColor(viewModel.uploadProgress >= 1.0 ? .green : LMSColor.primary)
-                    .animation(.easeOut(duration: 0.3), value: viewModel.uploadProgress)
-
-                Text(viewModel.uploadProgress >= 1.0 ? "Đã tải lên" : "Đang tải ảnh lên...")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.primary)
-
-                Spacer()
-            }
-
-            LMSUploadProgressBar(
-                mode: viewModel.uploadProgress >= 1.0 ? .determinate(1.0) : .indeterminate,
-                height: 4
-            )
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.14), radius: 14, x: 0, y: 6)
-        )
-        .padding(.horizontal, 16)
-    }
 
     // MARK: - Image Action Handlers
 

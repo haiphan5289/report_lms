@@ -143,6 +143,23 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
         try await newTask.value
     }
 
+    /// Partial Firestore update — only the `status` field. Safe to call concurrently with `updateFieldImageURLs`.
+    func updateInspectionStatus(inspectionId: String, status: InspectionStatus) async throws {
+        do {
+            try await firestoreService.updateInspectionStatus(id: inspectionId, status: status)
+        } catch {
+            logger.error("Firestore status update failed: \(error.localizedDescription)")
+            throw InspectionStorageError.writeFailed
+        }
+        await MainActor.run {
+            if let index = cache.firstIndex(where: { $0.id == inspectionId }) {
+                cache[index].status = status
+            }
+        }
+        NotificationCenter.default.post(name: .inspectionDidUpdate, object: nil)
+        logger.log("Inspection \(inspectionId) status updated to \(status.rawValue)")
+    }
+
     /// Cascade delete: Firestore doc + cache + notification (blocking), then photos + delivery tasks (fire & forget).
     func deleteInspection(by id: String) async throws {
         logger.log("Cascade deleting inspection \(id)...")

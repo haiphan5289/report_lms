@@ -118,6 +118,10 @@ final class InspectionDetailViewModel: ObservableObject {
         if let loaded = inspection {
             restoreCapturedPhotos(from: loaded)
         }
+
+        // Retry any uploads that were interrupted (e.g. app killed before upload completed).
+        // Runs in background Tasks — does not block the UI.
+        retryAllPendingUploads()
     }
 
     /// Wraps Firebase Storage URLs into InspectionImage.remoteURL entries synchronously.
@@ -129,6 +133,41 @@ final class InspectionDetailViewModel: ObservableObject {
                     guard let url = URL(string: urlString) else { return nil }
                     return InspectionImage(remoteURL: url)
                 }
+            }
+        }
+    }
+
+    /// On app reopen, retries uploads for every field that has locally-cached images not yet in Firebase.
+    /// Creates a short-lived InspectionValidationViewModel per field so all upload/callback logic is reused.
+    private func retryAllPendingUploads() {
+        guard let inspectionId = inspection?.id else { return }
+        let pendingFields = PendingUploadStore.shared.getAllPendingFields(for: inspectionId)
+        guard !pendingFields.isEmpty else { return }
+
+        for (fieldId, _) in pendingFields {
+            let fieldLabel = findFieldLabel(for: fieldId)
+            let callbacks = makeUploadCallbacks(for: fieldId)
+            let existingImages = capturedPhotos[fieldId] ?? []
+            let sid = inspectionId
+
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let vm = InspectionValidationViewModel(
+                    fieldId: fieldId,
+                    fieldLabel: fieldLabel,
+                    initialImages: existingImages,
+                    inspectionId: sid,
+                    onSilentSave: { [weak self] validation in
+                        self?.handleValidationUpdate(validation)
+                    },
+                    onTaskCompleted: { [weak self] in
+                        self?.notifyUploadCompleted()
+                    },
+                    onImageProgress: callbacks.onProgress,
+                    onImageDone: callbacks.onDone,
+                    onImageFail: callbacks.onFail
+                )
+                await vm.loadPendingCaptures()
             }
         }
     }
@@ -234,6 +273,13 @@ final class InspectionDetailViewModel: ObservableObject {
     func handleValidationSave(_ validation: FieldValidation) {
         capturedPhotos[validation.id] = validation.images
         selectedValidationField = nil
+        startUploadSession(fieldId: validation.id, images: validation.images)
+    }
+
+    /// Updates capturedPhotos + starts upload session without dismissing the validation screen.
+    /// Called when auto-save triggers from camera capture (no navigation change).
+    func handleValidationUpdate(_ validation: FieldValidation) {
+        capturedPhotos[validation.id] = validation.images
         startUploadSession(fieldId: validation.id, images: validation.images)
     }
     

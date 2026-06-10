@@ -14,8 +14,9 @@ actor FirebaseStorageService {
     func uploadImage(_ imageData: Data, path: String) async throws -> String {
         let storageRef = storage.reference()
         let imageRef = storageRef.child(path)
-
-        _ = try await imageRef.putDataAsync(imageData, metadata: nil)
+        let metadata = StorageMetadata()
+        metadata.contentType = imageData.imageContentType
+        _ = try await imageRef.putDataAsync(imageData, metadata: metadata)
         let downloadURL = try await imageRef.downloadURL()
         return downloadURL.absoluteString
     }
@@ -26,8 +27,10 @@ actor FirebaseStorageService {
         onProgress: @Sendable @escaping (Double) -> Void
     ) async throws -> String {
         let imageRef = storage.reference().child(path)
+        let metadata = StorageMetadata()
+        metadata.contentType = imageData.imageContentType
         return try await withCheckedThrowingContinuation { continuation in
-            let task = imageRef.putData(imageData, metadata: nil) { _, error in
+            let task = imageRef.putData(imageData, metadata: metadata) { _, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return

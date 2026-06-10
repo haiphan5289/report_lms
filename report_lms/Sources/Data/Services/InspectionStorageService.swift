@@ -153,6 +153,17 @@ final class InspectionStorageService: InspectionStorageServiceType {
         try await updateInspection(inspection)
     }
 
+    /// Partial update — only touches `status` in cache + disk (no imageURLs overwrite risk).
+    func updateInspectionStatus(inspectionId: String, status: InspectionStatus) async throws {
+        await MainActor.run {
+            if let index = cache.firstIndex(where: { $0.id == inspectionId }) {
+                cache[index].status = status
+            }
+        }
+        try await persistCache()
+        logger.log("Inspection \(inspectionId) status updated to \(status.rawValue)")
+    }
+
     /// Delete inspection by ID (removes from cache and persists)
     func deleteInspection(by id: String) async throws {
         logger.log("Deleting inspection with ID: \(id)...")

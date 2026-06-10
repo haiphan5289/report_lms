@@ -83,13 +83,6 @@ struct CameraView: View {
             } message: {
                 Text(localizationManager.localize("camera.permission.message"))
             }
-            .alert(localizationManager.localize("common.error"), isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button(localizationManager.localize("common.ok")) { viewModel.errorMessage = nil }
-            } message: {
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                }
-            }
     }
 
     // MARK: - Private Views

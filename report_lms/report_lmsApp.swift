@@ -16,7 +16,7 @@ struct report_lmsApp: App {
     init() {
         FirebaseApp.configure()
         
-        // Load inspection cache on app launch
+        // Load inspection cache then retry any interrupted uploads
         Task {
             let logger = Logger(subsystem: "com.reportlms.app", category: "lifecycle")
             do {
@@ -29,6 +29,8 @@ struct report_lmsApp: App {
             } catch {
                 logger.error("Failed to load inspection cache: \(error.localizedDescription)")
             }
+            // Retry uploads after cache is ready so getInspection(by:) returns fresh data
+            PendingUploadRetryService.shared.retryAllPendingUploads()
         }
     }
 

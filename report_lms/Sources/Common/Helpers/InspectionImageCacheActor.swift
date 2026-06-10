@@ -165,10 +165,14 @@ actor InspectionImageCacheActor {
 
     // MARK: - Debug stats
 
-    func stats(inspectionId: String, fieldId: String) -> (ram: Int, disk: Int) {
+    func stats(inspectionId: String, fieldId: String) async -> (ram: Int, disk: Int) {
         let dir = fieldURL(inspectionId: inspectionId, fieldId: fieldId)
         let ramCount = ram.keys.filter { $0.hasPrefix(dir.path) }.count
-        let diskFiles = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        // Offload disk I/O so it doesn't block the actor executor for other awaiting calls.
+        let diskPath = dir.path
+        let diskFiles = await Task.detached(priority: .background) {
+            (try? FileManager.default.contentsOfDirectory(atPath: diskPath)) ?? []
+        }.value
         return (ramCount, diskFiles.count)
     }
 
@@ -182,12 +186,11 @@ actor InspectionImageCacheActor {
 
     private func remoteKey(for url: URL) -> String {
         var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        comps?.query = nil
+        comps?.query = nil  // strip signed token — key is stable across URL rotations
         let stable = comps?.string ?? url.absoluteString
-        return (stable
-            .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? url.lastPathComponent)
-            .prefix(80)
-            .description
+        // Hash the full stable URL — compact, unique per image, no truncation collisions.
+        // (addingPercentEncoding+prefix(80) would collide for all Firebase URLs sharing the same domain prefix.)
+        return String(stable.hashValue & 0x7FFFFFFFFFFFFFFF, radix: 16)
     }
 
     private func addToRAM(key: String, image: UIImage) {

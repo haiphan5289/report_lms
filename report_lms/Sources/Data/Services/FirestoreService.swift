@@ -34,6 +34,14 @@ final class FirestoreService {
         try await docRef.updateData(data)
     }
 
+    /// Partial update — only writes the `status` field; does not touch imageURLs or other fields.
+    func updateInspectionStatus(id: String, status: InspectionStatus) async throws {
+        try await firestoreDatabase
+            .collection("inspections")
+            .document(id)
+            .updateData(["status": status.rawValue])
+    }
+
     func deleteInspection(id: String) async throws {
         try await firestoreDatabase.collection("inspections").document(id).delete()
     }

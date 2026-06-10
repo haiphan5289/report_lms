@@ -54,6 +54,12 @@ protocol InspectionStorageServiceType {
     @MainActor
     func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String]) async throws
 
+    /// Updates only the `status` field — safe to call concurrently with `updateFieldImageURLs`.
+    ///
+    /// Unlike `updateInspection` (full document write), this method does a partial update
+    /// so it cannot overwrite `imageURLs` written by concurrent field uploads.
+    func updateInspectionStatus(inspectionId: String, status: InspectionStatus) async throws
+
     /// Removes the inspection with `id` from both the backing store and the cache.
     func deleteInspection(by id: String) async throws
 

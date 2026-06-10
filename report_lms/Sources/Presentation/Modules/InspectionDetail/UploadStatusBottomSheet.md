@@ -177,7 +177,7 @@ Không có API endpoint mới — feature giao tiếp trực tiếp với **Fire
 | Scenario | Expected Behavior | Handled? |
 |----------|-----------------|----------|
 | Ảnh upload thất bại | `failCb(index)` → `status = .failed` → ❌ "Thất bại" | ✅ |
-| User tap "Hoàn tất" khi đang upload | `pendingFinalReport = true` → FinalReport tự mở sau | ✅ |
+| User tap "Hoàn tất" khi đang upload | `showFinalReport = true` ngay lập tức — navigate thẳng vào FinalReport, upload tiếp tục chạy nền | ✅ |
 | Field chỉ có remote images (không có local) | `startUploadSession` early return nếu `localImages.isEmpty` | ✅ |
 | User dismiss FinalReport | `@State showFinalReport` in `InspectionDetailView` set `false` when `FinalReportView` is dismissed | ✅ |
 | `imageData` resize thất bại (`prepareForUpload()` trả nil) | `failCb(index)` được gọi | ✅ |
@@ -438,7 +438,7 @@ Thêm 2 modifier vào `NavigationStack` body:
 
 **Suggested test cases:**
 - [ ] `startUploadSession` với 0 local images → không tạo session, `activeUploadCount` không tăng
-- [ ] `notifyUploadCompleted` khi `activeUploadCount = 1` và `pendingFinalReport = true` → `shouldShowFinalReport = true`
+- [ ] `notifyUploadCompleted` khi `activeUploadCount = 1` và `pendingEmailSend = true` → `pendingEmailSend` reset về `false` + `sendReport()` được gọi
 - [ ] `totalUploadingImageCount` chỉ đếm `.pending` và `.uploading` — không đếm `.done`, `.failed`
 - [ ] `FieldUploadSession.isComplete` trả `true` khi tất cả items là `.done` hoặc `.failed`
 - [ ] `makeUploadCallbacks(for:)` callbacks dispatch đúng lên `@MainActor`
