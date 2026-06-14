@@ -114,6 +114,14 @@ export const processReportQueue = onDocumentCreated(
       );
       console.log(`[${taskId}] PDF generated: ${pdfBuffer.length} bytes`);
 
+      // Upload to Firebase Storage so the iOS app can retrieve it later
+      const storagePath = `inspections/${inspectionId}/reports/${taskId}.pdf`;
+      const bucket = admin.storage().bucket();
+      const file = bucket.file(storagePath);
+      await file.save(pdfBuffer, { metadata: { contentType: "application/pdf" } });
+      await taskRef.update({ pdfStoragePath: storagePath });
+      console.log(`[${taskId}] PDF uploaded to Storage: ${storagePath}`);
+
       const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: { user: gmailUser.value(), pass: gmailPass.value() },

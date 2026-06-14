@@ -64,7 +64,11 @@
       "Bash(xcodebuild -scheme report_lms -destination 'generic/platform=iOS Simulator' build)",
       "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16')",
       "Bash(xcodebuild -project /Users/haiphan/Desktop/haiphan/report_lms/report_lms.xcodeproj -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build)",
-      "Bash(xcodebuild -project report_lms.xcodeproj -scheme report_lms -destination 'generic/platform=iOS Simulator' build)"
+      "Bash(xcodebuild -project report_lms.xcodeproj -scheme report_lms -destination 'generic/platform=iOS Simulator' build)",
+      "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16' -configuration Debug build)",
+      "Bash(firebase login:list)",
+      "Bash(firebase projects:list)",
+      "Bash(firebase functions:list)"
     ],
     "additionalDirectories": [
       "/private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440",

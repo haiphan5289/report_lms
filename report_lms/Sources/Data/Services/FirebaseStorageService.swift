@@ -55,6 +55,11 @@ actor FirebaseStorageService {
         return try await storageRef.data(maxSize: 10 * 1024 * 1024) // 10MB limit
     }
 
+    func downloadData(fromPath path: String) async throws -> Data {
+        let ref = storage.reference().child(path)
+        return try await ref.data(maxSize: 20 * 1024 * 1024) // 20MB for PDF reports
+    }
+
     func deleteImage(at path: String) async throws {
         let storageRef = storage.reference()
         let imageRef = storageRef.child(path)

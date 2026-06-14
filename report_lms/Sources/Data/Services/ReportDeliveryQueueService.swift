@@ -40,6 +40,7 @@ extension ReportDeliveryTask {
         self.requestedAt      = requestedAt
         self.sentAt           = sentAt
         self.errorMessage     = data["errorMessage"]     as? String
+        self.pdfStoragePath   = data["pdfStoragePath"]   as? String
     }
 }
 
@@ -145,6 +146,19 @@ final class ReportDeliveryQueueService {
         guard !ids.isEmpty else { return }
         try await deleteTasks(taskIds: ids)
         logger.log("Deleted \(ids.count) delivery tasks for inspection \(inspectionId)")
+    }
+
+    /// Returns the most recent sent task for a given inspection, or nil if none exists.
+    func latestSentTask(for inspectionId: String) async throws -> ReportDeliveryTask? {
+        let snapshot = try await db
+            .collection(Self.collectionName)
+            .whereField("inspectionId", isEqualTo: inspectionId)
+            .getDocuments()
+        return snapshot.documents
+            .compactMap { ReportDeliveryTask(from: $0.data(), id: $0.documentID) }
+            .filter { $0.status == .sent }
+            .sorted { ($0.sentAt ?? .distantPast) > ($1.sentAt ?? .distantPast) }
+            .first
     }
 
     /// Updates an existing failed task's status back to `queued` so the Cloud Function re-processes it.

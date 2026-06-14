@@ -42,7 +42,6 @@ struct PhotoCaptureErrorReviewView: View {
 
     // Image action menu
     @State private var selectedImageIndex: Int?
-    @State private var showImageMenu = false
     @State private var showImageEditor = false
     @State private var editingUIImage: UIImage?
     @State private var sharingImage: UIImage?
@@ -138,22 +137,7 @@ struct PhotoCaptureErrorReviewView: View {
             }
         }
         .onAppear {
-            print("🔍 [PhotoCaptureErrorReviewView] onAppear")
-            print("   - EditMode: \(viewModel.isEditMode)")
-            print("   - InspectionId: \(viewModel.inspectionId)")
-            print("   - EditingItem: \(editingItem?.id ?? "nil")")
-            print("   - initialImages count: \(initialImages.count)")
-            for (i, img) in initialImages.enumerated() {
-                print("   - initialImages[\(i)]: \(img.source)")
-            }
-            print("   - viewModel.images BEFORE setInitialImages: \(viewModel.images.count)")
-            Task {
-                await viewModel.setInitialImages(initialImages)
-                print("   ✅ setInitialImages done — viewModel.images: \(viewModel.images.count)")
-            }
-        }
-        .onDisappear {
-            print("🔍 [PhotoCaptureErrorReviewView] onDisappear — viewModel.images: \(viewModel.images.count)")
+            Task { await viewModel.setInitialImages(initialImages) }
         }
         .task {
             withAnimation { heroVisible = true }
@@ -184,33 +168,16 @@ struct PhotoCaptureErrorReviewView: View {
         .overlay {
             if viewModel.isDownloading {
                 LMSLoadingOverlay()
+                    .transition(.opacity)
             }
         }
-        .confirmationDialog("", isPresented: $showImageMenu) {
-            Button(localizationManager.localize("imageEditor.menu.edit")) {
-                Task { await handleEditImage() }
-            }
-            Button(localizationManager.localize("imageEditor.menu.share")) {
-                Task { await handleShareImage() }
-            }
-            Button(localizationManager.localize("imageEditor.menu.delete"), role: .destructive) {
-                if let index = selectedImageIndex {
-                    viewModel.deleteImage(at: index)
-                    onImagesUpdated(viewModel.images)
-                }
-            }
-            Button(localizationManager.localize("common.cancel"), role: .cancel) {}
-        }
+        .animation(.easeInOut(duration: 0.35), value: viewModel.isDownloading)
         .sheet(isPresented: $showImageEditor) {
             if let image = editingUIImage, let index = selectedImageIndex {
                 ImageEditorView(image: image) { editedImage in
-                    print("🔍 [PhotoCaptureErrorReviewView] ImageEditor callback")
-                    print("   - Edited image size: \(editedImage.size)")
                     viewModel.replaceImage(at: index, with: editedImage)
                     onImagesUpdated(viewModel.images)
-                    // Force view refresh
                     imageRefreshTrigger += 1
-                    print("   - Refresh trigger: \(imageRefreshTrigger)")
                 }
                 .environmentObject(localizationManager)
             }
@@ -269,11 +236,20 @@ struct PhotoCaptureErrorReviewView: View {
                                 get: { viewModel.images[index].note },
                                 set: { viewModel.images[index].note = $0 }
                             ),
-                            cornerRadius: Layout.cornerRadius
-                        ) {
-                            selectedImageIndex = index
-                            showImageMenu = true
-                        }
+                            cornerRadius: Layout.cornerRadius,
+                            onEdit: {
+                                selectedImageIndex = index
+                                Task { await handleEditImage() }
+                            },
+                            onShare: {
+                                selectedImageIndex = index
+                                Task { await handleShareImage() }
+                            },
+                            onDelete: {
+                                viewModel.deleteImage(at: index)
+                                onImagesUpdated(viewModel.images)
+                            }
+                        )
                         .id("\(imageWithNote.id)-\(imageRefreshTrigger)")
                     }
                 }
@@ -543,26 +519,18 @@ struct PhotoCaptureErrorReviewView: View {
     // MARK: - Image Action Handlers
     private func handleEditImage() async {
         guard let index = selectedImageIndex else { return }
-        print("🔍 [PhotoCaptureErrorReviewView] handleEditImage")
-        print("   - Index: \(index)")
-        print("   - Source: \(viewModel.images[index].source)")
-        
         switch viewModel.images[index].source {
         case .local(let img):
-            print("   - Local image size: \(img.size)")
             editingUIImage = img
             showImageEditor = true
         case .remote(let url):
-            print("   - Downloading remote image...")
             viewModel.isDownloading = true
             do {
                 let img = try await viewModel.downloadImage(from: url)
-                print("   - Downloaded image size: \(img.size)")
                 viewModel.isDownloading = false
                 editingUIImage = img
                 showImageEditor = true
             } catch {
-                print("   - Download failed: \(error)")
                 viewModel.isDownloading = false
                 viewModel.snackbarMessage = localizationManager.localize("imageEditor.error.downloadFailed")
             }
@@ -599,46 +567,55 @@ private struct ImageRowCard: View {
     let total: Int
     @Binding var note: String
     let cornerRadius: CGFloat
-    let onMenu: () -> Void
+    let onEdit: () -> Void
+    let onShare: () -> Void
+    let onDelete: () -> Void
+
+    @State private var appeared = false
+    @GestureState private var thumbnailPressed = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // Full-width image with overlaid controls
-            ZStack(alignment: .topTrailing) {
-                imageContent
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 220)
+            HStack(alignment: .top, spacing: 12) {
+                // Left: flexible 4:3 thumbnail with index badge + shadow
+                ZStack(alignment: .topLeading) {
+                    ZStack {
+                        Color.clear.aspectRatio(4/3, contentMode: .fit)
+                        imageContent.scaledToFill()
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 3)
 
-                // Index badge top-left
-                Text("\(index + 1) / \(total)")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
-                    )
-                    .shadow(color: Color.primary.opacity(0.12), radius: 6, y: 3)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-
-                // Menu button top-right
-                Button(action: onMenu) {
-                    Image(systemName: "ellipsis.circle.fill")
-                        .font(.system(size: 22))
+                    Text("\(index + 1)/\(total)")
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.primary)
-                        .padding(6)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
                         .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                        .shadow(color: Color.primary.opacity(0.18), radius: 6, y: 3)
-                        .padding(8)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
+                        .padding(4)
                 }
+                .frame(maxWidth: .infinity)
+                .scaleEffect(thumbnailPressed ? 0.97 : 1.0)
+                .animation(.spring(response: 0.25, dampingFraction: 0.65), value: thumbnailPressed)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .updating($thumbnailPressed) { _, state, _ in state = true }
+                )
+
+                // Right: action panel
+                ImageSideActionsPanel(
+                    onEdit: onEdit,
+                    onShare: onShare,
+                    onDelete: onDelete
+                )
+                .frame(width: 110)
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 10)
 
             // Note text field
             TextField("Thêm ghi chú cho ảnh này...", text: $note, axis: .vertical)
@@ -646,6 +623,8 @@ private struct ImageRowCard: View {
                 .foregroundColor(LMSColor.textPrimary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
+                .opacity(appeared ? 1 : 0)
+                .animation(.easeOut(duration: 0.35).delay(0.1), value: appeared)
         }
         .background(LMSColor.backgroundSecondary)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -653,6 +632,10 @@ private struct ImageRowCard: View {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(LMSColor.secondary, lineWidth: 1)
         )
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 4)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.35)) { appeared = true }
+        }
     }
 
     @ViewBuilder
@@ -661,23 +644,12 @@ private struct ImageRowCard: View {
         case .local(let image):
             Image(uiImage: image)
                 .resizable()
-                .onAppear {
-                    print("🔍 [ImageRowCard] Rendering LOCAL image")
-                    print("   - Image size: \(image.size)")
-                }
         case .remote(let url):
             CachedAsyncImage(url: URL(string: url)) { phase in
                 if let img = phase.image {
                     img.resizable()
-                        .onAppear {
-                            print("🔍 [ImageRowCard] Rendering REMOTE image SUCCESS")
-                        }
                 } else {
                     LMSColor.backgroundSecondary
-                        .onAppear {
-                            print("🔍 [ImageRowCard] Rendering REMOTE placeholder (loading/error)")
-                            print("   - URL: \(url)")
-                        }
                 }
             }
         }

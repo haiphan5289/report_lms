@@ -11,6 +11,7 @@ struct OrdersView: View {
     @StateObject private var viewModel: OrdersViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
     @State private var inspectionToDelete: Inspection?
+    @State private var inspectionToDetail: Inspection?
 
     // Animation
     @State private var listVisible = false
@@ -39,6 +40,9 @@ struct OrdersView: View {
         .task { await viewModel.loadOrders() }
         .onAppear { withAnimation(.easeOut(duration: 0.4)) { listVisible = true } }
         .refreshable { await viewModel.loadOrders() }
+        .sheet(item: $inspectionToDetail) { inspection in
+            OrderDetailBottomSheet(inspection: inspection)
+        }
         .sheet(item: $inspectionToDelete) { inspection in
             DeleteConfirmationView(
                 title: localizationManager.localize("orders.delete.title"),
@@ -145,9 +149,11 @@ struct OrdersView: View {
     private var orderList: some View {
         LazyVStack(spacing: 12) {
             ForEach(Array(viewModel.filteredInspections.enumerated()), id: \.element.id) { index, inspection in
-                OrderCardView(inspection: inspection) {
-                    inspectionToDelete = inspection
-                }
+                OrderCardView(
+                    inspection: inspection,
+                    onTap: { inspectionToDetail = inspection },
+                    onDelete: { inspectionToDelete = inspection }
+                )
                 .padding(.horizontal, 16)
                 .opacity(listVisible ? 1 : 0)
                 .offset(y: listVisible ? 0 : 16)
@@ -211,7 +217,10 @@ struct OrdersView: View {
 
 struct OrderCardView: View {
     let inspection: Inspection
+    let onTap: () -> Void
     let onDelete: () -> Void
+
+    @GestureState private var cardPressed = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -295,11 +304,18 @@ struct OrderCardView: View {
             .padding(14)
         }
         .background(LMSColor.background)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: LMSColor.Shadow.medium, radius: 4, x: 0, y: 2)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(LMSColor.Border.subtle, lineWidth: 1)
+        )
+        .scaleEffect(cardPressed ? 0.97 : 1.0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: cardPressed)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .updating($cardPressed) { _, state, _ in state = true }
+                .onEnded { _ in onTap() }
         )
     }
 }

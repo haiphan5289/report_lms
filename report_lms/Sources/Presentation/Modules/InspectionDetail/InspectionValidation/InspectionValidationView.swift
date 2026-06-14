@@ -26,12 +26,12 @@ struct InspectionValidationView: View {
 
     // Animation
     @State private var contentVisible = false
+    @State private var emptyIconOffset: CGFloat = -4
     @GestureState private var passPressed = false
     @GestureState private var naPressed = false
 
     // Image actions
     @State private var selectedImageIndex: Int?
-    @State private var showImageMenu = false
     @State private var showImageEditor = false
     @State private var editingUIImage: UIImage?
     @State private var sharingImage: UIImage?
@@ -143,16 +143,6 @@ struct InspectionValidationView: View {
             }
             .environmentObject(LocalizationManager.shared)
         }
-        .confirmationDialog("", isPresented: $showImageMenu) {
-            Button("Chỉnh sửa") { Task { await handleEditImage() } }
-            Button("Chia sẻ") { Task { await handleShareImage() } }
-            Button("Xoá bỏ", role: .destructive) {
-                if let index = selectedImageIndex {
-                    viewModel.requestDeleteImage(at: index)
-                }
-            }
-            Button("Huỷ", role: .cancel) {}
-        }
         .sheet(isPresented: $showImageEditor) {
             if let image = editingUIImage, let index = selectedImageIndex {
                 ImageEditorView(image: image) { editedImage in
@@ -170,8 +160,10 @@ struct InspectionValidationView: View {
         .overlay {
             if viewModel.isDownloading {
                 LMSLoadingOverlay()
+                    .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.35), value: viewModel.isDownloading)
         .lmsSnackbar(message: $viewModel.snackbarMessage, type: .error)
         .fullScreenCover(isPresented: $viewModel.showDeleteConfirmation) {
             DeleteConfirmationView(
@@ -194,12 +186,10 @@ struct InspectionValidationView: View {
     
     private var headerSection: some View {
         HStack {
-            Text(viewModel.fieldLabel)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.primary)
-            
+            LMSLabel(viewModel.fieldLabel, style: .headline)
+
             Spacer()
-            
+
             Button(action: {
                 viewModel.openCamera()
             }) {
@@ -220,39 +210,30 @@ struct InspectionValidationView: View {
     private var statusSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Title
-            Text(viewModel.fieldLabel)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.primary)
-            
+            LMSLabel(viewModel.fieldLabel, style: .headline)
+
             Divider()
-            
+
             // Status (Trạng thái)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Trạng thái")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
-                
+                LMSLabel("Trạng thái", style: .caption, color: .secondary)
+
                 HStack {
-                    Text("Tình trạng hiện tại")
-                        .font(.system(size: 16))
-                        .foregroundColor(.primary)
-                    
+                    LMSLabel("Tình trạng hiện tại", style: .body)
+
                     Spacer()
-                    
-                    Text(viewModel.status.displayText)
-                        .font(.system(size: 16, weight: .medium))
+
+                    LMSLabel(viewModel.status.displayText, style: .body)
                         .foregroundColor(statusColor(for: viewModel.status))
                 }
             }
-            
+
             Divider()
-            
+
             // Comments (Nhận xét)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Nhận xét")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
-                
+                LMSLabel("Nhận xét", style: .caption, color: .secondary)
+
                 TextEditor(text: Binding(
                     get: { viewModel.comments },
                     set: { viewModel.updateComments($0) }
@@ -260,15 +241,14 @@ struct InspectionValidationView: View {
                 .frame(minHeight: 100)
                 .padding(8)
                 .background(Color(.systemGray6))
-                .cornerRadius(8)
+                .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: Layout.cornerRadius)
                         .stroke(Color(.systemGray4), lineWidth: 1)
                 )
                 .overlay(alignment: .topLeading) {
                     if viewModel.comments.isEmpty {
-                        Text("Viết nhận xét tại đây")
-                            .foregroundColor(.secondary)
+                        LMSLabel("Viết nhận xét tại đây", style: .body, color: .secondary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 16)
                             .allowsHitTesting(false)
@@ -290,9 +270,20 @@ struct InspectionValidationView: View {
                 LMSLabel("\(viewModel.images.count) ảnh", style: .caption, color: .secondary)
             }
             if viewModel.images.isEmpty {
-                LMSLabel("Chưa có ảnh nào", style: .body, color: .secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 40)
+                VStack(spacing: 12) {
+                    Image(systemName: "photo.stack")
+                        .font(.system(size: 40))
+                        .foregroundColor(LMSColor.textTertiary)
+                        .offset(y: emptyIconOffset)
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                                emptyIconOffset = 4
+                            }
+                        }
+                    LMSLabel("Chưa có ảnh nào", style: .body, color: .secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 40)
             } else {
                 VStack(spacing: 16) {
                     ForEach(viewModel.images) { image in
@@ -304,9 +295,13 @@ struct InspectionValidationView: View {
                                     viewModel.requestDeleteImage(at: index)
                                 }
                             },
-                            onMenu: {
+                            onEdit: {
                                 selectedImageIndex = viewModel.images.firstIndex(where: { $0.id == image.id })
-                                showImageMenu = true
+                                Task { await handleEditImage() }
+                            },
+                            onShare: {
+                                selectedImageIndex = viewModel.images.firstIndex(where: { $0.id == image.id })
+                                Task { await handleShareImage() }
                             },
                             descriptionBinding: Binding(
                                 get: {
@@ -381,9 +376,7 @@ struct InspectionValidationView: View {
                         .updating($passPressed) { _, state, _ in state = true }
                 )
 
-                Text("Đã kiểm tra")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.primary)
+                LMSLabel("Đã kiểm tra", style: .caption)
             }
 
             // Button 2: Không áp dụng (Not Applicable)
@@ -408,9 +401,7 @@ struct InspectionValidationView: View {
                         .updating($naPressed) { _, state, _ in state = true }
                 )
 
-                Text("Không áp dụng")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.primary)
+                LMSLabel("Không áp dụng", style: .caption)
             }
         }
         .frame(maxWidth: .infinity)

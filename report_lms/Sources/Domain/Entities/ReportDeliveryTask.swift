@@ -18,6 +18,7 @@ struct ReportDeliveryTask: Identifiable {
     let requestedAt: Date
     var sentAt: Date?
     var errorMessage: String?
+    var pdfStoragePath: String?
 
     var primaryRecipient: String { recipientEmails.first ?? "" }
     var extraRecipientsCount: Int { max(0, recipientEmails.count - 1) }
