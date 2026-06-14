@@ -339,14 +339,38 @@ function drawChecklistTable(
 
   const sorted = [...sections].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   sorted.forEach((sec, i) => {
-    const hasPhotos = (sec.fields ?? []).some((f) =>
+    const fields = sec.fields ?? [];
+    const total = fields.length;
+    const completed = fields.filter((f) =>
       (f.imageURLs ?? []).some((u) => imageMap.has(u))
-    );
+    ).length;
+    const progress = total > 0 ? completed / total : 0;
+
+    const progressColor =
+      progress === 0   ? "#9e9e9e" :
+      progress < 0.5   ? "#ff9800" :
+      progress < 1.0   ? "#2196f3" :
+      C_GREEN;
+
     const rowBg = i % 2 === 0 ? C_WHITE : "#fafafa";
-    drawCell(doc, `${i + 1}   ${sec.title}`, MARGIN,         y, nameW,   TABLE_ROW_H,
+    drawCell(doc, `${i + 1}   ${sec.title}`, MARGIN, y, nameW, TABLE_ROW_H,
       { bg: rowBg, fg: C_DARK, font: fonts.R });
-    drawCell(doc, hasPhotos ? "✓" : "—",      MARGIN + nameW, y, statusW, TABLE_ROW_H,
-      { bg: rowBg, fg: hasPhotos ? C_GREEN : C_FOOTER, font: fonts.B, align: "center" });
+
+    // Status cell: background + border + progress bar
+    const cellX = MARGIN + nameW;
+    doc.rect(cellX, y, statusW, TABLE_ROW_H).fillColor(rowBg).fill();
+    doc.rect(cellX, y, statusW, TABLE_ROW_H).lineWidth(0.5).strokeColor("#e0e0e0").stroke();
+
+    const BAR_W = 55;
+    const BAR_H = 5;
+    const barX = cellX + (statusW - BAR_W) / 2;
+    const barY = y + (TABLE_ROW_H - BAR_H) / 2;
+
+    doc.rect(barX, barY, BAR_W, BAR_H).fillColor("#e0e0e0").fill();
+    if (progress > 0) {
+      doc.rect(barX, barY, BAR_W * progress, BAR_H).fillColor(progressColor).fill();
+    }
+
     y += TABLE_ROW_H;
   });
   return y;

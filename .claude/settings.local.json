@@ -68,7 +68,8 @@
       "Bash(xcodebuild -scheme report_lms -destination 'platform=iOS Simulator,name=iPhone 16' -configuration Debug build)",
       "Bash(firebase login:list)",
       "Bash(firebase projects:list)",
-      "Bash(firebase functions:list)"
+      "Bash(firebase functions:list)",
+      "Bash(xargs cat -n)"
     ],
     "additionalDirectories": [
       "/private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440",
