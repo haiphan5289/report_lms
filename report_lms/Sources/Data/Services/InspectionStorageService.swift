@@ -89,6 +89,7 @@ final class InspectionStorageService: InspectionStorageServiceType {
             NotificationCenter.default.post(name: .inspectionCacheDidLoad, object: nil)
         } catch {
             logger.error("Failed to load cache: \(error.localizedDescription)")
+            logger.record(error)
             throw InspectionStorageError.decodingFailed
         }
     }
@@ -223,6 +224,7 @@ final class InspectionStorageService: InspectionStorageServiceType {
             logger.log("Persisted \(inspections.count) inspections to disk")
         } catch {
             logger.error("Failed to persist cache: \(error.localizedDescription)")
+            logger.record(error)
             throw InspectionStorageError.writeFailed
         }
     }

@@ -91,29 +91,50 @@ final class InspectionValidationViewModel: ObservableObject {
     // MARK: - Public Methods
     
     func appendImages(_ newImages: [UIImage]) {
-        guard !newImages.isEmpty else { return }
-        let wrapped = newImages.map { InspectionImage(image: $0) }
-        images.append(contentsOf: wrapped)
-        updateDirtyState()
-
-        // Cache to RAM + docs-dir disk immediately so the image survives an app kill.
-        // The file path is registered in PendingUploadStore so a future session can retry.
-        guard let inspectionId else { return }
+        guard !newImages.isEmpty, let inspectionId else { return }
         let fid = fieldId
-        Task {
-            for img in zip(newImages, wrapped) {
-                if let path = await InspectionImageCacheActor.shared.cacheCapture(
-                    image: img.0, inspectionId: inspectionId, fieldId: fid
-                ) {
+
+        Task { @MainActor in
+            let startIndex = images.count
+
+            // Phase 1 — launch all resizes in parallel on background threads.
+            // Task.detached escapes the @MainActor context; group.addTask inside a
+            // @MainActor Task inherits the actor and runs resizes sequentially on the
+            // main thread — causing the 1-2s freeze with many photos.
+            let resizeTasks = newImages.map { img in
+                Task.detached(priority: .userInitiated) {
+                    img.resizedIfNeeded(maxDimension: 800)
+                }
+            }
+
+            // Stream each thumbnail to the gallery in original order as it completes.
+            // All resizes run in parallel, so the first photo appears in ~80ms and the
+            // rest follow almost immediately — no "wait for all" delay.
+            for resizeTask in resizeTasks {
+                let thumb = await resizeTask.value
+                images.append(InspectionImage(image: thumb))
+            }
+
+            updateDirtyState()
+            saveValidation(status: .passed, notifyParent: false)
+
+            // Phase 2 — serialized disk writes: max 1 full-res (~48 MB) in RAM at a time.
+            Task {
+                for (offset, img) in newImages.enumerated() {
+                    let entryIndex = startIndex + offset
+                    guard let path = await InspectionImageCacheActor.shared.cacheCapture(
+                        image: img, inspectionId: inspectionId, fieldId: fid
+                    ) else { continue }
                     PendingUploadStore.shared.addPending(
                         filePath: path, inspectionId: inspectionId, fieldId: fid
                     )
+                    await MainActor.run {
+                        guard images.indices.contains(entryIndex) else { return }
+                        images[entryIndex].fileURL = URL(fileURLWithPath: path)
+                    }
                 }
             }
         }
-
-        // Auto-save as passed after capturing photos. notifyParent: false prevents NavigationStack pop.
-        saveValidation(status: .passed, notifyParent: false)
     }
     
     /// Show confirmation before removing image
@@ -209,8 +230,12 @@ final class InspectionValidationViewModel: ObservableObject {
         if !alreadyHasLocalImages {
             var loadedImages: [InspectionImage] = []
             for path in paths {
-                guard let img = await InspectionImageCacheActor.shared.loadFromPath(path) else { continue }
-                loadedImages.append(InspectionImage(image: img))
+                // loadFromPath returns the thumbnail stored in RAM (or loaded from disk).
+                // We keep fileURL so the upload path can read full-res from disk.
+                guard let thumb = await InspectionImageCacheActor.shared.loadFromPath(path) else { continue }
+                loadedImages.append(
+                    InspectionImage(fileURL: URL(fileURLWithPath: path), thumbnail: thumb)
+                )
             }
 
             guard !loadedImages.isEmpty else {
@@ -266,10 +291,18 @@ final class InspectionValidationViewModel: ObservableObject {
 
             func addJob(_ item: (offset: Int, element: InspectionImage)) {
                 let idx = item.offset
-                let image = item.element.image
+                let fileURL = item.element.fileURL
+                let thumbnail = item.element.thumbnail
                 group.addTask {
+                    // Load full-res from disk when available (preserves original quality).
+                    // Falls back to thumbnail if no fileURL (legacy path).
                     let compressedData = await Task.detached(priority: .userInitiated) {
-                        image.prepareForUpload()
+                        if let url = fileURL,
+                           let data = try? Data(contentsOf: url),
+                           let fullRes = UIImage(data: data) {
+                            return fullRes.prepareForUpload()
+                        }
+                        return thumbnail?.prepareForUpload()
                     }.value
                     guard let data = compressedData else {
                         failCb?(idx)
@@ -338,7 +371,9 @@ final class InspectionValidationViewModel: ObservableObject {
     func replaceImage(at index: Int, with newImage: UIImage) {
         guard images.indices.contains(index) else { return }
         let currentDescription = images[index].description
-        images[index] = InspectionImage(image: newImage, description: currentDescription)
+        // Store thumbnail in memory; full-res edited image has no fileURL (it's in-memory only).
+        let thumb = newImage.resizedIfNeeded(maxDimension: 800)
+        images[index] = InspectionImage(image: thumb, description: currentDescription)
         updateDirtyState()
     }
 

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseCore
+import FirebaseCrashlytics
 import OSLog
 
 @main
@@ -15,7 +16,8 @@ struct report_lmsApp: App {
 
     init() {
         FirebaseApp.configure()
-        
+        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+
         // Load inspection cache then retry any interrupted uploads
         Task {
             let logger = Logger(subsystem: "com.reportlms.app", category: "lifecycle")

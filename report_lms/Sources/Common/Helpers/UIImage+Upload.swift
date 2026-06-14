@@ -60,7 +60,7 @@ extension UIImage {
         }
     }
 
-    private func resizedIfNeeded(maxDimension: CGFloat) -> UIImage {
+    func resizedIfNeeded(maxDimension: CGFloat) -> UIImage {
         guard size.width > maxDimension || size.height > maxDimension else { return self }
         let ratio = min(maxDimension / size.width, maxDimension / size.height)
         let newSize = CGSize(width: (size.width * ratio).rounded(), height: (size.height * ratio).rounded())

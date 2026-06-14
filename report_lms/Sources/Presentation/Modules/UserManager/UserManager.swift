@@ -24,12 +24,14 @@ final class UserManager: ObservableObject {
         currentUser = user
         isLoggedIn = true
         KeychainManager.saveAuthToken(user.token)
+        CrashlyticsLogger.setUserID(user.id)
+        CrashlyticsLogger.setKey("username", value: user.username)
     }
 
     func logout() {
-        // State reset - new instance will be created externally
         currentUser = nil
         isLoggedIn = false
         KeychainManager.deleteAuthToken()
+        CrashlyticsLogger.clearUser()
     }
 }

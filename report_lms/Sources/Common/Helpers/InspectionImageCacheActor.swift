@@ -53,10 +53,14 @@ actor InspectionImageCacheActor {
         let fileURL = dir.appendingPathComponent(fileName)
         let filePath = fileURL.path
 
-        // RAM
-        addToRAM(key: filePath, image: image)
+        // RAM — store thumbnail only; full-res lives on disk.
+        // A 800px thumbnail is ~1.9 MB vs ~48 MB for a 12MP capture.
+        let thumbForRAM = await Task.detached(priority: .userInitiated) {
+            image.resizedIfNeeded(maxDimension: 800)
+        }.value
+        addToRAM(key: filePath, image: thumbForRAM)
 
-        // Disk — compress off-actor
+        // Disk — write full-resolution JPEG so upload path reads original quality
         let data = await Task.detached(priority: .userInitiated) {
             image.jpegData(compressionQuality: 0.85)
         }.value

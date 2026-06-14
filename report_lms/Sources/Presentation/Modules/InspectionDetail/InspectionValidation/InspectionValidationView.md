@@ -3,7 +3,7 @@
 **Module:** InspectionDetail / InspectionValidation  
 **Pattern:** MVVM (SwiftUI + `@StateObject`)  
 **Created:** 2026-01-03  
-**Last updated:** 2026-06-09 (Cache: RAM + disk image caching, auto-retry, debug overlay — overlay commented out)
+**Last updated:** 2026-06-14 (Memory fix: file-reference model — thumbnail in RAM, full-res on disk)
 
 ---
 
@@ -16,9 +16,11 @@
 - Enter free-text comments.
 - Mark the field as **Passed** or **Not Applicable** from a fixed bottom action bar.
 
-Photos are stored locally until the user explicitly saves. When the user taps **Đã kiểm tra** or **Không áp dụng**, all local images are uploaded to Firebase Storage concurrently. A floating progress toast appears at the bottom during the upload.
+Photos are stored locally until the user explicitly saves. When the user taps **Đã kiểm tra** or **Không áp dụng**, all local images are uploaded to Firebase Storage concurrently.
 
-When a photo is captured, it is **immediately written to disk** (`Documents/inspection-images/<inspectionId>/<fieldId>/`) via `InspectionImageCacheActor` and registered in `PendingUploadStore` (UserDefaults). On re-entry to the same field while pending uploads exist, images are automatically loaded from disk and upload is retried without any user action. Cache is evicted when the inspection is completed or deleted.
+When a photo is captured, a **display thumbnail** (~800 px, ~1.9 MB) is written to the `images` array immediately, while the **full-resolution JPEG** is written to disk (`Documents/inspection-images/<inspectionId>/<fieldId>/`) via `InspectionImageCacheActor`. The file path is registered in `PendingUploadStore` (UserDefaults). The upload path always reads full-res from disk to preserve original quality. On re-entry to the same field while pending uploads exist, images are automatically loaded from disk and upload is retried without any user action. Cache is evicted when the inspection is completed or deleted.
+
+> **Memory budget:** Each camera photo is ~48 MB decoded. Storing only a thumbnail in RAM limits each captured photo to ~1.9 MB — a 25× reduction. Full-res is never held in `viewModel.images` after capture.
 
 ---
 
@@ -29,10 +31,9 @@ InspectionValidationView  (SwiftUI View)
     └── InspectionValidationViewModel  (@MainActor ObservableObject)
             ├── InspectionStorageServiceType  (Firestore persistence)
             │     └── updateFieldImageURLs(inspectionId:fieldId:imageURLs:)
-            │           — serialized via @MainActor pendingFieldWrite task chain in
-            │             FirestoreInspectionStorageService; safe for concurrent field uploads
+            │           — serialized via @MainActor pendingFieldWrite task chain
             ├── UploadInspectionMediaUseCase  (Firebase Storage upload)
-            ├── InspectionImageCacheActor  (RAM + Documents-dir disk cache — durable)
+            ├── InspectionImageCacheActor  (RAM thumbnail + Documents-dir full-res disk cache)
             │     └── cacheCapture / loadFromPath / cacheRemote / loadRemote / evictInspection
             └── PendingUploadStore  (UserDefaults — tracks file paths awaiting upload)
 ```
@@ -49,16 +50,19 @@ InspectionValidationView(
     fieldLabel: String,                     // Navigation title & display label
     initialImages: [InspectionImage],       // Pre-loaded images (local or remote)
     inspectionId: String? = nil,            // Parent inspection ID; required for cloud upload
-    onSave: ((FieldValidation) -> Void)? = nil,            // Called immediately when status is set
-    onUploadComplete: (() -> Void)? = nil,                 // Called after Firestore write succeeds
-    onTaskCompleted: (() -> Void)? = nil,                  // Called after isUploading resets — triggers notifyUploadCompleted()
+    onSave: @escaping (FieldValidation) -> Void,             // Required — called immediately when status is set
+    onSilentSave: ((FieldValidation) -> Void)? = nil,        // Optional — called on auto-save without NavigationStack pop
+    onUploadComplete: (() -> Void)? = nil,                   // Called after Firestore write succeeds
+    onTaskCompleted: (() -> Void)? = nil,                    // Called after isUploading resets — triggers notifyUploadCompleted()
     onImageProgress: (@Sendable (Int, Double) -> Void)? = nil,  // Per-image upload progress (0.0→1.0)
-    onImageDone: (@Sendable (Int) -> Void)? = nil,         // Per-image upload success
-    onImageFail: (@Sendable (Int) -> Void)? = nil          // Per-image upload failure
+    onImageDone: (@Sendable (Int) -> Void)? = nil,           // Per-image upload success
+    onImageFail: (@Sendable (Int) -> Void)? = nil            // Per-image upload failure
 )
 ```
 
 > `inspectionId` is **required** for upload to work. Without it, `uploadPhotosAndUpdateField` returns early and no photos are written to Firebase.
+
+> `onSave` is **required** (non-optional `@escaping`). `onSilentSave` is optional and fires on auto-save after camera capture (`notifyParent: false` path) — does NOT pop the NavigationStack.
 
 `onSave` fires synchronously so the parent list can update immediately. `onUploadComplete` fires after Firestore write. `onTaskCompleted` fires last — after `isUploading` resets — and is wired to `InspectionDetailViewModel.notifyUploadCompleted()` which decrements `activeUploadCount`.
 
@@ -70,39 +74,25 @@ InspectionValidationView(
 |---|---|---|
 | Header | `headerSection` | Field title + camera shortcut button |
 | Status & Comments | `statusSection` | Current validation status chip + `TextEditor` for remarks |
-| Image Gallery | `imageGallerySection` | Vertical list of `ImageGalleryItemView` cells; hidden when empty |
-| Actions | `actionsSection` | "Chụp thêm ảnh" (add photo) + toggle delete-mode button |
+| Image Gallery | `imageGallerySection` | Vertical list of `ImageGalleryItemView` cells; hidden when `viewModel.hasImages == false` |
+| Actions | `actionsSection` | "Chụp thêm ảnh" (add photo) + toggle delete-mode button ("Xoá hình ảnh" / "Hoàn tất") |
 | Bottom Bar | `bottomActionsView` | Fixed overlay with **Đã kiểm tra** (Pass) and **Không áp dụng** (N/A) buttons |
-| Upload Toast | `uploadToastView` | Floating card above bottom bar — visible while `isUploading == true` |
 
 All content sections animate in with a staggered `easeOut` slide-up on `.task` (0 ms → 80 ms → 160 ms → 240 ms).
 
 ---
 
-## Upload Toast
+## Image Action Menu
 
-A floating card that slides up from the bottom whenever `isUploading == true`:
+Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDialog` with three actions:
 
-```
-┌─────────────────────────────────────┐
-│  ↑  Đang tải ảnh lên...             │  ← indeterminate shimmer
-│  ════════════░░░░░░░░░░░░░░░░░░░░░  │
-└─────────────────────────────────────┘
+| Action | Behaviour |
+|---|---|
+| **Chỉnh sửa** | Loads full-res image from `fileURL` (disk) or downloads remote URL, opens `ImageEditorView` sheet |
+| **Chia sẻ** | Loads full-res image from `fileURL` (disk) or downloads remote URL, presents `ShareSheet` (`UIActivityViewController`) |
+| **Xoá bỏ** | Calls `viewModel.requestDeleteImage(at:)` → shows `DeleteConfirmationView` fullScreenCover |
 
-        [✓ Đã kiểm tra]  [/ Không áp dụng]   ← bottom buttons bên dưới
-
-↓ Khi upload xong (uploadProgress == 1.0):
-
-┌─────────────────────────────────────┐
-│  ✓  Đã tải lên                      │  ← icon và text đổi màu xanh
-│  ████████████████████████████████   │  ← fill 100%
-└─────────────────────────────────────┘
-```
-
-- Positioned inside the root `ZStack` with `.padding(.bottom, bottomButtonHeight + 12)` — never overlaps the action buttons
-- Appears/disappears with `.move(edge: .bottom).combined(with: .opacity)` and a spring animation
-- Uses `LMSUploadProgressBar` internally (height 4pt, indeterminate → determinate on completion)
-- Icon and label swap automatically when `uploadProgress >= 1.0`
+`imageRefreshTrigger: Int` is incremented after `replaceImage(at:with:)` completes and is applied as `.id("\(image.id)-\(imageRefreshTrigger)")` on each gallery cell to force a SwiftUI re-render of the edited image.
 
 ---
 
@@ -112,30 +102,31 @@ A floating card that slides up from the bottom whenever `isUploading == true`:
 |---|---|---|
 | `status` | `ValidationStatus` | Current field status (`.pending`, `.passed`, `.failed`, `.notApplicable`) |
 | `comments` | `String` | Inspector notes |
-| `images` | `[InspectionImage]` | All images for this field (local + remote) |
+| `images` | `[InspectionImage]` | All images for this field — local entries hold thumbnail + fileURL, remote entries hold remoteURL only |
 | `showCamera` | `Bool` | Triggers `.sheet` with `CameraView` |
-| `isUploading` | `Bool` | `true` while any eager or save upload is in flight; drives the upload toast |
-| `uploadProgress` | `Double` | `0.0` → `1.0`; switches toast bar from indeterminate to determinate fill |
-| `errorMessage` | `String?` | Error banner binding |
+| `isUploading` | `Bool` | `true` while any upload is in flight |
+| `uploadProgress` | `Double` | `0.0` → `1.0` aggregate upload progress |
+| `snackbarMessage` | `String?` | Bound to `.lmsSnackbar(message:type:)` for error banners |
 | `showReorderMode` | `Bool` | Puts image list into delete-selection mode |
 | `isDirty` | `Bool` | `true` when status / comments / image count differ from initial values |
 | `showDeleteConfirmation` | `Bool` | Triggers `DeleteConfirmationView` fullScreenCover |
-| `isDownloading` | `Bool` | `true` while downloading a remote image for edit/share; shows `LMSLoadingOverlay` |
+| `isDownloading` | `Bool` | `true` while loading a remote or disk image for edit/share; shows `LMSLoadingOverlay` |
 
 ### Key Methods
 
 | Method | Description |
 |---|---|
-| `appendImages(_:)` | Wraps `[UIImage]` → `[InspectionImage]` and appends to `images`. Immediately writes each image to disk via `InspectionImageCacheActor.cacheCapture()` and registers the file path in `PendingUploadStore`. **No Firebase upload yet** — images stay local until save |
-| `saveValidation(status:)` | Sets status, builds `FieldValidation`, saves draft, fires `onSave`, then uploads all local images and writes to Firestore. Clears `PendingUploadStore` entry on success |
-| `loadPendingCaptures()` | On field re-entry: reads pending file paths from `PendingUploadStore`, loads images from disk via `InspectionImageCacheActor`, prepends them to `images`, then auto-triggers `retryPendingUploads()` |
+| `appendImages(_:)` | Generates 800 px thumbnail off-thread, writes full-res JPEG to disk via `InspectionImageCacheActor.cacheCapture()`, appends `InspectionImage(fileURL:thumbnail:)` to `images`, registers path in `PendingUploadStore`. Full-res UIImage is released after disk write. Auto-triggers `saveValidation(status: .passed, notifyParent: false)` |
+| `saveValidation(status:notifyParent:)` | Sets status, builds `FieldValidation`, saves draft, fires `onSave` (or `onSilentSave` when `notifyParent: false`), then uploads all local images and writes to Firestore. Clears `PendingUploadStore` entry on success |
+| `loadPendingCaptures()` | On field re-entry: reads pending file paths from `PendingUploadStore`, loads thumbnails from `InspectionImageCacheActor`, creates `InspectionImage(fileURL:thumbnail:)` entries, prepends them to `images`, then auto-triggers `retryPendingUploads()` |
 | `requestDeleteImage(at:)` | Stores pending index and shows confirmation dialog |
 | `confirmDeleteImage()` | Removes the stored index after user confirms |
 | `updateComments(_:)` | Mutates `comments` and marks dirty |
 | `openCamera()` | Sets `showCamera = true` |
 | `toggleReorderMode()` | Flips `showReorderMode` |
 | `loadDraft()` | Restores status + comments from `UserDefaults` key `draft_validation_<fieldId>` |
-| `replaceImage(at:with:)` | Replaces an image in-place after editing; preserves existing description |
+| `replaceImage(at:with:)` | Generates 800 px thumbnail from edited `UIImage`, replaces entry in-place preserving `description`. No `fileURL` — edited result is thumbnail-only |
+| `downloadImage(from:)` | Downloads a remote URL, caches in `ImageCacheActor`, returns `UIImage` (resized to max 2048 px) |
 
 ---
 
@@ -145,81 +136,49 @@ A floating card that slides up from the bottom whenever `isUploading == true`:
 User takes photo in CameraView
     └── onPhotoCaptured([UIImage]) callback
             └── viewModel.appendImages(images)
-                    ├── images.append(...)   ← stored locally, NO Firebase upload yet
-                    └── [Task — background] for each new image:
+                    └── [Task @MainActor] for each new UIImage:
+                            Task.detached → img.resizedIfNeeded(800px) → thumb (~1.9 MB)
                             InspectionImageCacheActor.cacheCapture(image, inspectionId, fieldId)
-                                └── writes JPEG to Documents/inspection-images/<id>/<fid>/capture_<UUID>.jpg
+                                ├── RAM: stores thumb (800px) — NOT full-res
+                                └── Disk: writes full-res JPEG to Documents/.../capture_<UUID>.jpg
                             PendingUploadStore.addPending(filePath, inspectionId, fieldId)
-                                └── appends path to UserDefaults key pendingUploads_<id>_<fid>
-                            CacheDebugLogger.log(.diskWrite / .pendingAdded)   ← debug overlay
+                            images.append(InspectionImage(fileURL: url, thumbnail: thumb))
+                    └── saveValidation(status: .passed, notifyParent: false)
+                            └── uploadPhotosAndUpdateField(...)
 
 User re-enters same inspection field with pending uploads
     └── InspectionValidationView .task → viewModel.loadPendingCaptures()
-            ├── PendingUploadStore.getPendingFilePaths() → [String] (stale paths filtered out)
-            ├── InspectionImageCacheActor.loadFromPath(path) → UIImage  (for each path)
-            ├── images.insert(contentsOf: loaded, at: 0)
-            └── retryPendingUploads()   ← isUploading = true, auto-triggers full upload
+            ├── PendingUploadStore.getPendingFilePaths() → [String]
+            ├── InspectionImageCacheActor.loadFromPath(path) → UIImage (thumb from RAM or disk)
+            ├── images.insert(contentsOf: InspectionImage(fileURL:thumbnail:), at: 0)
+            └── retryPendingUploads()
 
 User taps "Đã kiểm tra" / "Không áp dụng"
     └── saveValidation(status:)
             ├── onSave(validation)                      ← parent updates immediately
-            ├── withAnimation { isUploading = true }    ← toast slides up
             └── Task {
                     uploadPhotosAndUpdateField(fieldId, images)
                         ├── localImages = images.filter { !$0.isRemote }
-                        ├── Phase 1 — Compress (max 4 concurrent on high-RAM, 3 on low-RAM):
+                        ├── Phase — Compress + Upload (max 4 concurrent slots, 3 on low-RAM):
                         │     withTaskGroup → Task.detached(priority: .userInitiated) {
-                        │           image.prepareForUpload()
-                        │               ├── Resize to ≤1600px (aspect-ratio preserved)
-                        │               └── JPEG 0.8 quality (~600KB)
-                        │     }
-                        ├── Phase 2 — Upload (max 8 concurrent on WiFi/5G, 6 on cellular):
-                        │     withTaskGroup → uploadUseCase.executeWithProgress(data, inspectionId,
-                        │           onProgress: progressCb(index, fraction)   ← UI progress bar
-                        │           onDone:     doneCb(index)                  ← mark item .done
-                        │           onFail:     failCb(index)                  ← mark item .failed
-                        │     ) → [String URL]
+                        │           Load full-res from fileURL:
+                        │               Data(contentsOf: fileURL) → UIImage → prepareForUpload()
+                        │               Falls back to thumbnail.prepareForUpload() if no fileURL
+                        │     } → [String URL]
                         ├── merge existingRemoteURLs + newlyUploadedURLs
-                        ├── storageService.updateFieldImageURLs(inspectionId, fieldId, uploadedURLs)
-                        │     ← serialized write: chains on pendingFieldWrite task chain
-                        │     ← reads fresh cache AFTER previous field's write lands
-                        │     ← safe when multiple fields upload concurrently
-                        └── PendingUploadStore.clearField(inspectionId, fieldId)   ← ✅ upload done
-                              CacheDebugLogger.log(.uploadSuccess)
+                        ├── storageService.updateFieldImageURLs(...)
+                        └── PendingUploadStore.clearField(...)
                     updateInspectionStatus()
-                        └── inspection.status = .inProgress → Firestore
-                    withAnimation { uploadProgress = 1.0 }
-                    sleep 0.5s
-                    withAnimation { isUploading = false }   ← toast slides down
                     onUploadComplete?()
-                    onTaskCompleted?()   ← InspectionDetailViewModel.notifyUploadCompleted() → activeUploadCount -= 1
+                    onTaskCompleted?()
                 }
 ```
 
-> **Performance:** Phase 1 compress runs in `Task.detached(priority: .userInitiated)` — off main thread. Phase 2 upload uses throttled `withTaskGroup` — 8 slots on fast network, 6 on cellular. Decoupling compress/upload means upload slots never idle waiting for CPU work.
+> **Upload quality:** Full-res JPEG is always read from disk (via `fileURL`). The thumbnail stored in RAM is never used for upload. `prepareForUpload()` resizes to ≤1600 px and encodes as WebP/JPEG — same quality as before the memory fix.
 
 ---
 
 ## Sub-components
-
-### `LMSUploadProgressBar`
-
-**Path:** `Sources/Common/Components/Loading/LMSUploadProgressBar.swift`
-
-Design system component for upload activity feedback.
-
-| Mode | Behaviour |
-|---|---|
-| `.indeterminate` | Gradient shimmer sweeping left → right, repeating forever |
-| `.determinate(Double)` | Solid fill animating to the given fraction (0.0–1.0) |
-
-```swift
-LMSUploadProgressBar(mode: .indeterminate)               // shimmer
-LMSUploadProgressBar(mode: .determinate(0.7))            // 70% fill
-LMSUploadProgressBar(mode: .determinate(1.0), height: 4) // custom height
-```
-
-Default height: `3pt`. Color: `LMSColor.primary` (fill), `LMSColor.primary.opacity(0.15)` (track).
 
 ### `ImageGalleryItemView`
 
@@ -227,40 +186,85 @@ Located at `Views/ImageGalleryItemView.swift`.
 
 | Prop | Type | Description |
 |---|---|---|
-| `inspectionImage` | `InspectionImage` | Source image (local `UIImage` or remote `URL`) |
+| `inspectionImage` | `InspectionImage` | Source image — displays `thumbnail` for local captures, remote URL via `InspectionCachedImage` |
 | `isReorderMode` | `Bool` | Shows delete (`xmark.circle.fill`) overlay when `true` |
 | `onDelete` | `() -> Void` | Forwarded to `requestDeleteImage(at:)` in parent VM |
-| `descriptionBinding` | `Binding<String>` | Two-way bind to `images[index].description` |
+| `onMenu` | `() -> Void` | Opens `confirmationDialog` with Edit / Share / Delete actions |
+| `descriptionBinding` | `Binding<String>` | ID-based two-way bind to `images[index].description` (safe against deletion races) |
 | `inspectionId` | `String?` | Optional — passed from `InspectionValidationView` for durable remote cache |
 | `fieldId` | `String?` | Optional — paired with `inspectionId` for 3-tier loader |
 
-When both `inspectionId` and `fieldId` are provided, renders remote images via `InspectionCachedImage` (3-tier durable loader: `Documents/` → `Caches/` → network). Otherwise falls back to `CachedAsyncImage`. Local captures always render via `Image(uiImage:)`.
+When both `inspectionId` and `fieldId` are provided, renders remote images via `InspectionCachedImage` (3-tier durable loader). Otherwise falls back to `CachedAsyncImage`. Local captures render `thumbnail` via `Image(uiImage: inspectionImage.image)` (`.image` is now a computed property returning `thumbnail ?? UIImage()`).
+
+> **Binding safety:** The gallery uses `ForEach(viewModel.images)` (non-binding) with a manual ID-based `Binding(get:set:)` for `description`. This prevents an `Array index out of range` crash that occurred when SwiftUI's attribute graph tried to update an index-based binding after an image was deleted.
 
 ### `InspectionCachedImage`
 
 Located at `Views/InspectionCachedImage.swift`.
 
-3-tier image loader for remote inspection photos that survives iOS Caches purge:
+3-tier image loader for remote inspection photos:
 
-| Tier | Store | Durable? | Description |
-|---|---|---|---|
-| 1 | `InspectionImageCacheActor` (RAM + Documents/) | ✅ Yes | First check — fastest path after first load |
-| 2 | `ImageCacheActor` (RAM + Caches/) | ❌ Purgeable | Fallback to existing ephemeral cache |
-| 3 | Network fetch | — | Downloads and writes to BOTH tier 1 + tier 2 |
+| Tier | Store | Durable? |
+|---|---|---|
+| 1 | `InspectionImageCacheActor` (RAM thumbnail + Documents/) | ✅ Yes |
+| 2 | `ImageCacheActor` (RAM + Caches/) | ❌ Purgeable |
+| 3 | Network fetch | — |
 
-```swift
-InspectionCachedImage(url: url, inspectionId: id, fieldId: fid) { phase in
-    switch phase {
-    case .success(let image): image.resizable()...
-    case .empty: ProgressView()
-    case .failure: Image(systemName: "exclamationmark.triangle")
-    }
-}
-```
+### `LMSUploadProgressBar`
+
+**Path:** `Sources/Common/Components/Loading/LMSUploadProgressBar.swift`
+
+| Mode | Behaviour |
+|---|---|
+| `.indeterminate` | Gradient shimmer sweeping left → right |
+| `.determinate(Double)` | Solid fill animating to the given fraction |
 
 ### `ClearBackgroundView`
 
 A `UIViewRepresentable` helper that sets the `fullScreenCover` window background to `.clear`, enabling the translucent `DeleteConfirmationView` overlay.
+
+### `ImageEditorView`
+
+Presented as a `.sheet` when the user taps **Chỉnh sửa** from the image action menu. Receives the full-res `UIImage` loaded from `fileURL` (or downloaded for remote images). Returns the edited `UIImage` via closure → `viewModel.replaceImage(at:with:)`.
+
+---
+
+## InspectionImage Model
+
+```swift
+struct InspectionImage: Identifiable, Equatable {
+    let id: UUID
+    var thumbnail: UIImage?   // display copy (~800 px, ~1.9 MB in RAM). nil for remote images
+    var fileURL: URL?         // absolute path to full-res JPEG on disk. nil for remote/legacy
+    var remoteURL: URL?       // Firebase Storage URL. nil until uploaded
+
+    var isRemote: Bool  { remoteURL != nil }
+    var hasLocalFile: Bool { fileURL != nil }
+
+    // Backward-compatible accessor — returns thumbnail for display.
+    // Upload and edit flows MUST load full-res from fileURL instead.
+    var image: UIImage { thumbnail ?? UIImage() }
+
+    // Primary init — camera captures
+    init(fileURL: URL, thumbnail: UIImage, description: String = "")
+
+    // Remote image after upload
+    init(remoteURL: URL, description: String = "")
+
+    // Legacy init — PDF/HTML generation, tests (stores UIImage as thumbnail, no fileURL)
+    init(image: UIImage, description: String = "")
+}
+```
+
+### Memory per image
+
+| State | RAM usage |
+|---|---|
+| Just captured (thumbnail) | ~1.9 MB |
+| After upload (remoteURL only) | ~0 MB |
+| Remote image (not yet loaded) | ~0 MB |
+
+After a successful upload, a local entry is replaced with `InspectionImage(remoteURL:)`. `thumbnail` becomes `nil`, `fileURL` becomes `nil`, `isRemote` becomes `true`.
 
 ---
 
@@ -272,121 +276,41 @@ A `UIViewRepresentable` helper that sets the `fullScreenCover` window background
 Documents/inspection-images/
     <inspectionId>/
         <fieldId>/
-            capture_<UUID>.jpg       ← local capture (written at appendImages time)
+            capture_<UUID>.jpg       ← full-res local capture (written at appendImages time)
             remote_<urlHash>.jpg     ← remote image (written after network fetch)
 ```
 
-- **RAM cache**: `InspectionImageCacheActor` also holds a `[String: UIImage]` dict (FIFO eviction at 200 entries)
+- **RAM cache** (`InspectionImageCacheActor`): stores **thumbnails** (~800 px) keyed by file path. FIFO eviction at 200 entries. Full-res is never kept in RAM.
 - **PendingUploadStore** keys: `pendingUploads_<inspectionId>_<fieldId>` → `[String]` (absolute file paths)
-- `getPendingFilePaths()` auto-filters paths where `FileManager.fileExists` returns false (stale entries after Caches purge)
+- `getPendingFilePaths()` auto-filters paths where `FileManager.fileExists` returns false
 
 ### Eviction Policy
 
 | Trigger | Action |
 |---|---|
-| Inspection completed (`markInspectionCompleted`) | `InspectionImageCacheActor.evictInspection(id)` + `PendingUploadStore.clearInspection(id)` |
-| Inspection deleted (`deleteInspection`) | Same — both `FirestoreInspectionStorageService` and `InspectionStorageService` |
-| Upload success | `PendingUploadStore.clearField(inspectionId, fieldId)` only — disk images kept until inspection eviction |
-
-Cache otherwise free-grows — no size limit until inspection lifecycle ends.
-
-### Auto-Retry Flow
-
-```
-App launch → user navigates to InspectionValidationView
-    └── .task → viewModel.loadPendingCaptures()
-            ├── PendingUploadStore.getPendingFilePaths(inspectionId, fieldId) → ["/Documents/.../capture_uuid.jpg"]
-            ├── [ paths empty ] → return   (nothing to retry)
-            └── [ paths non-empty ]
-                    ├── InspectionImageCacheActor.loadFromPath(path) → UIImage  (each)
-                    ├── images.insert(loaded, at: 0)
-                    └── retryPendingUploads()
-                            ├── isUploading = true, uploadProgress = 0.0
-                            ├── uploadPhotosAndUpdateField(fieldId, images)
-                            └── [on success] PendingUploadStore.clearField(...)
-```
+| Inspection completed | `InspectionImageCacheActor.evictInspection(id)` + `PendingUploadStore.clearInspection(id)` |
+| Inspection deleted | Same |
+| Upload success | `PendingUploadStore.clearField(inspectionId, fieldId)` — disk images kept until inspection eviction |
 
 ---
 
-## Debug Overlay
+## Thread Safety
 
-> **Status: Commented out.** The toolbar button and sheet are currently disabled via `// #if DEBUG` comments in `InspectionValidationView.swift` (lines 126–140). To re-enable, uncomment those blocks.
-
-`InspectionValidationView` previously included a **debug overlay** (DEBUG builds only) accessible via a 🐛 (ladybug) button in the navigation bar. When enabled, tapping the button opens `CacheDebugOverlay` as a bottom sheet.
-
-### Stats Strip
-
-| Chip | What it shows |
+| Operation | Context |
 |---|---|
-| RAM | Count of images in `InspectionImageCacheActor` RAM dict for this field |
-| Disk | Count of `.jpg` files in `Documents/inspection-images/<id>/<fid>/` |
-| Pending | Count of paths in `PendingUploadStore` for this field |
-
-Tap ↺ to refresh counts.
-
-### Event Log (up to 60 entries, newest first)
-
-| Icon | Event | When fired |
-|---|---|---|
-| ⬇ | `DISK WRITE <tag> (N KB)` | On `cacheCapture` or `cacheRemote` success |
-| 💾 | `DISK HIT <tag>` | On `loadFromPath` or `loadRemote` disk hit |
-| ⚡ | `RAM HIT <tag>` | On RAM dict hit |
-| 📋 | `PENDING +1 <fieldId> → N total` | On `PendingUploadStore.addPending` |
-| 🔄 | `RETRY UPLOAD N image(s)` | On `retryPendingUploads` start |
-| ✅ | `UPLOAD SUCCESS <fieldId>` | After Firestore write + `clearField` |
-| 🗑 | `EVICTED <inspectionId>` | On `evictInspection` |
-
-The overlay uses `@StateObject private var logger = CacheDebugLogger.shared`. Log entries are non-isolating — `CacheDebugLogger.log()` is callable from any actor or thread.
-
----
-
-## InspectionImage Model
-
-```swift
-struct InspectionImage: Identifiable {
-    let id: UUID
-    var image: UIImage          // local capture (placeholder if remote)
-    var remoteURL: URL?         // nil = not yet uploaded
-    var description: String
-
-    var isRemote: Bool { remoteURL != nil }
-
-    init(image: UIImage, description: String = "")       // local
-    init(remoteURL: URL, description: String = "")       // remote
-}
-```
-
-After eager upload succeeds, a local entry is replaced with `InspectionImage(remoteURL:)`. `isRemote` switches to `true` and the save flow skips it.
-
----
-
-## Dependencies
-
-| Symbol | Source |
-|---|---|
-| `InspectionImage` | Domain model — wraps `UIImage` + optional `remoteURL` + `description` |
-| `FieldValidation` | Domain model — snapshot of one field's status, comments, images, timestamp |
-| `ValidationStatus` | Enum: `.pending`, `.passed`, `.failed`, `.notApplicable` |
-| `InspectionStorageServiceType` | Protocol — Firestore read/write for `Inspection` documents |
-| `UploadInspectionMediaUseCase` | Use-case — uploads JPEG data to Firebase Storage, returns `String` URL |
-| `CameraView` | Shared capture sheet; returns `[UIImage]` via closure |
-| `DeleteConfirmationView` | Reusable confirmation overlay |
-| `LMSButton`, `LMSLabel` | LMS Design System components |
-| `LMSColor` | Color tokens (`.primary`, `.shadow`) |
-| `LMSUploadProgressBar` | DS progress bar — indeterminate shimmer or determinate fill |
-| `LMSLoadingOverlay` | Full-screen loading overlay used during image download |
-| `CachedAsyncImage` | Async image loader with memory cache (`ImageCacheActor`) — ephemeral |
-| `InspectionImageCacheActor` | `Common/Helpers/InspectionImageCacheActor.swift` — RAM + `Documents/`-dir durable cache |
-| `PendingUploadStore` | `Common/Helpers/PendingUploadStore.swift` — UserDefaults file-path tracker for pending uploads |
-| `CacheDebugLogger` | `Common/Helpers/CacheDebugLogger.swift` — realtime event logger, callable from any actor |
-| `CacheDebugOverlay` | `Views/CacheDebugOverlay.swift` — debug sheet with stats strip + event log _(currently commented out in view)_ |
-| `InspectionCachedImage` | `Views/InspectionCachedImage.swift` — 3-tier durable remote image loader |
+| `@Published` property updates | `@MainActor` |
+| `appendImages` thumbnail generation | `Task.detached(priority: .userInitiated)` — background thread |
+| `appendImages` disk write (`cacheCapture`) | `InspectionImageCacheActor` actor — background |
+| Upload compress — load from disk + `prepareForUpload()` | `Task.detached(priority: .userInitiated)` |
+| Upload — Firebase Storage | `withTaskGroup`; max 4 slots (3 on low-RAM) |
+| Firestore write | `storageService` actor — serial executor |
+| Edit/Share — full-res load from disk | `Task.detached` — background |
 
 ---
 
 ## Draft Persistence
 
-A lightweight draft is written to `UserDefaults` under the key `draft_validation_<fieldId>` on every `saveValidation` call:
+Written to `UserDefaults` under `draft_validation_<fieldId>` on every `saveValidation` call:
 
 ```json
 {
@@ -401,22 +325,44 @@ Full image data is **not** persisted in the draft; only metadata. Call `viewMode
 
 ---
 
-## Thread Safety
+## Debug Overlay
 
-| Operation | Context |
+> **Status: Commented out.** The toolbar button and sheet are disabled via `// #if DEBUG` comments in `InspectionValidationView.swift` (lines 121–135). To re-enable, uncomment those blocks.
+
+When enabled (DEBUG builds only), a 🐛 button opens `CacheDebugOverlay` as a bottom sheet with:
+
+- **Stats strip:** RAM count / Disk count / Pending count for the current field
+- **Event log** (up to 60 entries): disk writes, RAM hits, pending additions, upload success, evictions
+
+---
+
+## Dependencies
+
+| Symbol | Source |
 |---|---|
-| `@Published` property updates | `@MainActor` — always on main thread |
-| `saveValidation` → `uploadPhotosAndUpdateField` | `@MainActor` starts Task → suspends at first `await` |
-| Phase 1: JPEG resize + compress | `Task.detached(priority: .userInitiated)` — background thread; max 4 slots (3 on low-RAM) |
-| Phase 2: Firebase Storage upload | `withTaskGroup`; max 8 slots on WiFi/5G, 6 on cellular |
-| `progressCb` / `doneCb` / `failCb` | `@Sendable` — called from non-isolated TaskGroup; dispatch back via `Task { @MainActor }` in `InspectionDetailViewModel` |
-| Firestore write | `storageService` actor — serial executor; fires AFTER Phase 2 completes |
+| `InspectionImage` | Domain model — thumbnail + fileURL + optional remoteURL + description |
+| `FieldValidation` | Domain model — snapshot of one field's status, comments, images, timestamp |
+| `ValidationStatus` | Enum: `.pending`, `.passed`, `.failed`, `.notApplicable` |
+| `InspectionStorageServiceType` | Protocol — Firestore read/write for `Inspection` documents |
+| `UploadInspectionMediaUseCase` | Use-case — uploads compressed data to Firebase Storage, returns URL |
+| `CameraView` | Shared capture sheet; returns `[UIImage]` (full-res) via closure |
+| `ImageEditorView` | In-place image editor; returns edited `UIImage` via closure |
+| `DeleteConfirmationView` | Reusable confirmation overlay |
+| `LMSButton`, `LMSLabel` | LMS Design System components |
+| `LMSColor` | Color tokens (`.primary`, `.shadow`) |
+| `LMSLoadingOverlay` | Full-screen loading overlay shown during remote image download |
+| `CachedAsyncImage` | Async image loader with ephemeral cache (`ImageCacheActor`) |
+| `InspectionImageCacheActor` | `Common/Helpers/InspectionImageCacheActor.swift` — RAM thumbnail + Documents-dir full-res cache |
+| `PendingUploadStore` | `Common/Helpers/PendingUploadStore.swift` — UserDefaults file-path tracker |
+| `CacheDebugLogger` | `Common/Helpers/CacheDebugLogger.swift` — realtime event logger |
+| `CacheDebugOverlay` | `Views/CacheDebugOverlay.swift` — debug sheet _(currently commented out)_ |
+| `InspectionCachedImage` | `Views/InspectionCachedImage.swift` — 3-tier durable remote image loader |
+| `ClearBackgroundView` | Helper — clears `fullScreenCover` window background for translucent overlay |
+| `CrashlyticsLogger` | `Common/Helpers/CrashlyticsLogger.swift` — non-fatal error recording to Firebase Crashlytics |
 
 ---
 
 ## Previews
-
-Three Xcode previews are declared at the bottom of `InspectionValidationView.swift`:
 
 | Preview | Description |
 |---|---|

@@ -62,6 +62,7 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
             NotificationCenter.default.post(name: .inspectionCacheDidLoad, object: nil)
         } catch {
             logger.error("Failed to load from Firestore: \(error.localizedDescription)")
+            logger.record(error)
             isCacheLoaded = true
             // Post notification so the UI doesn't hang indefinitely
             NotificationCenter.default.post(name: .inspectionCacheDidLoad, object: nil)
@@ -87,6 +88,7 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
             try await firestoreService.saveInspection(inspection)
         } catch {
             logger.error("Firestore save failed: \(error.localizedDescription)")
+            logger.record(error)
             throw InspectionStorageError.writeFailed
         }
         await MainActor.run {
@@ -105,6 +107,7 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
             try await firestoreService.saveInspection(inspection)
         } catch {
             logger.error("Firestore update failed: \(error.localizedDescription)")
+            logger.record(error)
             throw InspectionStorageError.writeFailed
         }
         await MainActor.run {
@@ -149,6 +152,7 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
             try await firestoreService.updateInspectionStatus(id: inspectionId, status: status)
         } catch {
             logger.error("Firestore status update failed: \(error.localizedDescription)")
+            logger.record(error)
             throw InspectionStorageError.writeFailed
         }
         await MainActor.run {
@@ -176,6 +180,7 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
             try await firestoreService.deleteInspection(id: id)
         } catch {
             logger.error("Firestore delete failed: \(error.localizedDescription)")
+            logger.record(error)
             throw InspectionStorageError.deleteFailed
         }
 

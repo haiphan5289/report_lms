@@ -10,29 +10,52 @@ import Foundation
 import UIKit
 
 /// Image with associated description for inspection validation.
-/// Supports two sources: local (camera capture) and remote (Firebase Storage URL).
+/// Supports three sources:
+///   - Local capture: thumbnail in RAM + full-res at fileURL on disk
+///   - Remote: remoteURL pointing to Firebase Storage (no UIImage in RAM)
+///   - Legacy: UIImage passed directly (PDF, HTML generation) stored as thumbnail
 struct InspectionImage: Identifiable, Equatable {
-    let id = UUID()
-    /// Non-nil for locally captured photos. Empty `UIImage()` placeholder for remote images.
-    var image: UIImage
-    /// Non-nil when the image originates from Firebase Storage — used by `AsyncImage` in views.
+    let id: UUID
+    /// Display-only thumbnail (~800px, ~2 MB). nil for remote-only images.
+    var thumbnail: UIImage?
+    /// Absolute path to full-resolution JPEG on disk. nil for remote/legacy images.
+    var fileURL: URL?
+    /// Firebase Storage URL. Non-nil after successful upload or for pre-existing remote images.
     var remoteURL: URL?
     var description: String
 
-    /// True when this image is loaded from a remote URL rather than captured locally.
     var isRemote: Bool { remoteURL != nil }
+    var hasLocalFile: Bool { fileURL != nil }
 
-    /// Local (camera) image — backward-compatible init.
-    init(image: UIImage, description: String = "") {
-        self.image = image
+    /// Backward-compatible accessor. Returns thumbnail for display.
+    /// Upload and edit flows must load full-res from fileURL instead.
+    var image: UIImage { thumbnail ?? UIImage() }
+
+    /// Primary init for camera captures: thumbnail in RAM, full-res at fileURL on disk.
+    init(fileURL: URL, thumbnail: UIImage, description: String = "") {
+        self.id = UUID()
+        self.fileURL = fileURL
+        self.thumbnail = thumbnail
         self.remoteURL = nil
         self.description = description
     }
 
-    /// Remote image from Firebase Storage. Views use `AsyncImage(url: remoteURL)`.
+    /// Remote image from Firebase Storage. Views render via AsyncImage(url: remoteURL).
     init(remoteURL: URL, description: String = "") {
-        self.image = UIImage()   // placeholder; never drawn directly
+        self.id = UUID()
+        self.thumbnail = nil
+        self.fileURL = nil
         self.remoteURL = remoteURL
+        self.description = description
+    }
+
+    /// Legacy init for non-capture callers (PDF, HTML report, unit tests).
+    /// Stores the UIImage directly as thumbnail — no fileURL on disk.
+    init(image: UIImage, description: String = "") {
+        self.id = UUID()
+        self.thumbnail = image
+        self.fileURL = nil
+        self.remoteURL = nil
         self.description = description
     }
 }

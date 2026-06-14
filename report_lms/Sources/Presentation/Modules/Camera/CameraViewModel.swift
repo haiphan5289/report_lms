@@ -16,6 +16,7 @@ final class CameraViewModel: ObservableObject {
     @Published var flashMode: AVCaptureDevice.FlashMode = .off
     @Published var zoomFactor: CGFloat = 1.0
     @Published var errorMessage: String?
+    @Published var limitMessage: String?
     @Published var showPermissionAlert = false
     @Published private(set) var isFlashAvailable = false
     @Published var cameraPermissionStatus: AVAuthorizationStatus = .notDetermined
@@ -33,6 +34,11 @@ final class CameraViewModel: ObservableObject {
     }
 
     // MARK: - Computed Properties
+    var isAtPhotoLimit: Bool {
+        guard let max = source.maxPhotos else { return false }
+        return capturedImages.count >= max
+    }
+
     var flashIcon: String {
         switch flashMode {
         case .off: return "bolt.slash.fill"
@@ -86,6 +92,12 @@ final class CameraViewModel: ObservableObject {
     // MARK: - Camera Actions
     func capturePhoto() {
         guard source.allowsMultiplePhotos || capturedImages.isEmpty else { return }
+        guard !isAtPhotoLimit else {
+            if let max = source.maxPhotos {
+                limitMessage = "Tối đa \(max) ảnh mỗi lần chụp"
+            }
+            return
+        }
 
         cameraController.capturePhoto(flashMode: flashMode) { [weak self] result in
             guard let self else { return }

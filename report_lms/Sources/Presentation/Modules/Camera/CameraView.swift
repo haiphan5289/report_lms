@@ -30,6 +30,15 @@ enum CameraSource {
         case .general: return true
         }
     }
+
+    /// nil = unlimited. Enforced in CameraViewModel.capturePhoto().
+    var maxPhotos: Int? {
+        switch self {
+        case .errorReport: return nil
+        case .inspection: return 20
+        case .general: return nil
+        }
+    }
 }
 
 // MARK: - Camera View
@@ -77,6 +86,7 @@ struct CameraView: View {
             .onDisappear {
                 viewModel.stopCamera()
             }
+            .lmsSnackbar(message: $viewModel.limitMessage, type: .info)
             .alert(localizationManager.localize("camera.permission.title"), isPresented: $viewModel.showPermissionAlert) {
                 Button(localizationManager.localize("camera.permission.openSettings"), action: viewModel.openSettings)
                 Button(localizationManager.localize("common.cancel"), role: .cancel) { dismiss() }
@@ -158,25 +168,42 @@ struct CameraView: View {
 
                 Spacer()
 
-                Button(action: viewModel.capturePhoto, label: {
-                    ZStack {
-                        Circle()
-                            .stroke(LMSTextColor.primary.color, lineWidth: Layout.captureButtonBorder)
-                            .frame(width: Layout.captureButtonSize, height: Layout.captureButtonSize)
+                VStack(spacing: 6) {
+                    Button(action: viewModel.capturePhoto, label: {
+                        ZStack {
+                            Circle()
+                                .stroke(
+                                    viewModel.isAtPhotoLimit ? Color.white.opacity(0.3) : LMSTextColor.primary.color,
+                                    lineWidth: Layout.captureButtonBorder
+                                )
+                                .frame(width: Layout.captureButtonSize, height: Layout.captureButtonSize)
 
-                        Circle()
-                            .fill(LMSTextColor.primary.color)
-                            .frame(width: Layout.captureButtonSize - 15, height: Layout.captureButtonSize - 15)
+                            Circle()
+                                .fill(
+                                    viewModel.isAtPhotoLimit ? Color.white.opacity(0.3) : LMSTextColor.primary.color
+                                )
+                                .frame(width: Layout.captureButtonSize - 15, height: Layout.captureButtonSize - 15)
+                        }
+                    })
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isAtPhotoLimit)
+                    .scaleEffect(capturePressed ? 0.93 : 1.0)
+                    .animation(.spring(response: 0.2, dampingFraction: 0.6), value: capturePressed)
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 0)
+                            .updating($capturePressed) { _, state, _ in state = true }
+                    )
+                    .shadow(color: LMSTextColor.primary.color.opacity(0.18), radius: 8, x: 0, y: 4)
+
+                    if let max = source.maxPhotos {
+                        Text("\(viewModel.capturedImages.count)/\(max)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(
+                                viewModel.isAtPhotoLimit ? Color.red.opacity(0.9) : Color.white.opacity(0.7)
+                            )
+                            .animation(.easeInOut(duration: 0.2), value: viewModel.isAtPhotoLimit)
                     }
-                })
-                .buttonStyle(.plain)
-                .scaleEffect(capturePressed ? 0.93 : 1.0)
-                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: capturePressed)
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 0)
-                        .updating($capturePressed) { _, state, _ in state = true }
-                )
-                .shadow(color: LMSTextColor.primary.color.opacity(0.18), radius: 8, x: 0, y: 4)
+                }
 
                 Spacer()
 

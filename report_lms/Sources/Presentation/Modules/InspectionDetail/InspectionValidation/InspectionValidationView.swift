@@ -295,7 +295,7 @@ struct InspectionValidationView: View {
                     .padding(.vertical, 40)
             } else {
                 VStack(spacing: 16) {
-                    ForEach($viewModel.images) { $image in
+                    ForEach(viewModel.images) { image in
                         ImageGalleryItemView(
                             inspectionImage: image,
                             isReorderMode: viewModel.showReorderMode,
@@ -308,7 +308,16 @@ struct InspectionValidationView: View {
                                 selectedImageIndex = viewModel.images.firstIndex(where: { $0.id == image.id })
                                 showImageMenu = true
                             },
-                            descriptionBinding: $image.description,
+                            descriptionBinding: Binding(
+                                get: {
+                                    viewModel.images.first(where: { $0.id == image.id })?.description ?? ""
+                                },
+                                set: { newValue in
+                                    if let idx = viewModel.images.firstIndex(where: { $0.id == image.id }) {
+                                        viewModel.images[idx].description = newValue
+                                    }
+                                }
+                            ),
                             inspectionId: inspectionIdContext,
                             fieldId: fieldIdContext
                         )
@@ -432,8 +441,15 @@ struct InspectionValidationView: View {
                 viewModel.isDownloading = false
                 viewModel.snackbarMessage = "Không thể tải ảnh. Vui lòng thử lại."
             }
+        } else if let fileURL = img.fileURL {
+            // Load full-res from disk — avoids sending a thumbnail to the editor
+            viewModel.isDownloading = true
+            let fullRes = await Task.detached { UIImage(contentsOfFile: fileURL.path) }.value
+            viewModel.isDownloading = false
+            editingUIImage = fullRes ?? img.thumbnail
+            showImageEditor = true
         } else {
-            editingUIImage = img.image
+            editingUIImage = img.thumbnail
             showImageEditor = true
         }
     }
@@ -452,8 +468,15 @@ struct InspectionValidationView: View {
                 viewModel.isDownloading = false
                 viewModel.snackbarMessage = "Không thể tải ảnh. Vui lòng thử lại."
             }
+        } else if let fileURL = img.fileURL {
+            // Load full-res from disk for sharing
+            viewModel.isDownloading = true
+            let fullRes = await Task.detached { UIImage(contentsOfFile: fileURL.path) }.value
+            viewModel.isDownloading = false
+            sharingImage = fullRes ?? img.thumbnail
+            showShareSheet = true
         } else {
-            sharingImage = img.image
+            sharingImage = img.thumbnail
             showShareSheet = true
         }
     }
