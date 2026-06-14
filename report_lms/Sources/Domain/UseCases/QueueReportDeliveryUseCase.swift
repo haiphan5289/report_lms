@@ -5,6 +5,7 @@
 
 import Foundation
 import OSLog
+import Combine
 
 enum QueueDeliveryError: LocalizedError {
     case noRecipients
@@ -47,7 +48,8 @@ final class QueueReportDeliveryUseCase {
             recipientEmails: emails,
             location: location,
             finalStatus: finalStatus.serverKey,
-            summaryComments: summaryComments
+            summaryComments: summaryComments,
+            language: LocalizationManager.shared.currentLanguage.rawValue
         )
 
         let taskId = try await queueService.enqueue(payload)

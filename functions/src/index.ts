@@ -57,6 +57,79 @@ interface ReportTask {
   requestedBy:      string;
   finalStatus?:     string;   // "accepted" | "pending" | "rejected"
   summaryComments?: string;
+  language?:        string;   // "vi" | "en"
+}
+
+// ── i18n ───────────────────────────────────────────────────────────────────────
+type Lang = "vi" | "en";
+
+const TRANSLATIONS: Record<Lang, Record<string, string>> = {
+  vi: {
+    reportTitle:          "Báo cáo kiểm tra, Hoàn tất:",
+    inspector:            "Người kiểm tra",
+    inspectionDate:       "Ngày kiểm tra",
+    plannedSample:        "Mẫu KH/Thực tế",
+    orderQty:             "SL đơn hàng",
+    location:             "Vị trí",
+    checklistName:        "Tên checklist",
+    checklistNameValue:   "Danh sách kiểm tra cuối",
+    plannedDate:          "Ngày kế hoạch",
+    samplingMethod:       "Phương pháp",
+    samplingMethodValue:  "Kiểm tra 100%",
+    supplierName:         "Tên nhà máy",
+    inspectorConclusion:  "Kết luận kiểm tra",
+    statusBanner:         "Trạng thái:",
+    summary:              "TÓM TẮT",
+    checklistSection:     "Hạng mục kiểm tra",
+    statusColumn:         "Trạng thái",
+    accepted:             "ĐẠT",
+    pending:              "CHỜ XEM XÉT",
+    rejected:             "KHÔNG ĐẠT",
+    footer:               "Báo cáo tạo bởi report_lms.",
+    emailSubject:         "Báo cáo kiểm tra #",
+    emailHeader:          "Báo cáo kiểm tra #",
+    emailGreeting:        "Kính gửi,",
+    emailBody:            "Đính kèm là báo cáo kiểm tra <strong>#%n</strong> cho <strong>%c</strong>.",
+    emailCta:             "Vui lòng xem file PDF đính kèm để biết chi tiết.",
+    emailClosing:         "Trân trọng,",
+    emailFooter:          "Gửi tự động bởi LMS Report App",
+    attachmentPrefix:     "Bao_cao_kiem_tra_",
+  },
+  en: {
+    reportTitle:          "Inspection report, Final:",
+    inspector:            "Inspector",
+    inspectionDate:       "Inspection Date",
+    plannedSample:        "Planned Sample/Insp.",
+    orderQty:             "Order Qty",
+    location:             "Location",
+    checklistName:        "Checklist Name",
+    checklistNameValue:   "Final CheckList",
+    plannedDate:          "Planned Date",
+    samplingMethod:       "Sampling Method",
+    samplingMethodValue:  "100% inspection",
+    supplierName:         "Supplier Name",
+    inspectorConclusion:  "Inspector Conclusion",
+    statusBanner:         "Status:",
+    summary:              "SUMMARY",
+    checklistSection:     "Checklist Section",
+    statusColumn:         "Status",
+    accepted:             "ACCEPTED",
+    pending:              "PENDING",
+    rejected:             "REJECTED",
+    footer:               "Report created with report_lms.",
+    emailSubject:         "Inspection Report #",
+    emailHeader:          "Inspection Report #",
+    emailGreeting:        "Dear,",
+    emailBody:            "Please find attached the inspection report <strong>#%n</strong> for <strong>%c</strong>.",
+    emailCta:             "Please review the attached PDF for details.",
+    emailClosing:         "Best regards,",
+    emailFooter:          "Sent automatically by LMS Report App",
+    attachmentPrefix:     "Inspection_Report_",
+  },
+};
+
+function t(lang: Lang, key: string): string {
+  return TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS["en"][key] ?? key;
 }
 
 interface InspectionField {
@@ -98,7 +171,9 @@ export const processReportQueue = onDocumentCreated(
       location, requestedBy,
       finalStatus     = "pending",
       summaryComments = "",
+      language        = "vi",
     } = data;
+    const lang = (language === "en" ? "en" : "vi") as Lang;
 
     await taskRef.update({ status: "processing" });
     console.log(`[${taskId}] Generating Qarma PDF for #${inspectionNumber}`);
@@ -110,7 +185,7 @@ export const processReportQueue = onDocumentCreated(
 
       const pdfBuffer = await generatePDF(
         inspection, inspectionNumber, location,
-        requestedBy ?? "", finalStatus, summaryComments
+        requestedBy ?? "", finalStatus, summaryComments, lang
       );
       console.log(`[${taskId}] PDF generated: ${pdfBuffer.length} bytes`);
 
@@ -130,10 +205,10 @@ export const processReportQueue = onDocumentCreated(
       await transporter.sendMail({
         from:    `"LMS Report" <${gmailUser.value()}>`,
         to:      recipientEmails.join(", "),
-        subject: `Báo cáo kiểm tra #${inspectionNumber}`,
-        html:    buildEmailHTML(inspectionNumber, inspection.companyName ?? "", requestedBy),
+        subject: `${t(lang, "emailSubject")}${inspectionNumber}`,
+        html:    buildEmailHTML(inspectionNumber, inspection.companyName ?? "", requestedBy, lang),
         attachments: [{
-          filename:    `Bao_cao_kiem_tra_${inspectionNumber}.pdf`,
+          filename:    `${t(lang, "attachmentPrefix")}${inspectionNumber}.pdf`,
           content:     pdfBuffer,
           contentType: "application/pdf",
         }],
@@ -211,8 +286,10 @@ function statusColor(s: string): string {
   return s === "accepted" ? C_GREEN : s === "rejected" ? C_CRITICAL : C_MAJOR;
 }
 
-function statusLabel(s: string): string {
-  return s === "accepted" ? "ACCEPTED" : s === "rejected" ? "REJECTED" : "PENDING";
+function statusLabel(s: string, lang: Lang = "vi"): string {
+  return s === "accepted" ? t(lang, "accepted")
+       : s === "rejected" ? t(lang, "rejected")
+       : t(lang, "pending");
 }
 
 /** Bordered cell with vertically-centred text. */
@@ -237,11 +314,12 @@ function drawHLine(doc: PdfDoc, y: number, color = "#cccccc", lw = 0.75) {
 
 /** Per-page footer: thin separator + left credit + right "Order:… page: N". */
 function drawFooter(
-  doc: PdfDoc, orderInfo: string, dateStr: string, pageNum: number, fonts: Fonts
+  doc: PdfDoc, orderInfo: string, dateStr: string, pageNum: number, fonts: Fonts,
+  lang: Lang = "vi"
 ) {
   drawHLine(doc, FOOTER_Y - 5, "#d0d0d0", 0.5);
   doc.font(fonts.R).fontSize(8).fillColor(C_FOOTER)
-    .text("Report created with report_lms.", MARGIN, FOOTER_Y,
+    .text(t(lang, "footer"), MARGIN, FOOTER_Y,
       { width: CW / 2, lineBreak: false });
   doc.font(fonts.R).fontSize(8).fillColor(C_FOOTER)
     .text(`${orderInfo}   ${dateStr}, page: ${pageNum}`,
@@ -281,12 +359,12 @@ function drawInfoTable(
 /** "Inspector Conclusion" label + coloured badge + optional notes. */
 function drawConclusionRow(
   doc: PdfDoc, finalStatus: string, summaryComments: string,
-  y: number, fonts: Fonts
+  y: number, fonts: Fonts, lang: Lang = "vi"
 ): number {
   doc.font(fonts.R).fontSize(10).fillColor(C_GRAY)
-    .text("Inspector Conclusion", MARGIN, y + 6, { lineBreak: false });
+    .text(t(lang, "inspectorConclusion"), MARGIN, y + 6, { lineBreak: false });
 
-  const label  = statusLabel(finalStatus);
+  const label  = statusLabel(finalStatus, lang);
   const color  = statusColor(finalStatus);
   const badgeX = MARGIN + 140;
   doc.font(fonts.B).fontSize(9);
@@ -310,30 +388,30 @@ function drawConclusionRow(
 
 /** Full-width coloured status banner. */
 function drawStatusBanner(
-  doc: PdfDoc, finalStatus: string, y: number, fonts: Fonts
+  doc: PdfDoc, finalStatus: string, y: number, fonts: Fonts, lang: Lang = "vi"
 ): number {
   const h = 26;
   doc.rect(MARGIN, y, CW, h).fillColor(statusColor(finalStatus)).fill();
   doc.font(fonts.R).fontSize(10).fillColor(C_WHITE)
-    .text("Status:", MARGIN + 10, y + 7, { lineBreak: false });
+    .text(t(lang, "statusBanner"), MARGIN + 10, y + 7, { lineBreak: false });
   doc.font(fonts.B).fontSize(10).fillColor(C_WHITE)
-    .text(statusLabel(finalStatus), MARGIN + 64, y + 7, { lineBreak: false });
+    .text(statusLabel(finalStatus, lang), MARGIN + 64, y + 7, { lineBreak: false });
   return y + h;
 }
 
-/** Checklist summary: section name | ✓ or — */
+/** Checklist summary: section name | progress bar */
 function drawChecklistTable(
   doc: PdfDoc, sections: InspectionSection[],
   imageMap: Map<string, Buffer>,
-  startY: number, fonts: Fonts
+  startY: number, fonts: Fonts, lang: Lang = "vi"
 ): number {
   const nameW   = CW * 0.82;
   const statusW = CW - nameW;
   let y = startY;
 
-  drawCell(doc, "Checklist Section", MARGIN,          y, nameW,   TABLE_ROW_H,
+  drawCell(doc, t(lang, "checklistSection"), MARGIN,         y, nameW,   TABLE_ROW_H,
     { bg: C_HDR_BG, fg: C_DARK, font: fonts.B });
-  drawCell(doc, "Status",            MARGIN + nameW,  y, statusW, TABLE_ROW_H,
+  drawCell(doc, t(lang, "statusColumn"),     MARGIN + nameW, y, statusW, TABLE_ROW_H,
     { bg: C_HDR_BG, fg: C_DARK, font: fonts.B, align: "center" });
   y += TABLE_ROW_H;
 
@@ -416,7 +494,8 @@ async function generatePDF(
   location: string,
   requestedBy: string,
   finalStatus: string,
-  summaryComments: string
+  summaryComments: string,
+  lang: Lang = "vi"
 ): Promise<Buffer> {
   const imageMap = await prefetchImages(inspection);
 
@@ -446,7 +525,7 @@ async function generatePDF(
     function newPage(): number {
       doc.addPage();
       pageNum++;
-      drawFooter(doc, orderInfo, dateStr, pageNum, fonts);
+      drawFooter(doc, orderInfo, dateStr, pageNum, fonts, lang);
       return MARGIN;
     }
 
@@ -455,7 +534,7 @@ async function generatePDF(
 
     // Small grey title
     doc.font(fonts.R).fontSize(11).fillColor(C_GRAY)
-      .text(`Inspection report, Final: ${inspectionNumber}`, MARGIN, y, { lineBreak: false });
+      .text(`${t(lang, "reportTitle")} ${inspectionNumber}`, MARGIN, y, { lineBreak: false });
     y += Math.ceil(11 * 1.2) + 4;
 
     // Bold subtitle: order number + product name
@@ -470,32 +549,32 @@ async function generatePDF(
 
     // Info table
     y = drawInfoTable(doc, [
-      ["Inspector",            requestedBy || "N/A",  "Inspection Date",  dateTimeStr],
-      ["Planned Sample/Insp.", `${inspection.aqlInspectionQuantity ?? 0}/${inspection.inspectedQuantity ?? 0}`,
-                                                       "Order Qty",         String(inspection.orderQuantity ?? 0)],
-      ["Location",             location || "N/A",     "Checklist Name",   "Final CheckList"],
-      ["Planned Date",         dateStr,               "Sampling Method",  "100% inspection"],
-      ["Supplier Name",        inspection.factory ?? inspection.factoryName ?? "N/A", null, null],
+      [t(lang, "inspector"),     requestedBy || "N/A",  t(lang, "inspectionDate"), dateTimeStr],
+      [t(lang, "plannedSample"), `${inspection.aqlInspectionQuantity ?? 0}/${inspection.inspectedQuantity ?? 0}`,
+                                                         t(lang, "orderQty"),      String(inspection.orderQuantity ?? 0)],
+      [t(lang, "location"),      location || "N/A",     t(lang, "checklistName"),  t(lang, "checklistNameValue")],
+      [t(lang, "plannedDate"),   dateStr,               t(lang, "samplingMethod"), t(lang, "samplingMethodValue")],
+      [t(lang, "supplierName"),  inspection.factory ?? inspection.factoryName ?? "N/A", null, null],
     ], y, fonts);
     y += 8;
 
     // Inspector conclusion row (badge + optional notes)
-    y = drawConclusionRow(doc, finalStatus, summaryComments, y, fonts);
+    y = drawConclusionRow(doc, finalStatus, summaryComments, y, fonts, lang);
     y += 2;
 
     // Full-width status banner
-    y = drawStatusBanner(doc, finalStatus, y, fonts);
+    y = drawStatusBanner(doc, finalStatus, y, fonts, lang);
     y += 16;
 
     // SUMMARY heading
     doc.font(fonts.B).fontSize(14).fillColor(C_DARK)
-      .text("SUMMARY", MARGIN, y, { lineBreak: false });
+      .text(t(lang, "summary"), MARGIN, y, { lineBreak: false });
     y += Math.ceil(14 * 1.2) + 8;
 
     // Checklist table + defect table
     const sections: InspectionSection[] = Array.isArray(inspection.sections)
       ? inspection.sections as InspectionSection[] : [];
-    y = drawChecklistTable(doc, sections, imageMap, y, fonts);
+    y = drawChecklistTable(doc, sections, imageMap, y, fonts, lang);
     y += 12;
     y = drawDefectTable(doc, 0, 0, 0, y, fonts);  // counts are not stored server-side
 
@@ -562,8 +641,11 @@ function esc(s: string): string {
 }
 
 function buildEmailHTML(
-  inspectionNumber: string, companyName: string, requestedBy: string
+  inspectionNumber: string, companyName: string, requestedBy: string, lang: Lang = "vi"
 ): string {
+  const body = t(lang, "emailBody")
+    .replace("%n", esc(inspectionNumber))
+    .replace("%c", esc(companyName));
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -577,12 +659,12 @@ function buildEmailHTML(
 </head>
 <body>
   <div class="card">
-    <div class="header"><h2 style="margin:0">Báo cáo kiểm tra #${esc(inspectionNumber)}</h2></div>
-    <p>Kính gửi,</p>
-    <p>Đính kèm là báo cáo kiểm tra <strong>#${esc(inspectionNumber)}</strong> cho <strong>${esc(companyName)}</strong>.</p>
-    <p>Vui lòng xem file PDF đính kèm để biết chi tiết.</p>
-    <p>Trân trọng,<br/><strong>${esc(requestedBy)}</strong></p>
-    <div class="footer">Gửi tự động bởi LMS Report App</div>
+    <div class="header"><h2 style="margin:0">${t(lang, "emailHeader")}${esc(inspectionNumber)}</h2></div>
+    <p>${t(lang, "emailGreeting")}</p>
+    <p>${body}</p>
+    <p>${t(lang, "emailCta")}</p>
+    <p>${t(lang, "emailClosing")}<br/><strong>${esc(requestedBy ?? "")}</strong></p>
+    <div class="footer">${t(lang, "emailFooter")}</div>
   </div>
 </body>
 </html>`;

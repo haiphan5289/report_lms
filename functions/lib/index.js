@@ -79,6 +79,74 @@ const C_CRITICAL = "#c62626";
 const C_MAJOR = "#e5990d";
 const C_MINOR = "#2473cc";
 const C_GREEN = "#33a14a";
+const TRANSLATIONS = {
+    vi: {
+        reportTitle: "Báo cáo kiểm tra, Hoàn tất:",
+        inspector: "Người kiểm tra",
+        inspectionDate: "Ngày kiểm tra",
+        plannedSample: "Mẫu KH/Thực tế",
+        orderQty: "SL đơn hàng",
+        location: "Vị trí",
+        checklistName: "Tên checklist",
+        checklistNameValue: "Danh sách kiểm tra cuối",
+        plannedDate: "Ngày kế hoạch",
+        samplingMethod: "Phương pháp",
+        samplingMethodValue: "Kiểm tra 100%",
+        supplierName: "Tên nhà máy",
+        inspectorConclusion: "Kết luận kiểm tra",
+        statusBanner: "Trạng thái:",
+        summary: "TÓM TẮT",
+        checklistSection: "Hạng mục kiểm tra",
+        statusColumn: "Trạng thái",
+        accepted: "ĐẠT",
+        pending: "CHỜ XEM XÉT",
+        rejected: "KHÔNG ĐẠT",
+        footer: "Báo cáo tạo bởi report_lms.",
+        emailSubject: "Báo cáo kiểm tra #",
+        emailHeader: "Báo cáo kiểm tra #",
+        emailGreeting: "Kính gửi,",
+        emailBody: "Đính kèm là báo cáo kiểm tra <strong>#%n</strong> cho <strong>%c</strong>.",
+        emailCta: "Vui lòng xem file PDF đính kèm để biết chi tiết.",
+        emailClosing: "Trân trọng,",
+        emailFooter: "Gửi tự động bởi LMS Report App",
+        attachmentPrefix: "Bao_cao_kiem_tra_",
+    },
+    en: {
+        reportTitle: "Inspection report, Final:",
+        inspector: "Inspector",
+        inspectionDate: "Inspection Date",
+        plannedSample: "Planned Sample/Insp.",
+        orderQty: "Order Qty",
+        location: "Location",
+        checklistName: "Checklist Name",
+        checklistNameValue: "Final CheckList",
+        plannedDate: "Planned Date",
+        samplingMethod: "Sampling Method",
+        samplingMethodValue: "100% inspection",
+        supplierName: "Supplier Name",
+        inspectorConclusion: "Inspector Conclusion",
+        statusBanner: "Status:",
+        summary: "SUMMARY",
+        checklistSection: "Checklist Section",
+        statusColumn: "Status",
+        accepted: "ACCEPTED",
+        pending: "PENDING",
+        rejected: "REJECTED",
+        footer: "Report created with report_lms.",
+        emailSubject: "Inspection Report #",
+        emailHeader: "Inspection Report #",
+        emailGreeting: "Dear,",
+        emailBody: "Please find attached the inspection report <strong>#%n</strong> for <strong>%c</strong>.",
+        emailCta: "Please review the attached PDF for details.",
+        emailClosing: "Best regards,",
+        emailFooter: "Sent automatically by LMS Report App",
+        attachmentPrefix: "Inspection_Report_",
+    },
+};
+function t(lang, key) {
+    var _a, _b, _c;
+    return (_c = (_b = (_a = TRANSLATIONS[lang]) === null || _a === void 0 ? void 0 : _a[key]) !== null && _b !== void 0 ? _b : TRANSLATIONS["en"][key]) !== null && _c !== void 0 ? _c : key;
+}
 // ── Cloud Function ─────────────────────────────────────────────────────────────
 exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
     document: "report_delivery_queue/{taskId}",
@@ -96,7 +164,8 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         console.error(`[${taskId}] No data in document`);
         return;
     }
-    const { inspectionId, inspectionNumber, recipientEmails, location, requestedBy, finalStatus = "pending", summaryComments = "", } = data;
+    const { inspectionId, inspectionNumber, recipientEmails, location, requestedBy, finalStatus = "pending", summaryComments = "", language = "vi", } = data;
+    const lang = (language === "en" ? "en" : "vi");
     await taskRef.update({ status: "processing" });
     console.log(`[${taskId}] Generating Qarma PDF for #${inspectionNumber}`);
     try {
@@ -104,7 +173,7 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         const inspection = snap.data();
         if (!inspection)
             throw new Error(`Inspection ${inspectionId} not found`);
-        const pdfBuffer = await generatePDF(inspection, inspectionNumber, location, requestedBy !== null && requestedBy !== void 0 ? requestedBy : "", finalStatus, summaryComments);
+        const pdfBuffer = await generatePDF(inspection, inspectionNumber, location, requestedBy !== null && requestedBy !== void 0 ? requestedBy : "", finalStatus, summaryComments, lang);
         console.log(`[${taskId}] PDF generated: ${pdfBuffer.length} bytes`);
         // Upload to Firebase Storage so the iOS app can retrieve it later
         const storagePath = `inspections/${inspectionId}/reports/${taskId}.pdf`;
@@ -120,10 +189,10 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         await transporter.sendMail({
             from: `"LMS Report" <${gmailUser.value()}>`,
             to: recipientEmails.join(", "),
-            subject: `Báo cáo kiểm tra #${inspectionNumber}`,
-            html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", requestedBy),
+            subject: `${t(lang, "emailSubject")}${inspectionNumber}`,
+            html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", requestedBy, lang),
             attachments: [{
-                    filename: `Bao_cao_kiem_tra_${inspectionNumber}.pdf`,
+                    filename: `${t(lang, "attachmentPrefix")}${inspectionNumber}.pdf`,
                     content: pdfBuffer,
                     contentType: "application/pdf",
                 }],
@@ -195,8 +264,10 @@ async function prefetchImages(inspection) {
 function statusColor(s) {
     return s === "accepted" ? C_GREEN : s === "rejected" ? C_CRITICAL : C_MAJOR;
 }
-function statusLabel(s) {
-    return s === "accepted" ? "ACCEPTED" : s === "rejected" ? "REJECTED" : "PENDING";
+function statusLabel(s, lang = "vi") {
+    return s === "accepted" ? t(lang, "accepted")
+        : s === "rejected" ? t(lang, "rejected")
+            : t(lang, "pending");
 }
 /** Bordered cell with vertically-centred text. */
 function drawCell(doc, text, x, y, w, h, opts) {
@@ -213,10 +284,10 @@ function drawHLine(doc, y, color = "#cccccc", lw = 0.75) {
     doc.moveTo(MARGIN, y).lineTo(MARGIN + CW, y).lineWidth(lw).strokeColor(color).stroke();
 }
 /** Per-page footer: thin separator + left credit + right "Order:… page: N". */
-function drawFooter(doc, orderInfo, dateStr, pageNum, fonts) {
+function drawFooter(doc, orderInfo, dateStr, pageNum, fonts, lang = "vi") {
     drawHLine(doc, FOOTER_Y - 5, "#d0d0d0", 0.5);
     doc.font(fonts.R).fontSize(8).fillColor(C_FOOTER)
-        .text("Report created with report_lms.", MARGIN, FOOTER_Y, { width: CW / 2, lineBreak: false });
+        .text(t(lang, "footer"), MARGIN, FOOTER_Y, { width: CW / 2, lineBreak: false });
     doc.font(fonts.R).fontSize(8).fillColor(C_FOOTER)
         .text(`${orderInfo}   ${dateStr}, page: ${pageNum}`, MARGIN + CW / 2, FOOTER_Y, { width: CW / 2, lineBreak: false, align: "right" });
 }
@@ -245,10 +316,10 @@ function drawInfoTable(doc, rows, startY, fonts) {
     return y;
 }
 /** "Inspector Conclusion" label + coloured badge + optional notes. */
-function drawConclusionRow(doc, finalStatus, summaryComments, y, fonts) {
+function drawConclusionRow(doc, finalStatus, summaryComments, y, fonts, lang = "vi") {
     doc.font(fonts.R).fontSize(10).fillColor(C_GRAY)
-        .text("Inspector Conclusion", MARGIN, y + 6, { lineBreak: false });
-    const label = statusLabel(finalStatus);
+        .text(t(lang, "inspectorConclusion"), MARGIN, y + 6, { lineBreak: false });
+    const label = statusLabel(finalStatus, lang);
     const color = statusColor(finalStatus);
     const badgeX = MARGIN + 140;
     doc.font(fonts.B).fontSize(9);
@@ -267,22 +338,22 @@ function drawConclusionRow(doc, finalStatus, summaryComments, y, fonts) {
     return y + INFO_ROW_H;
 }
 /** Full-width coloured status banner. */
-function drawStatusBanner(doc, finalStatus, y, fonts) {
+function drawStatusBanner(doc, finalStatus, y, fonts, lang = "vi") {
     const h = 26;
     doc.rect(MARGIN, y, CW, h).fillColor(statusColor(finalStatus)).fill();
     doc.font(fonts.R).fontSize(10).fillColor(C_WHITE)
-        .text("Status:", MARGIN + 10, y + 7, { lineBreak: false });
+        .text(t(lang, "statusBanner"), MARGIN + 10, y + 7, { lineBreak: false });
     doc.font(fonts.B).fontSize(10).fillColor(C_WHITE)
-        .text(statusLabel(finalStatus), MARGIN + 64, y + 7, { lineBreak: false });
+        .text(statusLabel(finalStatus, lang), MARGIN + 64, y + 7, { lineBreak: false });
     return y + h;
 }
-/** Checklist summary: section name | ✓ or — */
-function drawChecklistTable(doc, sections, imageMap, startY, fonts) {
+/** Checklist summary: section name | progress bar */
+function drawChecklistTable(doc, sections, imageMap, startY, fonts, lang = "vi") {
     const nameW = CW * 0.82;
     const statusW = CW - nameW;
     let y = startY;
-    drawCell(doc, "Checklist Section", MARGIN, y, nameW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_DARK, font: fonts.B });
-    drawCell(doc, "Status", MARGIN + nameW, y, statusW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_DARK, font: fonts.B, align: "center" });
+    drawCell(doc, t(lang, "checklistSection"), MARGIN, y, nameW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_DARK, font: fonts.B });
+    drawCell(doc, t(lang, "statusColumn"), MARGIN + nameW, y, statusW, TABLE_ROW_H, { bg: C_HDR_BG, fg: C_DARK, font: fonts.B, align: "center" });
     y += TABLE_ROW_H;
     const sorted = [...sections].sort((a, b) => { var _a, _b; return ((_a = a.order) !== null && _a !== void 0 ? _a : 0) - ((_b = b.order) !== null && _b !== void 0 ? _b : 0); });
     sorted.forEach((sec, i) => {
@@ -340,7 +411,7 @@ function drawSectionHeader(doc, title, y, fonts) {
     return lineY + 6;
 }
 // ── Main PDF generation ────────────────────────────────────────────────────────
-async function generatePDF(inspection, inspectionNumber, location, requestedBy, finalStatus, summaryComments) {
+async function generatePDF(inspection, inspectionNumber, location, requestedBy, finalStatus, summaryComments, lang = "vi") {
     const imageMap = await prefetchImages(inspection);
     return new Promise((resolve, reject) => {
         var _a, _b, _c, _d, _e, _f, _g;
@@ -367,14 +438,14 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
         function newPage() {
             doc.addPage();
             pageNum++;
-            drawFooter(doc, orderInfo, dateStr, pageNum, fonts);
+            drawFooter(doc, orderInfo, dateStr, pageNum, fonts, lang);
             return MARGIN;
         }
         // ── Page 1: Cover ─────────────────────────────────────────────────────────
         let y = newPage();
         // Small grey title
         doc.font(fonts.R).fontSize(11).fillColor(C_GRAY)
-            .text(`Inspection report, Final: ${inspectionNumber}`, MARGIN, y, { lineBreak: false });
+            .text(`${t(lang, "reportTitle")} ${inspectionNumber}`, MARGIN, y, { lineBreak: false });
         y += Math.ceil(11 * 1.2) + 4;
         // Bold subtitle: order number + product name
         doc.font(fonts.B).fontSize(20).fillColor(C_DARK)
@@ -385,28 +456,28 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
         y += 10;
         // Info table
         y = drawInfoTable(doc, [
-            ["Inspector", requestedBy || "N/A", "Inspection Date", dateTimeStr],
-            ["Planned Sample/Insp.", `${(_c = inspection.aqlInspectionQuantity) !== null && _c !== void 0 ? _c : 0}/${(_d = inspection.inspectedQuantity) !== null && _d !== void 0 ? _d : 0}`,
-                "Order Qty", String((_e = inspection.orderQuantity) !== null && _e !== void 0 ? _e : 0)],
-            ["Location", location || "N/A", "Checklist Name", "Final CheckList"],
-            ["Planned Date", dateStr, "Sampling Method", "100% inspection"],
-            ["Supplier Name", (_g = (_f = inspection.factory) !== null && _f !== void 0 ? _f : inspection.factoryName) !== null && _g !== void 0 ? _g : "N/A", null, null],
+            [t(lang, "inspector"), requestedBy || "N/A", t(lang, "inspectionDate"), dateTimeStr],
+            [t(lang, "plannedSample"), `${(_c = inspection.aqlInspectionQuantity) !== null && _c !== void 0 ? _c : 0}/${(_d = inspection.inspectedQuantity) !== null && _d !== void 0 ? _d : 0}`,
+                t(lang, "orderQty"), String((_e = inspection.orderQuantity) !== null && _e !== void 0 ? _e : 0)],
+            [t(lang, "location"), location || "N/A", t(lang, "checklistName"), t(lang, "checklistNameValue")],
+            [t(lang, "plannedDate"), dateStr, t(lang, "samplingMethod"), t(lang, "samplingMethodValue")],
+            [t(lang, "supplierName"), (_g = (_f = inspection.factory) !== null && _f !== void 0 ? _f : inspection.factoryName) !== null && _g !== void 0 ? _g : "N/A", null, null],
         ], y, fonts);
         y += 8;
         // Inspector conclusion row (badge + optional notes)
-        y = drawConclusionRow(doc, finalStatus, summaryComments, y, fonts);
+        y = drawConclusionRow(doc, finalStatus, summaryComments, y, fonts, lang);
         y += 2;
         // Full-width status banner
-        y = drawStatusBanner(doc, finalStatus, y, fonts);
+        y = drawStatusBanner(doc, finalStatus, y, fonts, lang);
         y += 16;
         // SUMMARY heading
         doc.font(fonts.B).fontSize(14).fillColor(C_DARK)
-            .text("SUMMARY", MARGIN, y, { lineBreak: false });
+            .text(t(lang, "summary"), MARGIN, y, { lineBreak: false });
         y += Math.ceil(14 * 1.2) + 8;
         // Checklist table + defect table
         const sections = Array.isArray(inspection.sections)
             ? inspection.sections : [];
-        y = drawChecklistTable(doc, sections, imageMap, y, fonts);
+        y = drawChecklistTable(doc, sections, imageMap, y, fonts, lang);
         y += 12;
         y = drawDefectTable(doc, 0, 0, 0, y, fonts); // counts are not stored server-side
         // ── Pages 2+: Sections ────────────────────────────────────────────────────
@@ -473,7 +544,10 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
 function esc(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-function buildEmailHTML(inspectionNumber, companyName, requestedBy) {
+function buildEmailHTML(inspectionNumber, companyName, requestedBy, lang = "vi") {
+    const body = t(lang, "emailBody")
+        .replace("%n", esc(inspectionNumber))
+        .replace("%c", esc(companyName));
     return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -487,12 +561,12 @@ function buildEmailHTML(inspectionNumber, companyName, requestedBy) {
 </head>
 <body>
   <div class="card">
-    <div class="header"><h2 style="margin:0">Báo cáo kiểm tra #${esc(inspectionNumber)}</h2></div>
-    <p>Kính gửi,</p>
-    <p>Đính kèm là báo cáo kiểm tra <strong>#${esc(inspectionNumber)}</strong> cho <strong>${esc(companyName)}</strong>.</p>
-    <p>Vui lòng xem file PDF đính kèm để biết chi tiết.</p>
-    <p>Trân trọng,<br/><strong>${esc(requestedBy)}</strong></p>
-    <div class="footer">Gửi tự động bởi LMS Report App</div>
+    <div class="header"><h2 style="margin:0">${t(lang, "emailHeader")}${esc(inspectionNumber)}</h2></div>
+    <p>${t(lang, "emailGreeting")}</p>
+    <p>${body}</p>
+    <p>${t(lang, "emailCta")}</p>
+    <p>${t(lang, "emailClosing")}<br/><strong>${esc(requestedBy !== null && requestedBy !== void 0 ? requestedBy : "")}</strong></p>
+    <div class="footer">${t(lang, "emailFooter")}</div>
   </div>
 </body>
 </html>`;
