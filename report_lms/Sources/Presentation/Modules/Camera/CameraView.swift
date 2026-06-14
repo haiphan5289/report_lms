@@ -186,7 +186,6 @@ struct CameraView: View {
                         }
                     })
                     .buttonStyle(.plain)
-                    .disabled(viewModel.isAtPhotoLimit)
                     .scaleEffect(capturePressed ? 0.93 : 1.0)
                     .animation(.spring(response: 0.2, dampingFraction: 0.6), value: capturePressed)
                     .simultaneousGesture(
