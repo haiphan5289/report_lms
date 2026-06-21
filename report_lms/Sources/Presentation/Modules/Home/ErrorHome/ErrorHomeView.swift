@@ -193,16 +193,13 @@ struct ErrorHomeView: View {
                     Color.clear.frame(height: 0).id("errorList-top")
                     ForEach(Array(viewModel.errorInspections.enumerated()), id: \.element.id) { index, item in
                         Button(action: {
-                            print("🔍 [ErrorHomeView] Item tapped: \(item.id)")
-                            print("   - Severity: \(item.severity)")
-                            print("   - DefectType: \(item.defectType)")
                             onItemTapped(item)
-                            print("   - Callback executed ✅")
                         }) {
                             ErrorItemCardView(item: item, cachedThumbnail: viewModel.thumbnailCache[item.id])
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .padding(.horizontal, 16)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(LMSColor.background)
