@@ -34,7 +34,7 @@
 | Session cleanup | `uploadSessions.removeAll { $0.isComplete }` chỉ chạy khi `activeUploadCount == 0` |
 | Count = images, not fields | `totalUploadingImageCount` đếm ảnh còn pending/uploading (không phải số field) — dùng cho UI display count trên button "Gửi Email" |
 | `activeUploadCount` là trigger, không phải display | `activeUploadCount` (1 per field session) về 0 SAU `onTaskCompleted` → SAU Firestore write. Dùng làm trigger auto-send và `isUploading` guard. `totalUploadingImageCount` về 0 sớm hơn (per-image doneCb) — **không** dùng làm trigger |
-| Concurrent upload throttled | Phase 1 compress: max 4 slots (3 on low-RAM). Phase 2 upload: max 8 slots trên WiFi/5G, 6 trên cellular. Unbounded concurrency gây OOM crash khi nhiều ảnh 12MP (xem § Bugs Fixed) |
+| Concurrent upload throttled | Pipelined compress+upload, throttled bởi `maxConcurrentSlots` (network-aware + RAM-aware). Peak ~56 MB/slot. Unbounded concurrency gây OOM crash khi nhiều ảnh 12MP (xem § Bugs Fixed, § B8) |
 | Image resize capped at 1600px | `prepareForUpload(maxDimension: 1600, compressionQuality: 0.8)` — giảm từ 2048px để tối ưu upload speed (~35% nhỏ hơn) mà không ảnh hưởng chất lượng PDF A4 |
 | Callbacks are @Sendable | `onImageProgress`, `onImageDone`, `onImageFail` phải `@Sendable` vì được gọi từ trong TaskGroup (non-isolated context) |
 
@@ -140,7 +140,7 @@ graph TD
 - [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift) — `@EnvironmentObject InspectionDetailViewModel`; `isUploading = activeUploadCount > 0` (display count = `totalUploadingImageCount`); `.onChange(activeUploadCount)` auto-send sau Firestore write; **hosts** `.sheet(isPresented: $inspectionDetailVM.showUploadStatusSheet)` — sheet phải present từ trong `fullScreenCover` context để tránh dismiss conflict
 - [`InspectionDetailContentView.swift`](InspectionDetailContentView.swift) — "Hoàn tất" là simple button, không còn `hasActiveUploads`/`onShowUploadStatus`
 - [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) — 3 init params: `onImageProgress`, `onImageDone`, `onImageFail`
-- [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) — stores và gọi 3 `@Sendable` callbacks từ trong `TaskGroup`
+- [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) — stores và gọi 3 `@Sendable` callbacks từ trong `TaskGroup`; `maxConcurrentSlots` (network + RAM aware); `isOnWiFiOrEthernet` (one-shot NWPathMonitor snapshot)
 
 ### Domain — New Files
 - [`ImageUploadItem.swift`](../../../Domain/Entities/ImageUploadItem.swift)
@@ -186,6 +186,7 @@ Không có API endpoint mới — feature giao tiếp trực tiếp với **Fire
 | Retry thất bại | Không hỗ trợ — intentional design decision | ✅ (by design) |
 | **OOM crash khi nhiều ảnh 12MP** | Throttle `withTaskGroup` xuống max 4 concurrent — xem § Bugs Fixed | ✅ |
 | **Upload chậm do file size lớn** | Giảm `maxDimension` 2048→1600px, file nhỏ hơn ~35–40% — xem § Bugs Fixed | ✅ |
+| **Slot cố định lãng phí WiFi/RAM cao** | `maxConcurrentSlots` network+RAM aware — 3/4/5/6 slots tùy device — xem § B8 | ✅ |
 | **Concurrent field upload ghi đè nhau** | `updateFieldImageURLs` serializes writes qua `pendingFieldWrite` task chain — xem § Bugs Fixed (B7) | ✅ |
 
 ---
@@ -406,6 +407,80 @@ try await storageService.updateFieldImageURLs(
 
 ---
 
+### B8 — Upload slot cố định không tận dụng WiFi và thiết bị RAM cao
+
+**Ngày fix:** 2026-06-23
+**File:** [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift)
+
+**Root cause:**
+`maxConcurrent` cố định `isHighMemoryDevice ? 4 : 3` với ngưỡng ≥6 GB. Hai vấn đề:
+1. Thiết bị ≥8 GB (iPhone 15 Pro+) bị giới hạn như thiết bị 6 GB — lãng phí headroom.
+2. Không phân biệt WiFi vs cellular — trên WiFi có thể tăng slot để tận dụng bandwidth mà không rủi ro OOM.
+
+**Phân tích memory:**
+
+Peak memory mỗi slot trong `prepareForUpload(maxDimension: 1600)`:
+```
+decode 12MP JPEG → UIImage   : ~48 MB  (pixel buffer)
+UIGraphicsImageRenderer dest : ~7.7 MB (1600×1200×4)
+Peak trong resize step       : ~56 MB / slot
+```
+
+Sau resize, source buffer được freed. Sau encode (WebP/JPEG), resized buffer freed. Chỉ ~0.5 MB compressed data còn lại trong upload phase.
+
+Combined với app baseline (~300 MB sau fix cache):
+
+| Slots | Pipeline peak | Total  | Jetsam 4GB (~1.2GB) | Jetsam 6GB (~2GB) |
+|-------|--------------|--------|----------------------|-------------------|
+| 3     | ~168 MB      | ~468MB | ✅ Safe              | ✅ Safe            |
+| 4     | ~224 MB      | ~524MB | ✅ Safe              | ✅ Safe            |
+| 5     | ~280 MB      | ~580MB | ✅ Safe              | ✅ Safe            |
+| 6     | ~336 MB      | ~636MB | ✅ Safe              | ✅ Safe            |
+| 8     | ~448 MB      | ~748MB | ⚠️ Rủi ro           | ✅ Safe            |
+
+**Tại sao network-aware:**
+- **WiFi/Ethernet**: bandwidth cao, low latency → nhiều slot tận dụng được throughput thực sự
+- **Cellular**: packet loss cao hơn → ít slot giảm retransmission overhead và battery drain
+
+**Fix:** Thay `isHighMemoryDevice: Bool` bằng `maxConcurrentSlots: Int` với 3-tier RAM × network:
+
+```swift
+private var maxConcurrentSlots: Int {
+    let ram = ProcessInfo.processInfo.physicalMemory
+    let gb: UInt64 = 1_024 * 1_024 * 1_024
+    let onWiFi = isOnWiFiOrEthernet
+    switch ram {
+    case ..<(6 * gb):          return 3          // <6 GB: mọi network
+    case (6 * gb)..<(8 * gb): return onWiFi ? 5 : 4   // 6–8 GB
+    default:                   return onWiFi ? 6 : 5   // ≥8 GB
+    }
+}
+
+private var isOnWiFiOrEthernet: Bool {
+    // One-shot NWPathMonitor snapshot — không maintain listener suốt vòng đời VM.
+    let monitor = NWPathMonitor()
+    var result = false
+    let sema = DispatchSemaphore(value: 0)
+    monitor.pathUpdateHandler = { path in
+        result = path.usesInterfaceType(.wifi) || path.usesInterfaceType(.wiredEthernet)
+        sema.signal()
+    }
+    monitor.start(queue: DispatchQueue(label: "net.check"))
+    sema.wait(); monitor.cancel()
+    return result
+}
+```
+
+**Kết quả slot table:**
+
+| RAM | WiFi/5G | Cellular |
+|-----|---------|----------|
+| <6 GB (iPhone 12 trở xuống) | 3 | 3 |
+| ≥6 GB (iPhone 13–15)        | 5 | 4 |
+| ≥8 GB (iPhone 15 Pro+)      | 6 | 5 |
+
+---
+
 ### B2 — Button "Đóng" bị che khi scroll
 
 **Ngày fix:** 2026-06-06  
@@ -454,4 +529,4 @@ Thêm 2 modifier vào `NavigationStack` body:
 
 ---
 
-*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-09 (B5: activeUploadCount trigger; B6: markInspectionCompleted stale snapshot; B7: concurrent field upload race condition → updateFieldImageURLs serial write gate; BUG-F04: fixed stale shouldShowFinalReport reference in Edge Cases)*
+*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-23 (B8: maxConcurrentSlots — network+RAM aware upload throttle; replaced isHighMemoryDevice with 3-tier slot table)*

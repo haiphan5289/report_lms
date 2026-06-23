@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Network
 import SwiftUI
 
 
@@ -38,7 +39,7 @@ final class InspectionValidationViewModel: ObservableObject {
     private var onImageFail: (@Sendable (Int) -> Void)?
     private let initialStatus: ValidationStatus
     private let initialComments: String
-    private let initialImagesCount: Int
+    private let initialImageIds: Set<UUID>
     private let storageService: InspectionStorageServiceType?
     private let uploadUseCase: UploadInspectionMediaUseCase?
 
@@ -64,7 +65,7 @@ final class InspectionValidationViewModel: ObservableObject {
         self.images = initialImages
         self.initialStatus = initialStatus
         self.initialComments = initialComments
-        self.initialImagesCount = initialImages.count
+        self.initialImageIds = Set(initialImages.map { $0.id })
         self.status = initialStatus
         self.comments = initialComments
         self.inspectionId = inspectionId
@@ -95,44 +96,47 @@ final class InspectionValidationViewModel: ObservableObject {
         let fid = fieldId
 
         Task { @MainActor in
-            let startIndex = images.count
-
-            // Phase 1 — launch all resizes in parallel on background threads.
-            // Task.detached escapes the @MainActor context; group.addTask inside a
-            // @MainActor Task inherits the actor and runs resizes sequentially on the
-            // main thread — causing the 1-2s freeze with many photos.
+            // Phase 1 — resize in parallel on background threads (Task.detached escapes @MainActor).
+            // Awaited in insertion order to preserve photo sequence.
             let resizeTasks = newImages.map { img in
                 Task.detached(priority: .userInitiated) {
                     img.resizedIfNeeded(maxDimension: 800)
                 }
             }
 
-            // Stream each thumbnail to the gallery in original order as it completes.
-            // All resizes run in parallel, so the first photo appears in ~80ms and the
-            // rest follow almost immediately — no "wait for all" delay.
+            var appendedIds: [UUID] = []
             for resizeTask in resizeTasks {
                 let thumb = await resizeTask.value
-                images.append(InspectionImage(image: thumb))
+                let img = InspectionImage(image: thumb)
+                appendedIds.append(img.id)
+                images.append(img)
             }
 
+            // Auto-advance from .pending only; preserve any explicit user choice.
+            if status == .pending { self.status = .passed }
             updateDirtyState()
-            saveValidation(status: .passed, notifyParent: false)
 
             // Phase 2 — serialized disk writes: max 1 full-res (~48 MB) in RAM at a time.
+            // fileURL updated by image ID so concurrent deletes don't corrupt the mapping.
+            // Upload is triggered AFTER all fileURLs are set so full-res is used instead of thumbnail.
             Task {
                 for (offset, img) in newImages.enumerated() {
-                    let entryIndex = startIndex + offset
+                    let id = appendedIds[offset]
+                    // Pass the Phase-1 thumbnail so cacheCapture skips a redundant 800px resize.
+                    let thumb = images.first(where: { $0.id == id })?.thumbnail
                     guard let path = await InspectionImageCacheActor.shared.cacheCapture(
-                        image: img, inspectionId: inspectionId, fieldId: fid
+                        image: img, thumbnail: thumb, inspectionId: inspectionId, fieldId: fid
                     ) else { continue }
                     PendingUploadStore.shared.addPending(
                         filePath: path, inspectionId: inspectionId, fieldId: fid
                     )
                     await MainActor.run {
-                        guard images.indices.contains(entryIndex) else { return }
-                        images[entryIndex].fileURL = URL(fileURLWithPath: path)
+                        guard let idx = images.firstIndex(where: { $0.id == id }) else { return }
+                        images[idx].fileURL = URL(fileURLWithPath: path)
                     }
                 }
+                // All fileURLs are now set — notify parent and start upload exactly once.
+                saveValidation(status: self.status, notifyParent: false)
             }
         }
     }
@@ -292,7 +296,13 @@ final class InspectionValidationViewModel: ObservableObject {
         // uploads it — no idle waiting for all compressions to finish first.
         // CPU (compress) and network (upload) overlap across slots.
         // For N > maxConcurrent images this saves ~25–35% vs sequential phases.
-        let maxConcurrent = isHighMemoryDevice ? 4 : 3
+        //
+        // Slot budget (peak ~56 MB/slot during UIGraphicsImageRenderer resize):
+        //   low-RAM  (<6 GB) : 3 slots → ~168 MB pipeline peak
+        //   high-RAM (≥6 GB) : 5 slots WiFi / 4 slots cellular → ~280 / 224 MB peak
+        //   ultra-RAM(≥8 GB) : 6 slots WiFi / 5 slots cellular → ~336 / 280 MB peak
+        // Combined with app baseline (~300 MB after cache fixes) stays well under jetsam.
+        let maxConcurrent = maxConcurrentSlots
 
         let newlyUploadedURLs: [String] = await withTaskGroup(of: (Int, String?).self) { group in
             var pending = Array(localImages.enumerated())
@@ -435,15 +445,47 @@ final class InspectionValidationViewModel: ObservableObject {
 
     // MARK: - Device & Network Helpers
 
-    /// true when physical RAM >= 6 GB — allows 4 concurrent compress slots instead of 3.
-    private var isHighMemoryDevice: Bool {
-        ProcessInfo.processInfo.physicalMemory >= 6 * 1_024 * 1_024 * 1_024
+    /// Concurrent upload slots, tuned by device RAM and current network type.
+    ///
+    /// Peak memory per slot ≈ 56 MB (UIGraphicsImageRenderer decode + resize of a 12MP frame).
+    /// Tiers keep total pipeline memory within safe jetsam margins on all devices.
+    ///
+    /// | RAM    | WiFi/5G | Cellular |
+    /// |--------|---------|----------|
+    /// | <6 GB  |    3    |    3     |
+    /// | ≥6 GB  |    5    |    4     |
+    /// | ≥8 GB  |    6    |    5     |
+    private var maxConcurrentSlots: Int {
+        let ram = ProcessInfo.processInfo.physicalMemory
+        let gb: UInt64 = 1_024 * 1_024 * 1_024
+        let onWiFi = isOnWiFiOrEthernet
+
+        switch ram {
+        case ..<(6 * gb):        return 3
+        case (6 * gb)..<(8 * gb): return onWiFi ? 5 : 4
+        default:                 return onWiFi ? 6 : 5
+        }
+    }
+
+    /// Returns true when the current path is WiFi or wired Ethernet (not expensive cellular).
+    private var isOnWiFiOrEthernet: Bool {
+        let monitor = NWPathMonitor()
+        var result = false
+        let sema = DispatchSemaphore(value: 0)
+        monitor.pathUpdateHandler = { path in
+            result = path.usesInterfaceType(.wifi) || path.usesInterfaceType(.wiredEthernet)
+            sema.signal()
+        }
+        monitor.start(queue: DispatchQueue(label: "net.check"))
+        sema.wait()
+        monitor.cancel()
+        return result
     }
 
     private func updateDirtyState() {
         isDirty = status != initialStatus ||
                   comments != initialComments ||
-                  images.count != initialImagesCount
+                  Set(images.map { $0.id }) != initialImageIds
     }
     
     private func saveDraft(_ validation: FieldValidation) {

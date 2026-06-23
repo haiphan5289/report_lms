@@ -3,8 +3,9 @@
 //  report_lms
 //
 
-import UIKit
+import CryptoKit
 import OSLog
+import UIKit
 
 /// Durable RAM + disk cache for inspection photos.
 ///
@@ -22,6 +23,7 @@ actor InspectionImageCacheActor {
     private var ram: [String: UIImage] = [:]
     private var insertionOrder: [String] = []
     private let maxRAMCount = 60
+    private var promotingKeys: Set<String> = []
 
     // MARK: - Disk root (Documents — iOS will NOT purge this)
 
@@ -48,9 +50,11 @@ actor InspectionImageCacheActor {
 
     // MARK: - Local Capture → returns file path (stable key for PendingUploadStore)
 
-    /// Writes a newly-captured `UIImage` to disk immediately and caches it in RAM.
+    /// Writes a newly-captured `UIImage` to disk immediately and caches a thumbnail in RAM.
+    /// - Parameter thumbnail: pre-resized thumbnail from Phase 1 (avoids a second resize).
+    ///   If nil, falls back to resizing `image` to 800px.
     /// Returns the absolute file path, which callers should store in `PendingUploadStore`.
-    func cacheCapture(image: UIImage, inspectionId: String, fieldId: String) async -> String? {
+    func cacheCapture(image: UIImage, thumbnail: UIImage? = nil, inspectionId: String, fieldId: String) async -> String? {
         let dir = fieldURL(inspectionId: inspectionId, fieldId: fieldId)
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -63,14 +67,19 @@ actor InspectionImageCacheActor {
         let fileURL = dir.appendingPathComponent(fileName)
         let filePath = fileURL.path
 
-        // RAM — store thumbnail only; full-res lives on disk.
-        // A 800px thumbnail is ~1.9 MB vs ~48 MB for a 12MP capture.
-        let thumbForRAM = await Task.detached(priority: .userInitiated) {
-            image.resizedIfNeeded(maxDimension: 800)
-        }.value
+        // RAM — reuse the thumbnail already computed in Phase 1 when available,
+        // otherwise resize here. Avoids re-resizing a 12MP image a second time.
+        let thumbForRAM: UIImage
+        if let provided = thumbnail {
+            thumbForRAM = provided
+        } else {
+            thumbForRAM = await Task.detached(priority: .userInitiated) {
+                image.resizedIfNeeded(maxDimension: 800)
+            }.value
+        }
         addToRAM(key: filePath, image: thumbForRAM)
 
-        // Disk — write full-resolution JPEG so upload path reads original quality
+        // Disk — write full-resolution JPEG so upload path reads original quality.
         let data = await Task.detached(priority: .userInitiated) {
             image.jpegData(compressionQuality: 0.85)
         }.value
@@ -100,9 +109,13 @@ actor InspectionImageCacheActor {
             return cached
         }
 
+        // Disk file is full-res JPEG (~48 MB decoded). Resize to 800px before storing in RAM
+        // so this path matches the thumbnail size produced by Phase 1 / cacheCapture.
         let image = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
-            return UIImage(data: data)?.preparingForDisplay()
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  let full = UIImage(data: data) else { return nil }
+            let resized = full.resizedIfNeeded(maxDimension: 800)
+            return resized.preparingForDisplay() ?? resized
         }.value
 
         if let image {
@@ -117,13 +130,26 @@ actor InspectionImageCacheActor {
     /// Called after upload succeeds so the next session can display instantly without Firebase.
     func cacheRemote(image: UIImage, url: URL, inspectionId: String, fieldId: String) async {
         let key = remoteKey(for: url)
+        // Guard against redundant concurrent calls for the same URL (e.g. multiple cells
+        // for the same image all hitting ImageCacheActor and each launching a promote task).
+        // Since actor calls are serialised, the second caller sees the key already present.
+        guard !promotingKeys.contains(key) else { return }
+        promotingKeys.insert(key)
+        defer { promotingKeys.remove(key) }
+
         let dir = fieldURL(inspectionId: inspectionId, fieldId: fieldId)
         let fileURL = dir.appendingPathComponent("remote_\(key).jpg")
 
-        addToRAM(key: fileURL.path, image: image)
+        // Resize to 1024px max before RAM — remote images from Firebase can be full-res
+        // (e.g. 3024×4032 = ~46 MB decoded). 1024px cap ≈ 4 MB per entry.
+        let display = await Task.detached(priority: .userInitiated) { () -> UIImage in
+            let resized = image.resizedIfNeeded(maxDimension: 1024)
+            return resized.preparingForDisplay() ?? resized
+        }.value
+        addToRAM(key: fileURL.path, image: display)
 
         let data = await Task.detached(priority: .background) {
-            image.jpegData(compressionQuality: 0.85)
+            display.jpegData(compressionQuality: 0.85)
         }.value
 
         guard let data else { return }
@@ -145,9 +171,13 @@ actor InspectionImageCacheActor {
             return cached
         }
 
+        // Disk file was written by cacheRemote at 1024px — reload and resize defensively
+        // in case a future caller writes a larger variant to the same path.
         let image = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-            guard let data = try? Data(contentsOf: fileURL) else { return nil }
-            return UIImage(data: data)?.preparingForDisplay()
+            guard let data = try? Data(contentsOf: fileURL),
+                  let full = UIImage(data: data) else { return nil }
+            let resized = full.resizedIfNeeded(maxDimension: 1024)
+            return resized.preparingForDisplay() ?? resized
         }.value
 
         if let image {
@@ -211,9 +241,14 @@ actor InspectionImageCacheActor {
         var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
         comps?.query = nil  // strip signed token — key is stable across URL rotations
         let stable = comps?.string ?? url.absoluteString
-        // Hash the full stable URL — compact, unique per image, no truncation collisions.
-        // (addingPercentEncoding+prefix(80) would collide for all Firebase URLs sharing the same domain prefix.)
-        return String(stable.hashValue & 0x7FFFFFFFFFFFFFFF, radix: 16)
+        // SHA256 prefix — deterministic across process restarts.
+        // Swift's hashValue is seed-randomised per process, so it must NOT be used as a
+        // persistent file name (every restart produces a different key → cache miss forever).
+        guard let data = stable.data(using: .utf8) else { return url.lastPathComponent }
+        return SHA256.hash(data: data)
+            .prefix(16)
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     private func addToRAM(key: String, image: UIImage) {

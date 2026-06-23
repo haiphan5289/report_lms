@@ -46,9 +46,15 @@ final class PendingUploadRetryService {
         uploadUseCase: UploadInspectionMediaUseCase,
         storageService: InspectionStorageServiceType
     ) async {
+        // Read full-resolution JPEG directly from disk, bypassing the RAM cache which stores
+        // an 800px thumbnail — upload must always use original quality.
         var loadedImages: [UIImage] = []
         for path in paths {
-            guard let img = await InspectionImageCacheActor.shared.loadFromPath(path) else { continue }
+            let img = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+                guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
+                return UIImage(data: data)
+            }.value
+            guard let img else { continue }
             loadedImages.append(img)
         }
         guard !loadedImages.isEmpty else {

@@ -76,7 +76,8 @@
       "Bash(dwarfdump --uuid \"/Users/haiphan/Library/Developer/Xcode/Archives/2026-06-14/report_lms 14-6-26, 17.30.xcarchive/dSYMs/report_lms.app.dSYM\")",
       "Bash(dwarfdump --uuid \"/Users/haiphan/Library/Developer/Xcode/Archives/2026-06-14/report_lms 14-6-26, 10.08.xcarchive/dSYMs/report_lms.app.dSYM\")",
       "Bash(dwarfdump --uuid \"/Users/haiphan/Library/Developer/Xcode/DerivedData/report_lms-gcvfnvfvmrkrqxdygmzfkjgbyeqd/Build/Intermediates.noindex/ArchiveIntermediates/report_lms/BuildProductsPath/Release-iphoneos/report_lms.app.dSYM\")",
-      "Bash(mkdir -p /Users/haiphan/Desktop/haiphan/report_lms/report_lms/Sources/Presentation/Modules/Home/Progress/docs)"
+      "Bash(mkdir -p /Users/haiphan/Desktop/haiphan/report_lms/report_lms/Sources/Presentation/Modules/Home/Progress/docs)",
+      "Bash(git -C /Users/haiphan/Desktop/haiphan/report_lms diff HEAD -- report_lms/Sources/Presentation/Modules/InspectionDetail/InspectionValidation/InspectionValidationViewModel.swift)"
     ],
     "additionalDirectories": [
       "/private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440",
