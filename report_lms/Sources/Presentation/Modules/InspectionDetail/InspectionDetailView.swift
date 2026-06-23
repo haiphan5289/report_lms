@@ -26,6 +26,7 @@ struct InspectionDetailView: View {
     @State private var tabBarVisible = false
     @GestureState private var submitPressed = false
     @State private var showFinalReport = false
+    @State private var selectedErrorItem: SavedErrorItem? = nil
 
     // MARK: - Initialization
     init(inspectionId: String, inspectionNumber: String, homeViewModel: LMSHomeViewModel? = nil) {
@@ -105,7 +106,7 @@ struct InspectionDetailView: View {
                 .environmentObject(viewModel)
             }
         }
-        .navigationDestination(item: $viewModel.selectedErrorItem) { item in
+        .navigationDestination(item: $selectedErrorItem) { item in
             PhotoCaptureErrorReviewView(
                 inspectionId: viewModel.inspectionId,
                 initialImages: item.imageURLs.enumerated().map { index, url in
@@ -117,18 +118,13 @@ struct InspectionDetailView: View {
                 editingItem: item,
                 onImagesUpdated: { _ in },
                 onSaved: { saved, images in
-                    print("🔍 [InspectionDetailView] onSaved callback triggered")
                     viewModel.errorHomeViewModel.upsertErrorItem(saved, thumbnails: images)
                     viewModel.errorHomeViewModel.scrollToTopTrigger += 1
                 },
                 onDeleted: { deletedItem in
-                    print("🔍 [InspectionDetailView] onDeleted callback triggered")
                     viewModel.errorHomeViewModel.deleteErrorItem(deletedItem)
                 }
             )
-            .onAppear {
-                print("🔍 [InspectionDetailView] navigationDestination appeared for item: \(item.id)")
-            }
         }
     }
 
@@ -219,11 +215,7 @@ struct InspectionDetailView: View {
         ErrorHomeView(
             viewModel: viewModel.errorHomeViewModel,
             onItemTapped: { item in
-                print("🔍 [InspectionDetailView] errorTabContent onItemTapped callback")
-                print("   - Item ID: \(item.id)")
-                print("   - Setting selectedErrorItem...")
-                viewModel.selectedErrorItem = item
-                print("   - selectedErrorItem set ✅")
+                selectedErrorItem = item
             }
         )
     }

@@ -86,15 +86,48 @@ final class ImageEditorViewModel: ObservableObject {
     private func rotatedSourceImage() -> UIImage {
         let steps = (Int(rotationAngle) / 90) % 4
         guard steps != 0 else { return sourceImage }
-        var orientation: UIImage.Orientation
-        switch steps {
-        case 1: orientation = .right
-        case 2: orientation = .down
-        case 3: orientation = .left
-        default: return sourceImage
+
+        // Step 1: normalize orientation to .up so that UIImage.size == pixel dimensions.
+        // Camera photos have imageOrientation == .right (pixels stored landscape, displayed portrait).
+        // UIGraphicsImageRenderer respects imageOrientation when drawing, producing a physically
+        // correct .up image whose size matches what the user sees on screen.
+        let fmt = UIGraphicsImageRendererFormat()
+        fmt.scale = 1.0
+        let normalized: UIImage
+        if sourceImage.imageOrientation == .up {
+            normalized = sourceImage
+        } else {
+            normalized = UIGraphicsImageRenderer(size: sourceImage.size, format: fmt).image { _ in
+                sourceImage.draw(in: CGRect(origin: .zero, size: sourceImage.size))
+            }
         }
-        guard let cgImage = sourceImage.cgImage else { return sourceImage }
-        return UIImage(cgImage: cgImage, scale: sourceImage.scale, orientation: orientation)
+
+        // Step 2: physically rotate pixels by steps * 90° CW using CGContext transform.
+        // This ensures UIImage.size reflects the rotated dimensions so compositeImage()
+        // uses a uniform scaleX == scaleY when mapping canvas strokes to the output image.
+        let isSwap = steps % 2 == 1
+        let newSize = isSwap
+            ? CGSize(width: normalized.size.height, height: normalized.size.width)
+            : normalized.size
+
+        let result = UIGraphicsImageRenderer(size: newSize, format: fmt).image { ctx in
+            let cg = ctx.cgContext
+            switch steps {
+            case 1: // 90° CW
+                cg.translateBy(x: newSize.width, y: 0)
+                cg.rotate(by: .pi / 2)
+            case 2: // 180°
+                cg.translateBy(x: newSize.width, y: newSize.height)
+                cg.rotate(by: .pi)
+            case 3: // 270° CW (= 90° CCW)
+                cg.translateBy(x: 0, y: newSize.height)
+                cg.rotate(by: -.pi / 2)
+            default: break
+            }
+            normalized.draw(in: CGRect(origin: .zero, size: normalized.size))
+        }
+        print("🔍 [ImageEditorViewModel] rotatedSourceImage() — steps=\(steps), size \(sourceImage.size) → \(result.size)")
+        return result
     }
 
     private func compositeImage(canvasSize: CGSize) -> UIImage {

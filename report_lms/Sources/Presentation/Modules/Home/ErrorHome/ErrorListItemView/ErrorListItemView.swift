@@ -13,8 +13,6 @@ struct ErrorItemCardView: View {
     let item: SavedErrorItem
     var cachedThumbnail: UIImage? = nil
 
-    @GestureState private var isPressed = false
-
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             thumbnailView
@@ -39,12 +37,6 @@ struct ErrorItemCardView: View {
             }
         }
         .padding(12)
-        .scaleEffect(isPressed ? 0.97 : 1.0)
-        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .updating($isPressed) { _, state, _ in state = true }
-        )
     }
 
     private var thumbnailView: some View {

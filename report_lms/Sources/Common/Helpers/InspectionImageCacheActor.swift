@@ -34,7 +34,17 @@ actor InspectionImageCacheActor {
 
     // MARK: - Init
 
-    private init() {}
+    private init() {
+        // Singleton lives for the app's lifetime — observer token is intentionally discarded.
+        _ = NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { await self.evictAllRAM() }
+        }
+    }
 
     // MARK: - Local Capture → returns file path (stable key for PendingUploadStore)
 
@@ -165,6 +175,15 @@ actor InspectionImageCacheActor {
 
         CacheDebugLogger.shared.log(.evicted(inspectionId: inspectionId))
         logger.log("Evicted inspection \(inspectionId, privacy: .public) from InspectionImageCacheActor")
+    }
+
+    /// Clears all RAM thumbnails in response to a memory warning.
+    /// Disk images are untouched — next display will reload from disk transparently.
+    func evictAllRAM() {
+        let count = ram.count
+        ram.removeAll()
+        insertionOrder.removeAll()
+        logger.warning("Memory warning: evicted \(count, privacy: .public) RAM entries (~\(count * 2, privacy: .public) MB freed)")
     }
 
     // MARK: - Debug stats

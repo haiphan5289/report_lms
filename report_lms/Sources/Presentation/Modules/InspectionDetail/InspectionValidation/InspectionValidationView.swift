@@ -18,6 +18,13 @@ struct InspectionValidationView: View {
         static let bottomButtonHeight: CGFloat = 100
         static let buttonIconSize: CGFloat = 40
         static let cornerRadius: CGFloat = 12
+        static let animationDuration: Double = 0.35
+        static let floatAnimationDuration: Double = 1.8
+        static let springResponse: Double = 0.2
+        static let springDamping: Double = 0.6
+        static let pressedScale: CGFloat = 0.92
+        static let bottomBarTopPadding: CGFloat = 12
+        static let bottomBarBottomPadding: CGFloat = 6
     }
     
     // MARK: - Properties
@@ -87,7 +94,7 @@ struct InspectionValidationView: View {
                     headerSection
                         .opacity(contentVisible ? 1 : 0)
                         .offset(y: contentVisible ? 0 : 16)
-                        .animation(.easeOut(duration: 0.35), value: contentVisible)
+                        .animation(.easeOut(duration: Layout.animationDuration), value: contentVisible)
                     statusSection
                         .opacity(contentVisible ? 1 : 0)
                         .offset(y: contentVisible ? 0 : 16)
@@ -118,23 +125,8 @@ struct InspectionValidationView: View {
         }
         .navigationTitle(viewModel.fieldLabel)
         .navigationBarTitleDisplayMode(.inline)
-//        #if DEBUG
-//        .toolbar {
-//            ToolbarItem(placement: .navigationBarTrailing) {
-//                CacheDebugButton(isPresented: $showCacheDebug)
-//            }
-//        }
-//        .sheet(isPresented: $showCacheDebug) {
-//            CacheDebugOverlay(
-//                inspectionId: inspectionIdContext ?? "unknown",
-//                fieldId: fieldIdContext
-//            )
-//            .presentationDetents([.medium, .large])
-//            .presentationDragIndicator(.visible)
-//        }
-//        #endif
         .task {
-            withAnimation(.easeOut(duration: 0.35)) { contentVisible = true }
+            withAnimation(.easeOut(duration: Layout.animationDuration)) { contentVisible = true }
             await viewModel.loadPendingCaptures()
         }
         .sheet(isPresented: $viewModel.showCamera) {
@@ -146,8 +138,10 @@ struct InspectionValidationView: View {
         .sheet(isPresented: $showImageEditor) {
             if let image = editingUIImage, let index = selectedImageIndex {
                 ImageEditorView(image: image) { editedImage in
+                    print("🔍 [InspectionValidationView] ImageEditorView.onSave — index=\(index), editedSize=\(editedImage.size)")
                     viewModel.replaceImage(at: index, with: editedImage)
                     imageRefreshTrigger += 1
+                    print("   - imageRefreshTrigger → \(imageRefreshTrigger)")
                 }
                 .environmentObject(LocalizationManager.shared)
             }
@@ -163,7 +157,7 @@ struct InspectionValidationView: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: viewModel.isDownloading)
+        .animation(.easeInOut(duration: Layout.animationDuration), value: viewModel.isDownloading)
         .lmsSnackbar(message: $viewModel.snackbarMessage, type: .error)
         .fullScreenCover(isPresented: $viewModel.showDeleteConfirmation) {
             DeleteConfirmationView(
@@ -190,16 +184,14 @@ struct InspectionValidationView: View {
 
             Spacer()
 
-            Button(action: {
-                viewModel.openCamera()
-            }) {
+            Button(action: { viewModel.openCamera() }, label: {
                 Image(systemName: "camera.fill")
                     .font(.system(size: Layout.iconSize))
-                    .foregroundColor(.white)
+                    .foregroundColor(LMSColor.white)
                     .frame(width: 44, height: 44)
                     .background(LMSColor.primary)
                     .clipShape(Circle())
-            }
+            })
         }
         .padding()
         .background(Color(.systemBackground))
@@ -276,7 +268,7 @@ struct InspectionValidationView: View {
                         .foregroundColor(LMSColor.textTertiary)
                         .offset(y: emptyIconOffset)
                         .onAppear {
-                            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                            withAnimation(.easeInOut(duration: Layout.floatAnimationDuration).repeatForever(autoreverses: true)) {
                                 emptyIconOffset = 4
                             }
                         }
@@ -290,13 +282,11 @@ struct InspectionValidationView: View {
                         ImageGalleryItemView(
                             inspectionImage: image,
                             isReorderMode: viewModel.showReorderMode,
-                            onDelete: {
-                                if let index = viewModel.images.firstIndex(where: { $0.id == image.id }) {
-                                    viewModel.requestDeleteImage(at: index)
-                                }
-                            },
+                            onDelete: { viewModel.requestDeleteImage(byId: image.id) },
                             onEdit: {
+                                print("🔍 [InspectionValidationView] onEdit tapped — imageId=\(image.id)")
                                 selectedImageIndex = viewModel.images.firstIndex(where: { $0.id == image.id })
+                                print("   - selectedImageIndex=\(String(describing: selectedImageIndex))")
                                 Task { await handleEditImage() }
                             },
                             onShare: {
@@ -307,11 +297,7 @@ struct InspectionValidationView: View {
                                 get: {
                                     viewModel.images.first(where: { $0.id == image.id })?.description ?? ""
                                 },
-                                set: { newValue in
-                                    if let idx = viewModel.images.firstIndex(where: { $0.id == image.id }) {
-                                        viewModel.images[idx].description = newValue
-                                    }
-                                }
+                                set: { viewModel.updateDescription($0, for: image.id) }
                             ),
                             inspectionId: inspectionIdContext,
                             fieldId: fieldIdContext
@@ -354,136 +340,123 @@ struct InspectionValidationView: View {
     
     private var bottomActionsView: some View {
         HStack(spacing: 20) {
-            // Button 1: Đã kiểm tra (Pass)
-            VStack(spacing: 8) {
-                Button(action: {
-                    viewModel.saveValidation(status: .passed)
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.green.opacity(0.1))
-                            .frame(width: 60, height: 60)
-
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: Layout.buttonIconSize))
-                            .foregroundColor(.green)
-                    }
-                }
-                .scaleEffect(passPressed ? 0.92 : 1.0)
-                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: passPressed)
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 0)
-                        .updating($passPressed) { _, state, _ in state = true }
-                )
-
-                LMSLabel("Đã kiểm tra", style: .caption)
-            }
-
-            // Button 2: Không áp dụng (Not Applicable)
-            VStack(spacing: 8) {
-                Button(action: {
-                    viewModel.saveValidation(status: .notApplicable)
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.gray.opacity(0.1))
-                            .frame(width: 60, height: 60)
-
-                        Image(systemName: "slash.circle.fill")
-                            .font(.system(size: Layout.buttonIconSize))
-                            .foregroundColor(.gray)
-                    }
-                }
-                .scaleEffect(naPressed ? 0.92 : 1.0)
-                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: naPressed)
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 0)
-                        .updating($naPressed) { _, state, _ in state = true }
-                )
-
-                LMSLabel("Không áp dụng", style: .caption)
-            }
+            passButton
+            notApplicableButton
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, Layout.horizontalPadding)
-        .padding(.top, 12)
-        .padding(.bottom, 6)
+        .padding(.top, Layout.bottomBarTopPadding)
+        .padding(.bottom, Layout.bottomBarBottomPadding)
         .background(
             Color(.systemBackground)
                 .shadow(color: LMSColor.shadow.opacity(0.2), radius: 8, x: 0, y: -2)
                 .ignoresSafeArea()
         )
     }
+
+    private var passButton: some View {
+        VStack(spacing: 8) {
+            Button(action: { viewModel.saveValidation(status: .passed) }, label: {
+                ZStack {
+                    Circle()
+                        .fill(LMSColor.success.opacity(0.1))
+                        .frame(width: 60, height: 60)
+
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: Layout.buttonIconSize))
+                        .foregroundColor(LMSColor.success)
+                }
+            })
+            .scaleEffect(passPressed ? Layout.pressedScale : 1.0)
+            .animation(.spring(response: Layout.springResponse, dampingFraction: Layout.springDamping), value: passPressed)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($passPressed) { _, state, _ in state = true }
+            )
+
+            LMSLabel("Đã kiểm tra", style: .caption)
+        }
+    }
+
+    private var notApplicableButton: some View {
+        VStack(spacing: 8) {
+            Button(action: { viewModel.saveValidation(status: .notApplicable) }, label: {
+                ZStack {
+                    Circle()
+                        .fill(LMSColor.textTertiary.opacity(0.1))
+                        .frame(width: 60, height: 60)
+
+                    Image(systemName: "slash.circle.fill")
+                        .font(.system(size: Layout.buttonIconSize))
+                        .foregroundColor(LMSColor.textTertiary)
+                }
+            })
+            .scaleEffect(naPressed ? Layout.pressedScale : 1.0)
+            .animation(.spring(response: Layout.springResponse, dampingFraction: Layout.springDamping), value: naPressed)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($naPressed) { _, state, _ in state = true }
+            )
+
+            LMSLabel("Không áp dụng", style: .caption)
+        }
+    }
     
 
     // MARK: - Image Action Handlers
 
-    private func handleEditImage() async {
-        guard let index = selectedImageIndex, viewModel.images.indices.contains(index) else { return }
-        let img = viewModel.images[index]
+    /// Resolves the best available full-resolution image for editing or sharing.
+    /// Returns nil only when a remote download fails (snackbar already set).
+    private func resolveFullImage(for img: InspectionImage) async -> UIImage? {
         if let remoteURL = img.remoteURL {
             viewModel.isDownloading = true
+            defer { viewModel.isDownloading = false }
             do {
-                let downloaded = try await viewModel.downloadImage(from: remoteURL)
-                viewModel.isDownloading = false
-                editingUIImage = downloaded
-                showImageEditor = true
+                return try await viewModel.downloadImage(from: remoteURL)
             } catch {
-                viewModel.isDownloading = false
+                print("   - ❌ Download failed: \(error)")
                 viewModel.snackbarMessage = "Không thể tải ảnh. Vui lòng thử lại."
+                return nil
             }
         } else if let fileURL = img.fileURL {
-            // Load full-res from disk — avoids sending a thumbnail to the editor
             viewModel.isDownloading = true
-            let fullRes = await Task.detached { UIImage(contentsOfFile: fileURL.path) }.value
-            viewModel.isDownloading = false
-            editingUIImage = fullRes ?? img.thumbnail
-            showImageEditor = true
-        } else {
-            editingUIImage = img.thumbnail
-            showImageEditor = true
+            defer { viewModel.isDownloading = false }
+            return await Task.detached { UIImage(contentsOfFile: fileURL.path) }.value
+                ?? img.thumbnail
         }
+        return img.thumbnail
+    }
+
+    private func handleEditImage() async {
+        print("🔍 [InspectionValidationView] handleEditImage()")
+        guard let index = selectedImageIndex, viewModel.images.indices.contains(index) else {
+            print("   - ⚠️ Guard failed: selectedImageIndex=\(String(describing: selectedImageIndex)), imagesCount=\(viewModel.images.count)")
+            return
+        }
+        let img = viewModel.images[index]
+        print("   - index=\(index), isRemote=\(img.isRemote), hasFileURL=\(img.fileURL != nil), hasThumbnail=\(img.thumbnail != nil)")
+        guard let image = await resolveFullImage(for: img) else { return }
+        editingUIImage = image
+        showImageEditor = true
+        print("   - ImageEditorView opened")
     }
 
     private func handleShareImage() async {
         guard let index = selectedImageIndex, viewModel.images.indices.contains(index) else { return }
         let img = viewModel.images[index]
-        if let remoteURL = img.remoteURL {
-            viewModel.isDownloading = true
-            do {
-                let downloaded = try await viewModel.downloadImage(from: remoteURL)
-                viewModel.isDownloading = false
-                sharingImage = downloaded
-                showShareSheet = true
-            } catch {
-                viewModel.isDownloading = false
-                viewModel.snackbarMessage = "Không thể tải ảnh. Vui lòng thử lại."
-            }
-        } else if let fileURL = img.fileURL {
-            // Load full-res from disk for sharing
-            viewModel.isDownloading = true
-            let fullRes = await Task.detached { UIImage(contentsOfFile: fileURL.path) }.value
-            viewModel.isDownloading = false
-            sharingImage = fullRes ?? img.thumbnail
-            showShareSheet = true
-        } else {
-            sharingImage = img.thumbnail
-            showShareSheet = true
-        }
+        guard let image = await resolveFullImage(for: img) else { return }
+        sharingImage = image
+        showShareSheet = true
     }
 
     // MARK: - Helper Methods
 
     private func statusColor(for status: ValidationStatus) -> Color {
         switch status {
-        case .passed:
-            return .green
-        case .failed:
-            return .red
-        case .pending:
-            return .orange
-        case .notApplicable:
-            return .gray
+        case .passed: return LMSColor.success
+        case .failed: return LMSColor.destructive
+        case .pending: return LMSColor.warning
+        case .notApplicable: return LMSColor.textTertiary
         }
     }
 }
@@ -498,7 +471,7 @@ private struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-/// Clear background view for fullScreenCover
+// UIViewRepresentable shim: clears the dimming layer behind fullScreenCover
 struct ClearBackgroundView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
@@ -519,10 +492,10 @@ struct ClearBackgroundView: UIViewRepresentable {
             fieldId: "field1",
             fieldLabel: "Carton Overview",
             initialImages: [
-                InspectionImage(image: UIImage(systemName: "photo")!),
-                InspectionImage(image: UIImage(systemName: "photo.fill")!),
-                InspectionImage(image: UIImage(systemName: "photo.circle")!),
-                InspectionImage(image: UIImage(systemName: "photo.circle.fill")!)
+                InspectionImage(image: UIImage(systemName: "photo") ?? UIImage()),
+                InspectionImage(image: UIImage(systemName: "photo.fill") ?? UIImage()),
+                InspectionImage(image: UIImage(systemName: "photo.circle") ?? UIImage()),
+                InspectionImage(image: UIImage(systemName: "photo.circle.fill") ?? UIImage())
             ]
         ) { validation in
             print("Saved: \(validation)")

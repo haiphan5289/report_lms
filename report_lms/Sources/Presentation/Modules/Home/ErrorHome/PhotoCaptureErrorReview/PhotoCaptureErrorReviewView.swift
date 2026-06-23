@@ -233,8 +233,14 @@ struct PhotoCaptureErrorReviewView: View {
                             index: index,
                             total: viewModel.images.count,
                             note: Binding(
-                                get: { viewModel.images[index].note },
-                                set: { viewModel.images[index].note = $0 }
+                                get: {
+                                    guard index < viewModel.images.count else { return "" }
+                                    return viewModel.images[index].note
+                                },
+                                set: {
+                                    guard index < viewModel.images.count else { return }
+                                    viewModel.images[index].note = $0
+                                }
                             ),
                             cornerRadius: Layout.cornerRadius,
                             onEdit: {

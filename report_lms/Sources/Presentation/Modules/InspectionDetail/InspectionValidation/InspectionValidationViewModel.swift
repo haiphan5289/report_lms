@@ -142,6 +142,11 @@ final class InspectionValidationViewModel: ObservableObject {
         imageIndexToDelete = index
         showDeleteConfirmation = true
     }
+
+    func requestDeleteImage(byId id: UUID) {
+        guard let index = images.firstIndex(where: { $0.id == id }) else { return }
+        requestDeleteImage(at: index)
+    }
     
     /// Remove image at specific index (after confirmation)
     func confirmDeleteImage() {
@@ -208,6 +213,11 @@ final class InspectionValidationViewModel: ObservableObject {
     func updateComments(_ newComments: String) {
         comments = newComments
         updateDirtyState()
+    }
+
+    func updateDescription(_ text: String, for imageId: UUID) {
+        guard let idx = images.firstIndex(where: { $0.id == imageId }) else { return }
+        images[idx].description = text
     }
     
     // MARK: - Pending Upload Retry
@@ -369,27 +379,44 @@ final class InspectionValidationViewModel: ObservableObject {
     }
     
     func replaceImage(at index: Int, with newImage: UIImage) {
-        guard images.indices.contains(index) else { return }
+        print("🔍 [InspectionValidationVM] replaceImage(at: \(index)) — newImage size=\(newImage.size)")
+        guard images.indices.contains(index) else {
+            print("   - ⚠️ Index \(index) out of range (imagesCount=\(images.count))")
+            return
+        }
+        print("   - old entry: isRemote=\(images[index].isRemote), hasFileURL=\(images[index].fileURL != nil)")
         let currentDescription = images[index].description
         // Store thumbnail in memory; full-res edited image has no fileURL (it's in-memory only).
         let thumb = newImage.resizedIfNeeded(maxDimension: 800)
+        print("   - thumbnail generated: size=\(thumb.size) (⚠️ no fileURL — upload will use thumbnail quality)")
         images[index] = InspectionImage(image: thumb, description: currentDescription)
         updateDirtyState()
+        print("   - ✅ Replaced at index \(index)")
     }
 
     func downloadImage(from url: URL) async throws -> UIImage {
+        print("🔍 [InspectionValidationVM] downloadImage(from:)")
+        print("   - url=...\(url.absoluteString.suffix(60))")
         if let cached = await ImageCacheActor.shared.image(for: url) {
+            print("   - ✅ Cache hit (ImageCacheActor)")
             return cached
         }
+        print("   - Cache miss — starting network download")
         let (data, _) = try await URLSession.shared.data(from: url)
+        print("   - Downloaded \(data.count) bytes (~\(data.count / 1024)KB)")
         guard let image = UIImage(data: data) else {
+            print("   - ❌ Failed to decode UIImage from data")
             throw URLError(.cannotDecodeContentData)
         }
+        print("   - Decoded image size=\(image.size)")
         await ImageCacheActor.shared.store(image, for: url)
         let maxDimension: CGFloat = 2048
         if image.size.width > maxDimension || image.size.height > maxDimension {
-            return resizeImage(image, maxDimension: maxDimension)
+            let resized = resizeImage(image, maxDimension: maxDimension)
+            print("   - ⚠️ Resized \(image.size) → \(resized.size) (BUG-011 guard)")
+            return resized
         }
+        print("   - Size within 2048px limit, no resize needed")
         return image
     }
 
@@ -461,10 +488,10 @@ extension InspectionValidationViewModel {
             fieldId: "field1",
             fieldLabel: "Carton Overview",
             initialImages: [
-                InspectionImage(image: UIImage(systemName: "photo")!),
-                InspectionImage(image: UIImage(systemName: "photo.fill")!),
-                InspectionImage(image: UIImage(systemName: "photo.circle")!),
-                InspectionImage(image: UIImage(systemName: "photo.circle.fill")!)
+                InspectionImage(image: UIImage(systemName: "photo") ?? UIImage()),
+                InspectionImage(image: UIImage(systemName: "photo.fill") ?? UIImage()),
+                InspectionImage(image: UIImage(systemName: "photo.circle") ?? UIImage()),
+                InspectionImage(image: UIImage(systemName: "photo.circle.fill") ?? UIImage())
             ]
         )
     }

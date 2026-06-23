@@ -69,11 +69,19 @@
       "Bash(firebase login:list)",
       "Bash(firebase projects:list)",
       "Bash(firebase functions:list)",
-      "Bash(xargs cat -n)"
+      "Bash(xargs cat -n)",
+      "Bash(mdfind \"com_apple_xcode_dsym_uuids == 9A41548C-F4B4-3216-B4BA-6D1A864ACBAE\")",
+      "Bash(dwarfdump --uuid \"/Users/haiphan/Library/Developer/Xcode/Archives/2026-06-14/report_lms 14-6-26, 09.43.xcarchive/dSYMs/report_lms.app.dSYM\")",
+      "Bash(xargs -I{} sh -c 'echo \"--- {}\"; dwarfdump --uuid \"{}\" 2>/dev/null')",
+      "Bash(dwarfdump --uuid \"/Users/haiphan/Library/Developer/Xcode/Archives/2026-06-14/report_lms 14-6-26, 17.30.xcarchive/dSYMs/report_lms.app.dSYM\")",
+      "Bash(dwarfdump --uuid \"/Users/haiphan/Library/Developer/Xcode/Archives/2026-06-14/report_lms 14-6-26, 10.08.xcarchive/dSYMs/report_lms.app.dSYM\")",
+      "Bash(dwarfdump --uuid \"/Users/haiphan/Library/Developer/Xcode/DerivedData/report_lms-gcvfnvfvmrkrqxdygmzfkjgbyeqd/Build/Intermediates.noindex/ArchiveIntermediates/report_lms/BuildProductsPath/Release-iphoneos/report_lms.app.dSYM\")",
+      "Bash(mkdir -p /Users/haiphan/Desktop/haiphan/report_lms/report_lms/Sources/Presentation/Modules/Home/Progress/docs)"
     ],
     "additionalDirectories": [
       "/private/tmp/claude-502/-Users-haiphan-Desktop-haiphan-report-lms/d3afd6c9-b0e9-44cd-9560-effbdf789440",
-      "/private/tmp/claude-502"
+      "/private/tmp/claude-502",
+      "/Users/haiphan/Desktop/haiphan/report_lms/report_lms/Sources/Presentation/Modules/Home/Progress"
     ]
   }
 }

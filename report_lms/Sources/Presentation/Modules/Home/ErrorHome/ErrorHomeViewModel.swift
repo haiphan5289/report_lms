@@ -35,13 +35,17 @@ final class ErrorHomeViewModel: ObservableObject {
     func loadErrorInspections() async {
         isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
 
         do {
-            errorInspections = try await errorRepository.fetchErrorItems(for: inspectionId)
+            let items = try await errorRepository.fetchErrorItems(for: inspectionId)
+            errorInspections = items
             await loadLocalThumbnails()
+            withAnimation(.easeInOut(duration: 0.35)) { isLoading = false }
         } catch {
-            errorMessage = error.localizedDescription
+            withAnimation(.easeInOut(duration: 0.35)) {
+                errorMessage = error.localizedDescription
+                isLoading = false
+            }
         }
     }
 

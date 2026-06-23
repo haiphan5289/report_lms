@@ -43,14 +43,6 @@ final class InspectionDetailViewModel: ObservableObject {
             }.count
         }
     }
-    @Published var selectedErrorItem: SavedErrorItem? = nil {
-        didSet {
-            print("🔍 [InspectionDetailVM] selectedErrorItem changed:")
-            print("   - Old: \(oldValue?.id ?? "nil")")
-            print("   - New: \(selectedErrorItem?.id ?? "nil")")
-        }
-    }
-
     // MARK: - Child ViewModels
     private(set) lazy var errorHomeViewModel: ErrorHomeViewModel = {
         ErrorHomeViewModel(inspectionId: inspectionId)

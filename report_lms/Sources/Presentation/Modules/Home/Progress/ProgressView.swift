@@ -142,16 +142,6 @@ struct LMSProgressView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .padding(.horizontal, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(LMSColor.background)
-                                        .shadow(color: LMSColor.Shadow.medium, radius: 4, x: 0, y: 2)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(LMSColor.Border.subtle, lineWidth: 1)
-                                        )
-                                )
-                                .padding(.horizontal, 16)
                                 .padding(.vertical, 4)
                                 .opacity(listAppeared ? 1 : 0)
                                 .offset(y: listAppeared ? 0 : 16)

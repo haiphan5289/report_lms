@@ -19,8 +19,6 @@ struct ErrorHomeView: View {
     @State private var hasLoadedOnce = false
     let onItemTapped: (SavedErrorItem) -> Void
 
-    // Animation
-    @State private var listAppeared = false
     @State private var floatOffset: CGFloat = -6
 
     // MARK: - Initialization
@@ -98,8 +96,6 @@ struct ErrorHomeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.easeInOut(duration: 0.35), value: viewModel.isLoading)
-        .animation(.easeInOut(duration: 0.35), value: viewModel.errorInspections.isEmpty)
     }
 
     private var errorSkeletonView: some View {
@@ -197,9 +193,8 @@ struct ErrorHomeView: View {
                         }) {
                             ErrorItemCardView(item: item, cachedThumbnail: viewModel.thumbnailCache[item.id])
                                 .frame(maxWidth: .infinity)
-                                .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CardPressButtonStyle())
                         .background(
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(LMSColor.background)
@@ -210,16 +205,9 @@ struct ErrorHomeView: View {
                                 )
                         )
                         .padding(.horizontal, 16)
-                        .opacity(listAppeared ? 1 : 0)
-                        .offset(y: listAppeared ? 0 : 16)
-                        .animation(
-                            .easeOut(duration: 0.35).delay(Double(min(index, 6)) * 0.08),
-                            value: listAppeared
-                        )
                     }
                 }
                 .padding(.vertical, 12)
-                .onAppear { listAppeared = true }
             }
             .background(Color(.systemGroupedBackground))
             .onChange(of: viewModel.scrollToTopTrigger) { _ in
@@ -241,6 +229,17 @@ struct ErrorHomeView: View {
         .shadow(color: LMSColor.warning.opacity(0.45), radius: 14, x: 0, y: 6)
         .padding(.trailing, 24)
         .padding(.bottom, 24)
+    }
+}
+
+// MARK: - CardPressButtonStyle
+
+private struct CardPressButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
