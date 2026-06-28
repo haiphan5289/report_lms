@@ -132,9 +132,10 @@ final class InspectionDetailViewModel: ObservableObject {
     private func restoreCapturedPhotos(from inspection: Inspection) {
         for section in inspection.sections {
             for field in section.fields where !field.imageURLs.isEmpty && capturedPhotos[field.id] == nil {
-                capturedPhotos[field.id] = field.imageURLs.compactMap { urlString in
+                capturedPhotos[field.id] = field.imageURLs.enumerated().compactMap { index, urlString in
                     guard let url = URL(string: urlString) else { return nil }
-                    return InspectionImage(remoteURL: url)
+                    let description = index < field.imageDescriptions.count ? field.imageDescriptions[index] : ""
+                    return InspectionImage(remoteURL: url, description: description)
                 }
             }
         }
@@ -389,10 +390,11 @@ final class InspectionDetailViewModel: ObservableObject {
         for sectionIndex in current.sections.indices {
             for fieldIndex in current.sections[sectionIndex].fields.indices {
                 let fieldId = current.sections[sectionIndex].fields[fieldIndex].id
-                let remoteURLs = capturedPhotos[fieldId]?
-                    .compactMap { $0.remoteURL?.absoluteString } ?? []
+                let remoteImages = capturedPhotos[fieldId]?.filter { $0.isRemote } ?? []
+                let remoteURLs = remoteImages.compactMap { $0.remoteURL?.absoluteString }
                 if !remoteURLs.isEmpty {
                     current.sections[sectionIndex].fields[fieldIndex].imageURLs = remoteURLs
+                    current.sections[sectionIndex].fields[fieldIndex].imageDescriptions = remoteImages.map { $0.description }
                 }
             }
         }

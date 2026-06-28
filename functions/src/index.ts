@@ -133,10 +133,11 @@ function t(lang: Lang, key: string): string {
 }
 
 interface InspectionField {
-  id:         string;
-  label:      string;
-  value?:     string;
-  imageURLs?: string[];
+  id:                  string;
+  label:               string;
+  value?:              string;
+  imageURLs?:          string[];
+  imageDescriptions?:  string[];
 }
 
 interface InspectionSection {
@@ -611,20 +612,44 @@ async function generatePDF(
             { width: CW, lineBreak: false });
         y += Math.ceil(11 * 1.2) + 4;
 
-        // 4-column photo grid
+        // 4-column photo grid with optional per-image captions
         if (bufs.length > 0) {
-          let col = 0;
-          for (const buf of bufs) {
-            if (col === 0 && y + IMG_H > CONTENT_MAX_Y) { y = newPage(); }
-            const imgX = MARGIN + col * (IMG_W + IMG_GAP);
-            try {
-              doc.image(buf, imgX, y, { width: IMG_W, height: IMG_H });
-              doc.lineWidth(0.5).rect(imgX, y, IMG_W, IMG_H).strokeColor(C_BORDER).stroke();
-            } catch (e) { console.warn(`Embed image failed: ${e}`); }
-            col++;
-            if (col >= IMGS_PER_ROW) { col = 0; y += IMG_H + IMG_GAP; }
+          const descriptions = field.imageDescriptions ?? [];
+          const CAPTION_FONT_SIZE = 8;
+          const CAPTION_LINE_H    = CAPTION_FONT_SIZE * 1.4;
+          const CAPTION_TOP_PAD   = 3;
+          const CAPTION_MAX_H     = CAPTION_LINE_H * 2 + 2;
+
+          // Process row by row so caption height is added once per row
+          for (let rowStart = 0; rowStart < bufs.length; rowStart += IMGS_PER_ROW) {
+            const rowBufs  = bufs.slice(rowStart, rowStart + IMGS_PER_ROW);
+            const rowDescs = descriptions.slice(rowStart, rowStart + IMGS_PER_ROW);
+            const hasCaption = rowDescs.some((d) => d && d.trim().length > 0);
+            const rowH = IMG_H + (hasCaption ? CAPTION_TOP_PAD + CAPTION_MAX_H : 0);
+
+            if (y + rowH > CONTENT_MAX_Y) { y = newPage(); }
+
+            rowBufs.forEach((buf, col) => {
+              const imgX = MARGIN + col * (IMG_W + IMG_GAP);
+              try {
+                doc.image(buf, imgX, y, { width: IMG_W, height: IMG_H });
+                doc.lineWidth(0.5).rect(imgX, y, IMG_W, IMG_H).strokeColor(C_BORDER).stroke();
+              } catch (e) { console.warn(`Embed image failed: ${e}`); }
+            });
+
+            if (hasCaption) {
+              const captionY = y + IMG_H + CAPTION_TOP_PAD;
+              rowDescs.forEach((desc, col) => {
+                if (!desc || !desc.trim()) return;
+                const capX = MARGIN + col * (IMG_W + IMG_GAP);
+                doc.font(fonts.R).fontSize(CAPTION_FONT_SIZE).fillColor(C_GRAY)
+                  .text(desc.trim(), capX, captionY,
+                    { width: IMG_W, height: CAPTION_MAX_H, lineBreak: true, ellipsis: true });
+              });
+            }
+
+            y += rowH + IMG_GAP;
           }
-          if (col > 0) { y += IMG_H + IMG_GAP; }
         }
         y += 10;
       });

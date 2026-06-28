@@ -451,43 +451,68 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         orderInfo: String,
         dateStr: String
     ) -> CGFloat {
-        var y   = startY
-        var col = 0
+        var y = startY
 
-        for img in images {
-            // Row-level page break: check at the start of every new row
-            if col == 0 && y + Layout.imageHeight > Layout.contentMaxY {
+        let captionFont    = UIFont.systemFont(ofSize: 11)
+        let captionColor   = UIColor(white: 0.35, alpha: 1)
+        let captionTopPad: CGFloat = 4
+        // Reserve height for up to 2 wrapped lines of caption text
+        let captionMaxH: CGFloat   = ceil(captionFont.lineHeight * 2) + 2
+
+        // Process images row-by-row so captions can be drawn under each row
+        // and page-break decisions include caption height when needed.
+        let rows = stride(from: 0, to: images.count, by: Layout.imagesPerRow).map {
+            Array(images[$0..<min($0 + Layout.imagesPerRow, images.count)])
+        }
+
+        for row in rows {
+            let hasCaption = row.contains { !$0.description.isEmpty }
+            let rowH = Layout.imageHeight
+                + (hasCaption ? captionTopPad + captionMaxH : 0)
+
+            if y + rowH > Layout.contentMaxY {
                 ctx.beginPage()
                 pageNum += 1
                 drawFooter(orderInfo: orderInfo, dateStr: dateStr, pageNum: pageNum)
                 y = Layout.margin
             }
 
-            let x       = Layout.margin + CGFloat(col) * (Layout.imageWidth + Layout.imageGap)
-            let imgRect = CGRect(x: x, y: y, width: Layout.imageWidth, height: Layout.imageHeight)
-            let inset   = imgRect.insetBy(dx: 1, dy: 1)
+            // Draw images
+            for (col, img) in row.enumerated() {
+                let x       = Layout.margin + CGFloat(col) * (Layout.imageWidth + Layout.imageGap)
+                let imgRect = CGRect(x: x, y: y, width: Layout.imageWidth, height: Layout.imageHeight)
+                let inset   = imgRect.insetBy(dx: 1, dy: 1)
 
-            ctx.cgContext.saveGState()
-            UIBezierPath(roundedRect: inset, cornerRadius: 4).addClip()
-            let resized = resizeImage(img.image, to: CGSize(width: Layout.imageWidth * 2, height: Layout.imageHeight * 2))
-            resized.draw(in: inset)
-            ctx.cgContext.restoreGState()
+                ctx.cgContext.saveGState()
+                UIBezierPath(roundedRect: inset, cornerRadius: 4).addClip()
+                let resized = resizeImage(img.image, to: CGSize(width: Layout.imageWidth * 2, height: Layout.imageHeight * 2))
+                resized.draw(in: inset)
+                ctx.cgContext.restoreGState()
 
-            UIColor(white: 0.75, alpha: 1).setStroke()
-            let border = UIBezierPath(roundedRect: inset, cornerRadius: 4)
-            border.lineWidth = 0.5
-            border.stroke()
-
-            col += 1
-            if col >= Layout.imagesPerRow {
-                col = 0
-                y  += Layout.imageHeight + Layout.imageGap
+                UIColor(white: 0.75, alpha: 1).setStroke()
+                let border = UIBezierPath(roundedRect: inset, cornerRadius: 4)
+                border.lineWidth = 0.5
+                border.stroke()
             }
+
+            // Draw captions below the row (only for images with non-empty description)
+            if hasCaption {
+                let captionY = y + Layout.imageHeight + captionTopPad
+                for (col, img) in row.enumerated() {
+                    guard !img.description.isEmpty else { continue }
+                    let x = Layout.margin + CGFloat(col) * (Layout.imageWidth + Layout.imageGap)
+                    img.description.draw(
+                        with: CGRect(x: x, y: captionY, width: Layout.imageWidth, height: captionMaxH),
+                        options: .usesLineFragmentOrigin,
+                        attributes: [.font: captionFont, .foregroundColor: captionColor],
+                        context: nil
+                    )
+                }
+            }
+
+            y += rowH + Layout.imageGap
         }
 
-        if col > 0 {
-            y += Layout.imageHeight + Layout.imageGap
-        }
         return y
     }
 

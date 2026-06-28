@@ -3,7 +3,7 @@
 **Module:** InspectionDetail / InspectionValidation  
 **Pattern:** MVVM (SwiftUI + `@StateObject`)  
 **Created:** 2026-01-03  
-**Last updated:** 2026-06-14 (Memory fix: file-reference model — thumbnail in RAM, full-res on disk)
+**Last updated:** 2026-06-28 (FieldUploadCoordinator refactor — coordinator owns upload lifecycle, init signature updated)
 
 ---
 
@@ -27,18 +27,27 @@ When a photo is captured, a **display thumbnail** (~800 px, ~1.9 MB) is written 
 ## Architecture
 
 ```
-InspectionValidationView  (SwiftUI View)
-    └── InspectionValidationViewModel  (@MainActor ObservableObject)
+InspectionDetailViewModel  (long-lived — owned by InspectionDetailView)
+    └── coordinators[fieldId]: FieldUploadCoordinator   ← LONG-LIVED (upload survives view dismiss)
+            ├── currentTask: Task                        ← serial upload chain (prevTask chaining)
+            ├── images: [InspectionImage]                ← source of truth, @Published
             ├── InspectionStorageServiceType  (Firestore persistence)
             │     └── updateFieldImageURLs(inspectionId:fieldId:imageURLs:)
-            │           — serialized via @MainActor pendingFieldWrite task chain
             ├── UploadInspectionMediaUseCase  (Firebase Storage upload)
+            └── callbacks (set by InspectionDetailViewModel.makeCoordinator):
+                  onSilentSave / onUploadComplete / onTaskCompleted
+                  onImageProgress / onImageDone / onImageFail
+
+InspectionValidationView  (SwiftUI View)
+    └── InspectionValidationViewModel  (@MainActor ObservableObject — thin, UI state only)
+            ├── coordinator: FieldUploadCoordinator      ← reference only, not owner
+            ├── images: [InspectionImage]                ← mirrors coordinator.images via Combine
             ├── InspectionImageCacheActor  (RAM thumbnail + Documents-dir full-res disk cache)
             │     └── cacheCapture / loadFromPath / cacheRemote / loadRemote / evictInspection
             └── PendingUploadStore  (UserDefaults — tracks file paths awaiting upload)
 ```
 
-Both services are resolved from `Container.shared` (Swinject DI) and can be injected directly for testing.
+`FieldUploadCoordinator` is resolved from `Container.shared` (Swinject DI) and lives inside `InspectionDetailViewModel.coordinators[fieldId]`. Upload tasks survive `InspectionValidationView` being dismissed because the coordinator outlives the view.
 
 ---
 
@@ -46,25 +55,18 @@ Both services are resolved from `Container.shared` (Swinject DI) and can be inje
 
 ```swift
 InspectionValidationView(
-    fieldId: String,                        // Unique ID of the inspection field
-    fieldLabel: String,                     // Navigation title & display label
-    initialImages: [InspectionImage],       // Pre-loaded images (local or remote)
-    inspectionId: String? = nil,            // Parent inspection ID; required for cloud upload
-    onSave: @escaping (FieldValidation) -> Void,             // Required — called immediately when status is set
-    onSilentSave: ((FieldValidation) -> Void)? = nil,        // Optional — called on auto-save without NavigationStack pop
-    onUploadComplete: (() -> Void)? = nil,                   // Called after Firestore write succeeds
-    onTaskCompleted: (() -> Void)? = nil,                    // Called after isUploading resets — triggers notifyUploadCompleted()
-    onImageProgress: (@Sendable (Int, Double) -> Void)? = nil,  // Per-image upload progress (0.0→1.0)
-    onImageDone: (@Sendable (Int) -> Void)? = nil,           // Per-image upload success
-    onImageFail: (@Sendable (Int) -> Void)? = nil            // Per-image upload failure
+    coordinator: FieldUploadCoordinator,             // Long-lived coordinator owned by InspectionDetailViewModel
+    fieldLabel: String,                              // Navigation title & display label
+    initialImages: [InspectionImage] = [],           // Pre-loaded images (local or remote)
+    inspectionId: String? = nil,                     // Stored for gallery context; coordinator.inspectionId is authoritative
+    onSave: @escaping (FieldValidation) -> Void,     // Required — fires immediately when user sets status (triggers NavigationStack pop)
+    onSilentSave: ((FieldValidation) -> Void)? = nil // Optional — fires on auto-save without pop
 )
 ```
 
-> `inspectionId` is **required** for upload to work. Without it, `uploadPhotosAndUpdateField` returns early and no photos are written to Firebase.
+> `onSave` is **required** (non-optional `@escaping`). `onSilentSave` fires on auto-save after camera capture (`notifyParent: false` path) — does NOT pop the NavigationStack.
 
-> `onSave` is **required** (non-optional `@escaping`). `onSilentSave` is optional and fires on auto-save after camera capture (`notifyParent: false` path) — does NOT pop the NavigationStack.
-
-`onSave` fires synchronously so the parent list can update immediately. `onUploadComplete` fires after Firestore write. `onTaskCompleted` fires last — after `isUploading` resets — and is wired to `InspectionDetailViewModel.notifyUploadCompleted()` which decrements `activeUploadCount`.
+> `onUploadComplete`, `onTaskCompleted`, `onImageProgress`, `onImageDone`, `onImageFail` are **not** init parameters. They are set as properties on `FieldUploadCoordinator` by `InspectionDetailViewModel.makeCoordinator(for:)` before the view is presented. `onTaskCompleted` → `notifyUploadCompleted()` decrements `activeUploadCount`. `onUploadComplete` fires after the Firestore write succeeds.
 
 ---
 
@@ -116,8 +118,8 @@ Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDial
 | Method | Description |
 |---|---|
 | `appendImages(_:)` | **Phase 1** (chunked 4-at-a-time, `.utility`): generates 800 px thumbnails, appends `InspectionImage(image: thumb)` to `images[]` immediately so UI updates right away. **Phase 2** (sequential nested Task): for each original image calls `cacheCapture()` then updates `images[id].fileURL` in-place after disk write. After all fileURLs set, calls `saveValidation(status: self.status, notifyParent: false)` exactly once |
-| `saveValidation(status:notifyParent:)` | Saves draft, creates `currentUploadTask` that chains onto previous task via `await prevTask?.value` (serial — prevents Firestore race when second batch captured mid-upload). Strips thumbnails from camera-photo entries before upload. Fires `onSave` or `onSilentSave` synchronously; upload + Firestore write runs async inside the chained task |
-| `loadPendingCaptures()` | On field re-entry: reads pending file paths from `PendingUploadStore`. Skips prepend if `images` already contains local entries (dedup guard). Loads thumbnails from `InspectionImageCacheActor`, prepends `InspectionImage(fileURL:thumbnail:)` entries. Calls `onSilentSave?` so parent calls `startUploadSession`, then calls `retryPendingUploads()` |
+| `saveValidation(status:notifyParent:)` | Saves draft, calls `coordinator.enqueue(status:comments:)` which chains a new Task onto the previous via `await prevTask?.value` (serial — prevents Firestore race when second batch captured mid-upload). Thumbnail stripping and upload logic live in `FieldUploadCoordinator.uploadPhotosAndUpdateField`. Fires `onSave` or `onSilentSave` synchronously; upload + Firestore write runs async inside the coordinator's chained task |
+| `loadPendingCaptures()` | On field re-entry: reads pending file paths from `PendingUploadStore`. Skips prepend if `images` already contains local entries (dedup guard). Loads thumbnails from `InspectionImageCacheActor`, prepends `InspectionImage(fileURL:thumbnail:)` entries. Calls `onSilentSave?` so parent calls `startUploadSession`, then calls `coordinator.retry(status:comments:)` |
 | `requestDeleteImage(at:)` | Stores pending index and shows confirmation dialog |
 | `requestDeleteImage(byId:)` | Looks up index by `UUID`, forwards to `requestDeleteImage(at:)` |
 | `confirmDeleteImage()` | Removes the stored index after user confirms |
@@ -151,12 +153,15 @@ User takes photo in CameraView
                             │       [UI shows thumbnails immediately — disk write NOT started yet]
                             │
                             └── Phase 2 — sequential disk writes (nested Task, 1 full-res in RAM at a time):
-                                    for each newImages[i]:
-                                        InspectionImageCacheActor.cacheCapture(image, thumbnail, inspectionId, fieldId)
+                                    var pendingImages: [UIImage?] = newImages.map { Optional($0) }
+                                    for offset in 0..<totalCount:          ← pendingImages[offset] released
+                                        img = pendingImages[offset]         immediately after disk write
+                                        InspectionImageCacheActor.cacheCapture(img, thumbnail, inspectionId, fieldId)
                                             ├── RAM: stores thumb (800px) — NOT full-res
                                             └── Disk: writes full-res JPEG → Documents/.../capture_<UUID>.jpg
+                                        pendingImages[offset] = nil         ← free ~48 MB immediately (OOM fix)
                                         PendingUploadStore.addPending(filePath, inspectionId, fieldId)
-                                        images[id].fileURL = URL(fileURLWithPath: path)   ← update in-place by UUID
+                                        coordinator.updateImageFileURL(id:fileURL:)  ← update in-place by UUID
                                     [all fileURLs set]
                                     saveValidation(status: self.status, notifyParent: false)
 
@@ -167,44 +172,47 @@ User re-enters same inspection field with pending uploads
             ├── InspectionImageCacheActor.loadFromPath(path) → UIImage (thumb from RAM or disk)
             ├── images.insert(contentsOf: InspectionImage(fileURL:thumbnail:), at: 0)
             ├── onSilentSave?(retryValidation)          ← parent calls startUploadSession
-            └── retryPendingUploads()
-                    ├── strip thumbnail=nil for fileURL entries
+            └── coordinator.retry(status:comments:)
+                    ├── stripped = strippedThumbnails(from: images)
                     └── uploadPhotosAndUpdateField(...)
 
 User taps "Đã kiểm tra" / "Không áp dụng"
-    └── saveValidation(status:)
+    └── saveValidation(status:)  [InspectionValidationViewModel]
             ├── saveDraft(validation)
-            ├── currentUploadTask = Task {
-            │       _ = await prevTask?.value            ← serial: wait for any prev upload first
-            │       imagesForUpload = images with thumbnail=nil for fileURL entries  ← strip
-            │       await uploadPhotosAndUpdateField(fieldId, imagesForUpload)
-            │           ├── fullIndexedLocal = images.enumerated().filter { !$0.isRemote }
-            │           ├── withTaskGroup (3 / 4 / 5 / 6 slots — see Thread Safety table):
-            │           │     addJob: Task.detached(.userInitiated) {
-            │           │         Data(contentsOf: fileURL) → UIImage → prepareForUpload()
-            │           │         Falls back to thumbnail.prepareForUpload() if no fileURL
-            │           │         uploadUseCase.executeWithProgress → URL
-            │           │         progressCb(idx, progress) / doneCb(idx) / failCb(idx)
-            │           │     }
-            │           │     for await (idx, url) in group:
-            │           │         ← on success, per image immediately: →
-            │           │         images[pos] = InspectionImage(remoteURL:)  ← 2 MB thumbnail freed NOW
-            │           │         Task.detached(.background) { cacheRemote(thumb, remoteURL, ...) }
-            │           │         ← seed next slot →
-            │           ├── merge existingRemoteURLs + newlyUploadedURLs
-            │           ├── storageService.updateFieldImageURLs(inspectionId, fieldId, uploadedURLs)
-            │           ├── PendingUploadStore.clearField(inspectionId, fieldId)
-            │           ├── onSilentSave?(updatedDraft)  ← propagates remote URLs to parent capturedPhotos
-            │           └── onUploadComplete?()
-            │       await updateInspectionStatus()       ← partial Firestore: only status field
-            │       onTaskCompleted?()                   ← decrements activeUploadCount
-            │   }
+            ├── coordinator.enqueue(status:comments:)   ← serial chain lives in FieldUploadCoordinator
+            │       ├── prevTask = currentTask
+            │       ├── currentTask = Task { [self]
+            │       │       _ = await prevTask?.value         ← serial: wait for any prev upload first
+            │       │       stripped = strippedThumbnails(from: images)  ← thumbnail=nil for fileURL entries
+            │       │       await uploadPhotosAndUpdateField(
+            │       │           originalImages: images, strippedImages: stripped, ...)
+            │       │           ├── fullIndexedLocal = strippedImages.enumerated().filter { !$0.isRemote }
+            │       │           ├── withTaskGroup (3 / 4 / 5 / 6 slots — see Thread Safety table):
+            │       │           │     addJob: Task.detached(.userInitiated) {
+            │       │           │         Data(contentsOf: fileURL) → UIImage → prepareForUpload()
+            │       │           │         Falls back to thumbnail.prepareForUpload() if no fileURL
+            │       │           │         uploadUseCase.executeWithProgress → URL
+            │       │           │         progressCb(idx, progress) / doneCb(idx) / failCb(idx)
+            │       │           │     }
+            │       │           │     for await (idx, url) in group:
+            │       │           │         ← on success, per image immediately: →
+            │       │           │         images[pos] = InspectionImage(remoteURL:)  ← thumbnail freed NOW
+            │       │           │         Task.detached(.background) { cacheRemote(thumb, remoteURL, ...) }
+            │       │           │         ← seed next slot →
+            │       │           ├── merge existingRemoteURLs + newlyUploadedURLs
+            │       │           ├── storageService.updateFieldImageURLs(inspectionId, fieldId, uploadedURLs)
+            │       │           ├── PendingUploadStore.clearField(inspectionId, fieldId)
+            │       │           ├── onSilentSave?(updatedDraft)  ← propagates remote URLs to parent capturedPhotos
+            │       │           └── onUploadComplete?()
+            │       │       await updateInspectionStatus()   ← partial Firestore: only status field
+            │       │       onTaskCompleted?()               ← decrements activeUploadCount
+            │       │   }
             └── (notifyParent) ? onSave?(validation) : onSilentSave?(validation)
 ```
 
 > **Upload quality:** Full-res JPEG is always read from disk (via `fileURL`). Thumbnails are stripped from the function-parameter copy before upload to prevent N × 2 MB accumulating in the async stack. The thumbnail in `self.images[]` is released progressively per image as each upload completes. `prepareForUpload()` resizes to ≤1600 px and encodes as WebP/JPEG.
 
-> **Serial upload guarantee:** `currentUploadTask` chains each new upload onto the previous via `await prevTask?.value`. If the user captures a second batch while a first upload is in flight, the second upload waits for the first to finish. This ensures `existingRemoteURLs` is always fresh (includes images just uploaded by the previous task) and prevents two concurrent tasks writing different URL sets to Firestore.
+> **Serial upload guarantee:** `FieldUploadCoordinator.enqueue()` chains each new upload Task onto the previous via `await prevTask?.value`. If the user captures a second batch while a first upload is in flight, the second upload waits for the first to finish. This ensures `existingRemoteURLs` is always fresh (includes images just uploaded by the previous task) and prevents two concurrent tasks writing different URL sets to Firestore. The coordinator is long-lived (owned by `InspectionDetailViewModel`), so this chain survives the user dismissing and re-entering `InspectionValidationView`.
 
 ---
 
@@ -331,8 +339,8 @@ Documents/inspection-images/
 |---|---|
 | `@Published` property updates | `@MainActor` |
 | `appendImages` Phase 1 thumbnail generation | `Task.detached(priority: .utility)` — chunked 4-at-a-time; `.utility` prevents thermal saturation vs `.userInitiated` on 300-photo batches |
-| `appendImages` Phase 2 disk write (`cacheCapture`) | `InspectionImageCacheActor` actor — sequential, 1 full-res image in RAM at a time |
-| Upload compress — load from disk + `prepareForUpload()` | `Task.detached(priority: .userInitiated)` |
+| `appendImages` Phase 2 disk write (`cacheCapture`) | `InspectionImageCacheActor` actor — sequential, 1 full-res image in RAM at a time; `pendingImages[offset] = nil` frees ~48 MB immediately after each write |
+| Upload compress — load from disk + `prepareForUpload()` | `Task.detached(priority: .userInitiated)` — runs inside `FieldUploadCoordinator.uploadPhotosAndUpdateField` |
 | Upload — Firebase Storage | `withTaskGroup`; **3** slots (<6 GB RAM), **5 WiFi / 4 cellular** (6–8 GB), **6 WiFi / 5 cellular** (≥8 GB) |
 | Firestore write | `storageService` actor — serial executor |
 | Edit/Share — full-res load from disk | `Task.detached` — background |
@@ -371,6 +379,7 @@ When enabled (DEBUG builds only), a 🐛 button opens `CacheDebugOverlay` as a b
 
 | Symbol | Source |
 |---|---|
+| `FieldUploadCoordinator` | `InspectionDetail/FieldUploadCoordinator.swift` — long-lived upload coordinator; owns task chain, storage service, and upload callbacks |
 | `InspectionImage` | Domain model — thumbnail + fileURL + optional remoteURL + description |
 | `FieldValidation` | Domain model — snapshot of one field's status, comments, images, timestamp |
 | `ValidationStatus` | Enum: `.pending`, `.passed`, `.failed`, `.notApplicable` |

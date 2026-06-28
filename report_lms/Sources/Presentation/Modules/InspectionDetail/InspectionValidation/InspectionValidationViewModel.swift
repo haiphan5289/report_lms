@@ -117,23 +117,33 @@ final class InspectionValidationViewModel: ObservableObject {
             if status == .pending { status = .passed }
             updateDirtyState()
 
-            // Phase 2 — serialised disk writes: 1 full-res in RAM at a time
+            // Phase 2 — serialised disk writes: release each full-res UIImage immediately
+            // after its JPEG is flushed to disk, preventing 20 × ~48 MB from being pinned
+            // in the closure for the entire loop (which caused OOM hangs at batch 4+).
+            var pendingImages: [UIImage?] = newImages.map { Optional($0) }
+            let totalCount = pendingImages.count
             Task {
-                print("[UploadSession] Phase2 START serializing \(newImages.count) disk writes fieldId=\(fid.prefix(8))")
-                for (offset, img) in newImages.enumerated() {
+                print("[UploadSession] Phase2 START serializing \(totalCount) disk writes fieldId=\(fid.prefix(8))")
+                for offset in 0..<totalCount {
+                    guard let img = pendingImages[offset] else {
+                        print("[UploadSession] Phase2 cacheCapture FAIL offset=\(offset)/\(totalCount - 1)")
+                        continue
+                    }
                     let id = appendedIds[offset]
-                    let thumb = coordinator.images.first(where: { $0.id == id })?.thumbnail
+                    let thumb = await MainActor.run { coordinator.images.first(where: { $0.id == id })?.thumbnail }
                     guard let path = await InspectionImageCacheActor.shared.cacheCapture(
                         image: img, thumbnail: thumb, inspectionId: iid, fieldId: fid
                     ) else {
-                        print("[UploadSession] Phase2 cacheCapture FAIL offset=\(offset)/\(newImages.count - 1)")
+                        pendingImages[offset] = nil
+                        print("[UploadSession] Phase2 cacheCapture FAIL offset=\(offset)/\(totalCount - 1)")
                         continue
                     }
+                    pendingImages[offset] = nil  // release ~48 MB immediately after disk write
                     PendingUploadStore.shared.addPending(filePath: path, inspectionId: iid, fieldId: fid)
                     await MainActor.run {
                         coordinator.updateImageFileURL(id: id, fileURL: URL(fileURLWithPath: path))
                     }
-                    print("[UploadSession] Phase2 ok offset=\(offset)/\(newImages.count - 1) file=\((path as NSString).lastPathComponent)")
+                    print("[UploadSession] Phase2 ok offset=\(offset)/\(totalCount - 1) file=\((path as NSString).lastPathComponent)")
                 }
                 print("[UploadSession] Phase2 DONE → saveValidation status=\(self.status) notifyParent=false")
                 saveValidation(status: self.status, notifyParent: false)

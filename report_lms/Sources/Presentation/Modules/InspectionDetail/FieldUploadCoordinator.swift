@@ -179,7 +179,26 @@ final class FieldUploadCoordinator: ObservableObject {
             $0.isRemote ? $0.remoteURL?.absoluteString : nil
         }
         let fullIndexedLocal = strippedImages.enumerated().filter { !$0.element.isRemote }
-        guard !fullIndexedLocal.isEmpty else { return }
+
+        // No new uploads needed — still persist descriptions in case user edited them after upload.
+        guard !fullIndexedLocal.isEmpty else {
+            guard !existingRemoteURLs.isEmpty else { return }
+            let descriptions = strippedImages.compactMap { img -> String? in
+                guard img.isRemote else { return nil }
+                return img.description
+            }
+            do {
+                try await storageService.updateFieldImageURLs(
+                    inspectionId: inspectionId, fieldId: fieldId,
+                    imageURLs: existingRemoteURLs, imageDescriptions: descriptions
+                )
+                let draft = FieldValidation(id: fieldId, status: status, comments: comments,
+                                           images: images, lastUpdated: Date())
+                onSilentSave?(draft)
+                onUploadComplete?()
+            } catch {}
+            return
+        }
 
         // O(1) lookup: full-array index → image id
         let imageIdByIndex = Dictionary(
@@ -278,11 +297,22 @@ final class FieldUploadCoordinator: ObservableObject {
         let uploadedURLs = existingRemoteURLs + successfulUploads.map { $0.urlString }
         guard !uploadedURLs.isEmpty else { return }
 
+        let existingDescriptions = strippedImages.compactMap { img -> String? in
+            guard img.isRemote else { return nil }
+            return img.description
+        }
+        let newDescriptions = successfulUploads.map { upload -> String in
+            guard let imageId = imageIdByIndex[upload.offset] else { return "" }
+            return images.first(where: { $0.id == imageId })?.description ?? ""
+        }
+        let uploadedDescriptions = existingDescriptions + newDescriptions
+
         do {
             try await storageService.updateFieldImageURLs(
                 inspectionId: inspectionId,
                 fieldId: fieldId,
-                imageURLs: uploadedURLs
+                imageURLs: uploadedURLs,
+                imageDescriptions: uploadedDescriptions
             )
             PendingUploadStore.shared.clearField(inspectionId: inspectionId, fieldId: fieldId)
             print("[UploadSession] Firestore OK + clearField fieldId=\(fieldId.prefix(8)) totalURLs=\(uploadedURLs.count)")
