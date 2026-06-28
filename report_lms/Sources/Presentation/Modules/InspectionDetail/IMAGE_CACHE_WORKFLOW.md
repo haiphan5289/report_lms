@@ -81,7 +81,8 @@ User chụp ảnh
       ▼
 appendImages([UIImage])   @MainActor
       │
-      ├── Phase 1 — Resize song song (Task.detached × N)
+      ├── Phase 1 — Resize song song, tối đa 4 Task.detached đồng thời (priority .utility)
+      │   │   (chunked để kiểm soát thermal budget — await từng chunk xong mới sang chunk tiếp)
       │   ├── Mỗi ảnh: resizedIfNeeded(800px) → UIImage
       │   ├── InspectionImage(image: thumb) → images.append()
       │   │   └── images[].thumbnail giữ UIImage 800px  [ViewModel heap]
@@ -95,7 +96,11 @@ appendImages([UIImage])   @MainActor
           ├── PendingUploadStore.addPending(filePath, inspectionId, fieldId)
           ├── images[idx].fileURL = URL(fileURLWithPath: path)
           └── (sau khi tất cả fileURLs set) saveValidation(status:, notifyParent: false)
-                  └── Task { uploadPhotosAndUpdateField() → onTaskCompleted() }
+                  └── currentUploadTask = Task {   ← chained: await prevTask?.value trước
+                          → uploadPhotosAndUpdateField()
+                          → updateInspectionStatus()    ← ghi status Firestore (.inProgress)
+                          → onTaskCompleted()           ← activeUploadCount-- trong parent VM
+                      }
 ```
 
 **Tại sao Phase 2 mới trigger upload:**
@@ -149,7 +154,9 @@ loadPendingCaptures()
       ├── images.insert(contentsOf: loadedImages, at: 0)
       ├── onSilentSave?(retryValidation)  → startUploadSession (counter++)
       └── retryPendingUploads()
-              └── uploadPhotosAndUpdateField()  → onTaskCompleted() (counter--)
+              ├── imagesForUpload = images.map { strip thumbnail nếu fileURL != nil }
+              │   (thumbnails loaded bởi loadFromPath chỉ để hiển thị UI — upload đọc từ fileURL)
+              └── uploadPhotosAndUpdateField(fieldId:images: imagesForUpload) → onTaskCompleted() (counter--)
 ```
 
 ---
@@ -157,23 +164,103 @@ loadPendingCaptures()
 ## 🔄 Workflow: Upload (`uploadPhotosAndUpdateField`)
 
 ```
+saveValidation(status:notifyParent:)   @MainActor
+      │
+      ├── Tạo imagesForUpload = self.images.map { strip thumbnail nếu fileURL != nil }
+      │   └── Camera photos: thumbnail = nil  ← không giữ ~N×2MB trong function frame
+      │       replaceImage (không có fileURL): thumbnail giữ nguyên (cần làm fallback upload)
+      │
+      └── currentUploadTask = Task { [weak self] in   ← chained: await prevTask?.value
+              await uploadPhotosAndUpdateField(fieldId:images: imagesForUpload)
+          }
+
 uploadPhotosAndUpdateField(fieldId:images:)
       │
       ├── existingRemoteURLs = images.filter { isRemote }.compactMap { remoteURL }
-      ├── localImages = images.filter { !isRemote }
+      ├── localImages = images.filter { !isRemote }   ← thumbnail đã nil với camera photos
       │
-      └── withTaskGroup(maxConcurrent: 3 hoặc 4 tùy RAM device)
-          ├── Mỗi slot: compress + upload pipeline
+      └── withTaskGroup(maxConcurrentSlots)   ← network + RAM aware
+          │   ┌─────────────────────────────────────────────────┐
+          │   │ maxConcurrentSlots:                              │
+          │   │  <6 GB          → 3  (mọi mạng)                 │
+          │   │  6–8 GB, WiFi   → 5  / Cellular → 4             │
+          │   │  ≥8 GB, WiFi    → 6  / Cellular → 5             │
+          │   └─────────────────────────────────────────────────┘
+          ├── Mỗi slot: compress + upload pipeline (~56 MB peak/slot)
           │   ├── Task.detached: đọc fileURL (full-res) hoặc fallback thumbnail
-          │   │   └── UIImage.prepareForUpload() → Data
-          │   └── uploadUseCase.executeWithProgress(imageData:inspectionId:onProgress:)
+          │   │   └── UIImage.prepareForUpload(1600px, quality:0.8) → Data
+          │   │       (thử WebP trước trên iOS 14+, fallback JPEG — ~35% nhỏ hơn)
+          │   └── FirebaseStorageService.uploadImageWithProgress(imageData:path:onProgress:)
+          │       ├── withThrowingTaskGroup: race upload vs Task.sleep(90s)
+          │       │   ├── Upload task: withTaskCancellationHandler {
+          │       │   │       withCheckedThrowingContinuation { putData + observe(.progress) }
+          │       │   │   } onCancel: { holder.task?.cancel() }   ← Firebase cancel → connection freed
+          │       │   └── Timeout task: sleep(90s) → throw URLError(.timedOut)
+          │       │       → tg.cancelAll() → onCancel fires → Firebase .cancel() → no zombie connection
           │       ├── onProgress → updateImageProgress (UI badge)
           │       ├── onDone    → markImageDone
-          │       └── onFail    → markImageFailed
+          │       └── onFail    → markImageFailed (timeout cũng fail cleanly)
+          │
+          ├── for await (idx, url) in group   ← PROGRESSIVE RELEASE, on MainActor
+          │   └── Với mỗi ảnh upload thành công ngay lập tức:
+          │       ├── self.images[pos] = InspectionImage(remoteURL:)
+          │       │   └── giải phóng UIImage thumbnail ~2MB khỏi MainActor heap NGAY
+          │       └── Task.detached(priority: .background) {
+          │               InspectionImageCacheActor.cacheRemote(thumb, remoteURL, ...)
+          │           }   ← pre-populate RAM hit cho lần display tiếp
           │
           ├── storageService.updateFieldImageURLs(inspectionId:fieldId:imageURLs:)
-          └── PendingUploadStore.clearField(inspectionId:fieldId:)
+          │   └── Serial write chain (pendingFieldWrite Task) — safe khi nhiều field đồng thời
+          ├── PendingUploadStore.clearField(inspectionId:fieldId:)
+          ├── onSilentSave?(updatedDraft)  ← propagate remote images lên capturedPhotos parent
+          └── onUploadComplete?()
 ```
+
+**Tại sao strip thumbnail trước khi truyền vào `uploadPhotosAndUpdateField`:**
+Camera photos có `fileURL` → upload đọc từ disk, KHÔNG cần thumbnail. Nếu không strip: `images` parameter (value-type copy) giữ strong ref đến tất cả N UIImages trong suốt thời gian function chạy. Với 300 ảnh × 2MB = 600MB pinned cho đến khi function return → vượt jetsam threshold trên 4GB device.
+
+**Tại sao timeout + cancellation nằm trong `FirebaseStorageService` (không phải ViewModel):**
+Timeout trong ViewModel chỉ giải phóng slot, nhưng Firebase `StorageUploadTask` vẫn tiếp tục chạy ngầm — giữ URLSession connection. URLSession có max 6 connections/host. Sau N timeout, tất cả 6 connections bị chiếm bởi "zombie" tasks → upload mới không mở được connection → kẹt mãi ở "Đang chờ". Đặt cancel tại Firebase layer (`holder.task?.cancel()`) → Firebase gọi completion callback với lỗi cancelled → `withCheckedThrowingContinuation` resume → connection được đóng ngay.
+
+---
+
+## 🔄 Workflow: Xóa inspection (`deleteInspection` cascade)
+
+```
+User xóa inspection
+      │
+      ▼
+FirestoreInspectionStorageService.deleteInspection(by: id)
+      │
+      ├── 1. Đọc inspection từ cache  ← cần photoURLs trước khi doc bị xóa
+      │
+      ├── 2. [blocking] firestoreService.deleteInspection(id)   ← nếu lỗi → throw, UI rollback
+      │
+      ├── 3. [blocking] cache.removeAll { $0.id == id }
+      │           + NotificationCenter.post(.inspectionDidUpdate)
+      │
+      ├── 4. Task.detached(priority: .background)   ← fire & forget
+      │   ├── InspectionImageCacheActor.evictInspection(id)
+      │   │   ├── RAM: xóa tất cả keys có prefix = inspDir.path
+      │   │   └── Disk: removeItem(at: inspDir)   ← Documents/inspection-images/<id>/
+      │   └── PendingUploadStore.clearInspection(id)
+      │
+      └── 5. Task { }   ← fire & forget, lỗi được logged (không silently dropped)
+          ├── FirebaseStorageService.deleteFolder("inspections/\(id)")
+          │   └── storage.reference().child(path).listAll()   ← bắt CẢ file orphan
+          │       → xóa từng item, log lỗi nếu fail, tiếp tục (không dừng giữa chừng)
+          ├── firestoreService.fetchErrorItemsForDeletion(inspectionId: id)
+          │   └── Mỗi errorItem:
+          │       ├── storageService.deleteImage(fromURL:) × N   ← log lỗi nếu fail
+          │       ├── firestoreService.deleteErrorItem(...)       ← log lỗi nếu fail
+          │       └── LocalImageStore.shared.clear(for: item.id)
+          └── deliveryQueueService.deleteTasksForInspection(inspectionId: id)
+```
+
+**Tại sao dùng `deleteFolder` thay vì loop URL:**
+- `field.imageURLs` chỉ chứa URL đã được ghi vào Firestore thành công.
+- File bị orphan (upload thành công nhưng URL bị ghi đè do race condition cũ) không có trong danh sách → không bao giờ bị xóa nếu chỉ loop URL.
+- `listAll()` liệt kê TẤT CẢ file dưới prefix path → xóa sạch, kể cả orphan.
 
 ---
 
@@ -217,7 +304,7 @@ PendingUploadRetryService.retryAllPendingUploads()
 |---|---|---|---|
 | `InspectionImageCacheActor.ram` | 60 | FIFO 30 | ✅ `evictAllRAM()` |
 | `ImageCacheActor.ram` | 100 | FIFO 50 | ❌ (tự FIFO) |
-| `images[].thumbnail` (ViewModel) | Không giới hạn | Khi ViewModel deallocate | ❌ |
+| `images[].thumbnail` (ViewModel) | Không giới hạn | Progressive trong `for await` upload loop; hoặc khi ViewModel deallocate | ✅ (sau mỗi upload) |
 
 ### Worst case (60 remote images trong `InspectionImageCacheActor`)
 
@@ -272,6 +359,9 @@ Nhiều `InspectionCachedImage` cell cùng URL → tất cả đều hit `ImageC
 
 | Vấn đề | Nguyên nhân | Trade-off chấp nhận được |
 |---|---|---|
-| `images[].thumbnail` không evictable | ViewModel giữ strong ref | Đổi lấy display không bị blank sau memory warning |
+| `images[].thumbnail` giữ trong upload session | Thumbnail không strip được xóa progressive trong `for await` loop, nhưng nếu upload task bị cancel trước khi loop kết thúc, thumbnails còn lại giải phóng khi ViewModel deallocate | Acceptable: cancel path hiếm, ViewModel deallocate tiếp theo |
 | `ImageCacheActor` không resize | Dùng chung toàn app, resize có thể break edit flow | Tự FIFO evict tại 100 entries |
 | Disk capture không xoá sau upload | `PendingUploadStore.clearField` clear tracking nhưng không xoá file | `evictInspection()` dọn khi delete/complete |
+| `evictAllRAM()` log MB giải phóng thấp hơn thực tế | Log hardcode `count × 2 MB` — đúng với capture (800px) nhưng sai với remote (1024px = ~4MB/entry) | Chỉ ảnh hưởng con số trong log, không ảnh hưởng logic eviction |
+| `replaceImage(at:with:)` upload chất lượng thấp hơn | Khi thay ảnh: tạo `InspectionImage` chỉ có thumbnail (không có `fileURL`) → upload dùng thumbnail 800px thay vì full-res JPEG | Ảnh chỉnh sửa hiếm gặp, chấp nhận được trong production |
+| `isOnWiFiOrEthernet` block cooperative thread | Dùng `DispatchSemaphore.wait()` để lấy network snapshot — block thread trong ~vài ms | Chỉ gọi 1 lần mỗi upload batch, không gây ANR thực tế |

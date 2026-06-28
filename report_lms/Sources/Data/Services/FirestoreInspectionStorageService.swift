@@ -195,46 +195,48 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
         }
 
         // 5. Fire & forget: delete photos + error items + delivery queue tasks
-        let fieldPhotoURLs = inspection.sections
-            .flatMap { $0.fields }
-            .flatMap { field -> [String] in
-                var urls = field.imageURLs
-                if let url = field.photoURL { urls.append(url) }
-                return urls
-            }
-            .filter { !$0.isEmpty }
-
         let storageService = self.storageService
         let firestoreService = self.firestoreService
         let deliveryQueueService = self.deliveryQueueService
         let logger = self.logger
         Task {
-            // Delete field photos from Firebase Storage
-            for url in fieldPhotoURLs {
-                try? await storageService.deleteImage(fromURL: url)
-            }
-            if !fieldPhotoURLs.isEmpty {
-                logger.log("Deleted \(fieldPhotoURLs.count) field photos for inspection \(id)")
-            }
+            // Delete the entire inspections/{id}/ folder from Firebase Storage.
+            // Using listAll() instead of iterating known URLs so orphaned files —
+            // whose URLs were lost due to the previous concurrent-upload race condition —
+            // are also removed.
+            await storageService.deleteFolder(path: "inspections/\(id)")
+            logger.log("Storage folder deleted for inspection \(id)")
 
             // Fetch + delete errorItems subcollection (Firestore + Storage + disk)
-            if let errorItems = try? await firestoreService.fetchErrorItemsForDeletion(inspectionId: id) {
+            do {
+                let errorItems = try await firestoreService.fetchErrorItemsForDeletion(inspectionId: id)
                 for item in errorItems {
-                    // Firebase Storage error images
                     for url in item.imageURLs {
-                        try? await storageService.deleteImage(fromURL: url)
+                        do {
+                            try await storageService.deleteImage(fromURL: url)
+                        } catch {
+                            logger.error("Storage delete failed for errorItem image \(url): \(error.localizedDescription)")
+                        }
                     }
-                    // Firestore errorItems doc
-                    try? await firestoreService.deleteErrorItem(inspectionId: id, errorItemId: item.id)
-                    // LocalImageStore disk cache
+                    do {
+                        try await firestoreService.deleteErrorItem(inspectionId: id, errorItemId: item.id)
+                    } catch {
+                        logger.error("Firestore delete failed for errorItem \(item.id): \(error.localizedDescription)")
+                    }
                     await LocalImageStore.shared.clear(for: item.id)
                 }
                 if !errorItems.isEmpty {
                     logger.log("Deleted \(errorItems.count) error items for inspection \(id)")
                 }
+            } catch {
+                logger.error("fetchErrorItemsForDeletion failed for inspection \(id): \(error.localizedDescription)")
             }
 
-            try? await deliveryQueueService.deleteTasksForInspection(inspectionId: id)
+            do {
+                try await deliveryQueueService.deleteTasksForInspection(inspectionId: id)
+            } catch {
+                logger.error("deleteTasksForInspection failed for inspection \(id): \(error.localizedDescription)")
+            }
         }
 
         logger.log("Inspection \(id) cascade delete complete")

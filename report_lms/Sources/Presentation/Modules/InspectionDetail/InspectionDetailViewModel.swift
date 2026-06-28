@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Network
 import SwiftUI
 
 struct ValidationFieldSelection: Hashable {
@@ -66,6 +67,10 @@ final class InspectionDetailViewModel: ObservableObject {
     private weak var homeViewModel: LMSHomeViewModel?
     private let storageService: InspectionStorageServiceType
     private var hasLoadedOnce = false
+    private var networkMonitor: NWPathMonitor?
+    private var wasOffline = false
+    /// One coordinator per field — survives InspectionValidationView being dismissed.
+    private var uploadCoordinators: [String: FieldUploadCoordinator] = [:]
 
     // MARK: - Initialization
     init(
@@ -112,8 +117,14 @@ final class InspectionDetailViewModel: ObservableObject {
         }
 
         // Retry any uploads that were interrupted (e.g. app killed before upload completed).
-        // Runs in background Tasks — does not block the UI.
         retryAllPendingUploads()
+
+        // Watch for network restore — retry pending uploads when connection comes back.
+        startNetworkMonitoring()
+    }
+
+    deinit {
+        networkMonitor?.cancel()
     }
 
     /// Wraps Firebase Storage URLs into InspectionImage.remoteURL entries synchronously.
@@ -129,39 +140,51 @@ final class InspectionDetailViewModel: ObservableObject {
         }
     }
 
-    /// On app reopen, retries uploads for every field that has locally-cached images not yet in Firebase.
-    /// Creates a short-lived InspectionValidationViewModel per field so all upload/callback logic is reused.
+    /// Retries uploads for every field with pending local images.
+    /// Sequential (cuốn chiếu): one field at a time — upload finishes + thumbnails freed
+    /// before the next field starts. Prevents memory spikes when many fields are pending.
     private func retryAllPendingUploads() {
-        guard let inspectionId = inspection?.id else { return }
         let pendingFields = PendingUploadStore.shared.getAllPendingFields(for: inspectionId)
         guard !pendingFields.isEmpty else { return }
 
-        for (fieldId, _) in pendingFields {
-            let fieldLabel = findFieldLabel(for: fieldId)
-            let callbacks = makeUploadCallbacks(for: fieldId)
-            let existingImages = capturedPhotos[fieldId] ?? []
-            let sid = inspectionId
-
-            Task { @MainActor [weak self] in
+        Task { @MainActor [weak self] in
+            for (fieldId, _) in pendingFields {
                 guard let self else { return }
+                let fieldLabel = self.findFieldLabel(for: fieldId)
+                let coord = self.makeCoordinator(for: fieldId)
+                let existingImages = self.capturedPhotos[fieldId] ?? []
+
                 let vm = InspectionValidationViewModel(
-                    fieldId: fieldId,
+                    coordinator: coord,
                     fieldLabel: fieldLabel,
                     initialImages: existingImages,
-                    inspectionId: sid,
                     onSilentSave: { [weak self] validation in
                         self?.handleValidationUpdate(validation)
-                    },
-                    onTaskCompleted: { [weak self] in
-                        self?.notifyUploadCompleted()
-                    },
-                    onImageProgress: callbacks.onProgress,
-                    onImageDone: callbacks.onDone,
-                    onImageFail: callbacks.onFail
+                    }
                 )
+                // Await each field before starting the next — thumbnails freed after each upload.
                 await vm.loadPendingCaptures()
             }
         }
+    }
+
+    /// Monitors network reachability. When connection is restored after being offline,
+    /// triggers sequential retry of all pending uploads for the current inspection.
+    private func startNetworkMonitoring() {
+        let monitor = NWPathMonitor()
+        networkMonitor = monitor
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if path.status == .satisfied && self.wasOffline {
+                    self.wasOffline = false
+                    self.retryAllPendingUploads()
+                } else if path.status != .satisfied {
+                    self.wasOffline = true
+                }
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "com.reportlms.network.monitor", qos: .utility))
     }
 
     func refreshInspection() {
@@ -186,37 +209,65 @@ final class InspectionDetailViewModel: ObservableObject {
     // MARK: - Per-Image Progress Tracking
 
     func startUploadSession(fieldId: String, images: [InspectionImage]) {
-        let localImages = images.filter { !$0.isRemote }
-        guard !localImages.isEmpty else { return }
+        // Index from the FULL images array so imageIndex values match the idx fired by
+        // uploadPhotosAndUpdateField callbacks — which also enumerates the full array.
+        // Using localImages.enumerated() (0-based) would assign B images idx=0..19 here,
+        // but task-2's callbacks would fire idx=100..119 (full-array) → stale-index mismatch
+        // → B images stuck "Đang chờ" forever when a second batch is captured mid-upload.
+        let indexedLocal = images.enumerated().filter { !$0.element.isRemote }
+        guard !indexedLocal.isEmpty else {
+            print("[UploadSession] startUploadSession SKIP (no local) fieldId=\(fieldId.prefix(8))")
+            return
+        }
         let label = findFieldLabel(for: fieldId)
+        let indices = indexedLocal.map { $0.offset }
+        print("[UploadSession] startUploadSession CREATE fieldId=\(fieldId.prefix(8)) localCount=\(indices.count) indices=\(Array(indices.prefix(5)))\(indices.count > 5 ? "..." : "")")
         let session = FieldUploadSession(
             id: fieldId,
             fieldLabel: label,
-            items: localImages.enumerated().map { idx, img in
+            items: indexedLocal.map { idx, img in
                 ImageUploadItem(id: "\(fieldId)-\(idx)", imageIndex: idx, thumbnail: img.image, status: .pending)
             }
         )
         uploadSessions.removeAll { $0.id == fieldId }
         uploadSessions.append(session)
         notifyUploadStarted()
+        print("[UploadSession] activeUploadCount=\(activeUploadCount) after notifyUploadStarted")
     }
 
     func updateImageProgress(fieldId: String, imageIndex: Int, progress: Double) {
         guard let si = uploadSessions.firstIndex(where: { $0.id == fieldId }),
-              uploadSessions[si].items.indices.contains(imageIndex) else { return }
-        uploadSessions[si].items[imageIndex].status = .uploading(progress: progress)
+              let ii = uploadSessions[si].items.firstIndex(where: { $0.imageIndex == imageIndex }) else {
+            if progress < 0.05 {  // log only first progress tick to avoid spam
+                let sessionInfo = uploadSessions.first(where: { $0.id == fieldId }).map { "items.count=\($0.items.count) indices=\(Array($0.items.prefix(3).map { $0.imageIndex }))" } ?? "NO SESSION"
+                print("[UploadSession] updateImageProgress MISS fieldId=\(fieldId.prefix(8)) imageIndex=\(imageIndex) session=\(sessionInfo)")
+            }
+            return
+        }
+        uploadSessions[si].items[ii].status = .uploading(progress: progress)
     }
 
     func markImageDone(fieldId: String, imageIndex: Int) {
         guard let si = uploadSessions.firstIndex(where: { $0.id == fieldId }),
-              uploadSessions[si].items.indices.contains(imageIndex) else { return }
-        uploadSessions[si].items[imageIndex].status = .done
+              let ii = uploadSessions[si].items.firstIndex(where: { $0.imageIndex == imageIndex }) else {
+            let sessionInfo = uploadSessions.first(where: { $0.id == fieldId }).map { "items.count=\($0.items.count) indices=\(Array($0.items.prefix(3).map { $0.imageIndex }))" } ?? "NO SESSION"
+            print("[UploadSession] markImageDone MISS fieldId=\(fieldId.prefix(8)) imageIndex=\(imageIndex) session=\(sessionInfo)")
+            return
+        }
+        uploadSessions[si].items[ii].status = .done
+        let done = uploadSessions[si].items.filter { if case .done = $0.status { return true }; return false }.count
+        print("[UploadSession] markImageDone OK fieldId=\(fieldId.prefix(8)) imageIndex=\(imageIndex) → items[\(ii)] done=\(done)/\(uploadSessions[si].items.count)")
     }
 
     func markImageFailed(fieldId: String, imageIndex: Int) {
         guard let si = uploadSessions.firstIndex(where: { $0.id == fieldId }),
-              uploadSessions[si].items.indices.contains(imageIndex) else { return }
-        uploadSessions[si].items[imageIndex].status = .failed
+              let ii = uploadSessions[si].items.firstIndex(where: { $0.imageIndex == imageIndex }) else {
+            let sessionInfo = uploadSessions.first(where: { $0.id == fieldId }).map { "items.count=\($0.items.count) indices=\(Array($0.items.prefix(3).map { $0.imageIndex }))" } ?? "NO SESSION"
+            print("[UploadSession] markImageFailed MISS fieldId=\(fieldId.prefix(8)) imageIndex=\(imageIndex) session=\(sessionInfo)")
+            return
+        }
+        uploadSessions[si].items[ii].status = .failed
+        print("[UploadSession] markImageFailed OK fieldId=\(fieldId.prefix(8)) imageIndex=\(imageIndex) → items[\(ii)]")
     }
 
     /// Returns @Sendable callbacks for a field's upload session to be passed into InspectionValidationViewModel.
@@ -246,6 +297,29 @@ final class InspectionDetailViewModel: ObservableObject {
 
     func getImages(for fieldId: String) -> [InspectionImage] {
         return capturedPhotos[fieldId] ?? []
+    }
+
+    /// Returns an existing coordinator for `fieldId`, or creates and wires a new one.
+    /// The coordinator is stored in `uploadCoordinators` — it outlives any view that uses it.
+    func makeCoordinator(for fieldId: String) -> FieldUploadCoordinator {
+        if let existing = uploadCoordinators[fieldId] { return existing }
+        let coord = FieldUploadCoordinator(
+            fieldId: fieldId,
+            inspectionId: inspectionId,
+            storageService: storageService
+        )
+        let callbacks = makeUploadCallbacks(for: fieldId)
+        coord.onImageProgress = callbacks.onProgress
+        coord.onImageDone     = callbacks.onDone
+        coord.onImageFail     = callbacks.onFail
+        coord.onSilentSave    = { [weak self] validation in self?.handleValidationUpdate(validation) }
+        coord.onUploadComplete = { [weak self] in
+            self?.refreshInspection()
+            self?.snackbarMessage = "Ảnh đã được lưu thành công!"
+        }
+        coord.onTaskCompleted = { [weak self] in self?.notifyUploadCompleted() }
+        uploadCoordinators[fieldId] = coord
+        return coord
     }
 
     private func hasPhoto(for fieldId: String) -> Bool {

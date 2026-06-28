@@ -73,14 +73,16 @@ actor InspectionImageCacheActor {
         if let provided = thumbnail {
             thumbForRAM = provided
         } else {
-            thumbForRAM = await Task.detached(priority: .userInitiated) {
+            // .utility: batch capture path — lower priority lets the system manage thermal budget.
+            thumbForRAM = await Task.detached(priority: .utility) {
                 image.resizedIfNeeded(maxDimension: 800)
             }.value
         }
         addToRAM(key: filePath, image: thumbForRAM)
 
         // Disk — write full-resolution JPEG so upload path reads original quality.
-        let data = await Task.detached(priority: .userInitiated) {
+        // .utility: 300 sequential encodes at .userInitiated sustained thermal overload.
+        let data = await Task.detached(priority: .utility) {
             image.jpegData(compressionQuality: 0.85)
         }.value
 

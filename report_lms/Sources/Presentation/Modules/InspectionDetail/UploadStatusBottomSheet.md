@@ -49,34 +49,85 @@
 | Presentation | [`UploadStatusBottomSheet.swift`](UploadStatusBottomSheet.swift) | Bottom sheet UI grouped by field |
 | Presentation | [`InspectionDetailView.swift`](InspectionDetailView.swift) | Hosts sheet; "Hoàn tất" → `showFinalReport = true` trực tiếp |
 | Presentation | [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift) | "Gửi Email" upload-aware; `@EnvironmentObject InspectionDetailViewModel`; `onChange` auto-send |
-| Presentation | [`InspectionDetailViewModel.swift`](InspectionDetailViewModel.swift) | Source of truth: `uploadSessions`, `showUploadStatusSheet`, `totalUploadingImageCount`, `pendingEmailSend` |
-| Presentation | [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) | Nhận và forward 3 callbacks vào VM |
-| Presentation | [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) | Gọi callbacks per-image trong `uploadPhotosAndUpdateField` |
+| Presentation | [`InspectionDetailViewModel.swift`](InspectionDetailViewModel.swift) | Source of truth: `uploadSessions`, `showUploadStatusSheet`, `totalUploadingImageCount`, `pendingEmailSend`; owns `uploadCoordinators[fieldId]` |
+| Presentation | [`FieldUploadCoordinator.swift`](FieldUploadCoordinator.swift) | Long-lived upload coordinator per field; owns `images`, `currentTask` serial chain, `uploadPhotosAndUpdateField`; lifecycle decoupled from any View |
+| Presentation | [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) | Nhận `coordinator: FieldUploadCoordinator` — không còn nhận `onImageProgress/Done/Fail` |
+| Presentation | [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) | UI state only; delegates image mutations + upload qua coordinator; mirrors `coordinator.$images` via Combine |
 | Domain | [`ImageUploadItem.swift`](../../../Domain/Entities/ImageUploadItem.swift) | `ImageUploadStatus`, `ImageUploadItem`, `FieldUploadSession` models |
 | Domain | [`UploadInspectionMediaUseCase.swift`](../../../Domain/UseCases/UploadInspectionMediaUseCase.swift) | `executeWithProgress(imageData:inspectionId:onProgress:)` |
 | Data | [`FirebaseStorageService.swift`](../../../Data/Services/FirebaseStorageService.swift) | `uploadImageWithProgress` — `putData` + `observe(.progress)` |
 | Data | [`StorageRepositoryType.swift`](../../../Domain/Repositories/StorageRepositoryType.swift) | Protocol: `uploadImageWithProgress(_:path:onProgress:)` |
 | Data | [`FirebaseStorageRepository.swift`](../../../Data/Repositories/FirebaseStorageRepository.swift) | Forwards đến `FirebaseStorageService` |
 
-### Data Flow
+### Data Flow — Capture pipeline (appendImages)
 
 ```
-Firebase Storage
-  putData(_:) + task.observe(.progress) { snapshot }
-    → fractionCompleted (0.0 → 1.0)
-      → FirebaseStorageService.uploadImageWithProgress()
-        → StorageRepositoryType.uploadImageWithProgress()
-          → UploadInspectionMediaUseCase.executeWithProgress()
-            → InspectionValidationViewModel.uploadPhotosAndUpdateField()
-                progressCb(index, progress) / doneCb(index) / failCb(index)
-                  → [weak self] Task { @MainActor }
-                    → InspectionDetailViewModel
-                        updateImageProgress / markImageDone / markImageFailed
-                          → @Published uploadSessions → SwiftUI re-render
-                            → UploadStatusBottomSheet (live progress bar)
-                              → activeUploadCount → 0
-                                → FinalReportView.onChange(activeUploadCount)
-                                    pendingEmailSend == true → sendReport() auto-trigger
+User chụp ảnh
+  → InspectionValidationViewModel.appendImages([UIImage])   @MainActor
+      │
+      ├── Phase 1: Resize song song, max 4 Task.detached (.utility)
+      │   └── resizedIfNeeded(800px) → InspectionImage(thumbnail:) → images.append()
+      │
+      ├── Phase 2: Ghi disk tuần tự (Task kế thừa MainActor)
+      │   ├── InspectionImageCacheActor.cacheCapture(image:thumbnail:...)
+      │   │   ├── RAM: thumbnail 800px (~2MB)
+      │   │   └── Disk: full-res JPEG → Documents/.../capture_<uuid>.jpg
+      │   ├── PendingUploadStore.addPending(filePath, inspectionId, fieldId)
+      │   └── images[idx].fileURL = path
+      │
+      └── saveValidation → coordinator.enqueue() → (chained task) → uploadPhotosAndUpdateField()
+```
+
+### Data Flow — Upload pipeline
+
+```
+saveValidation(status:notifyParent:)   @MainActor  [InspectionValidationViewModel]
+  │
+  ├── coordinator.enqueue(status:comments:)
+  │       │
+  │       └── Task { [self] in           ← strong capture — coordinator (not VM) stays alive
+  │               _ = await prevTask?.value   ← serial chain: batch N waits batch N-1
+  │               let stripped = strippedThumbnails(from: self.images)
+  │               │   ← strip thumbnails AFTER prevTask: 300 ảnh × 2MB = 600MB pinned nếu không strip
+  │               │
+  │               └── uploadPhotosAndUpdateField(originalImages: self.images, strippedImages: stripped)
+  │                       │
+  │                       └── withTaskGroup(maxConcurrentSlots)   ← network + RAM aware (3/4/5/6 tuỳ device)
+  │                           │
+  │                           ├── [Per slot] FirebaseStorageService.uploadImageWithProgress()
+  │                           │   ├── withThrowingTaskGroup: race upload vs Task.sleep(90s timeout)
+  │                           │   │   └── upload task: withTaskCancellationHandler {
+  │                           │   │           withCheckedThrowingContinuation { putData + observe(.progress) }
+  │                           │   │       } onCancel: { holder.task?.cancel() }
+  │                           │   │           ← Firebase cancel → completion block fires → continuation resumes
+  │                           │   │           ← URLSession connection freed ngay, không để lại zombie
+  │                           │   ├── → fractionCompleted → onImageProgress(idx, p) → updateImageProgress
+  │                           │   │       → @Published uploadSessions → SwiftUI re-render → progress bar
+  │                           │   └── → onImageDone / onImageFail → markImageDone / markImageFailed
+  │                           │
+  │                           └── [for await loop — PROGRESSIVE RELEASE ngay sau mỗi upload thành công]
+  │                               → coordinator.images[pos] = InspectionImage(remoteURL:)   ← thumbnail freed NGAY
+  │                               → Task.detached(priority: .background) {
+  │                                     InspectionImageCacheActor.cacheRemote(thumb, remoteURL, ...)
+  │                                 }   ← pre-populate RAM/disk cache cho lần display tiếp
+  │
+  │                       [Sau khi toàn bộ TaskGroup hoàn tất]
+  │                       → updateFieldImageURLs(inspectionId:fieldId:imageURLs:)   ← Firestore write (serial)
+  │                       → PendingUploadStore.clearField(...)
+  │                       → onSilentSave?(updatedDraft)   ← propagate remote images lên capturedPhotos parent
+  │                       → onUploadComplete?()
+  │               → updateInspectionStatus()   ← ghi status Firestore
+  │               → onTaskCompleted?()         ← notifyUploadCompleted() → activeUploadCount--
+  │                                         → activeUploadCount → 0
+  │                                           → FinalReportView.onChange(activeUploadCount)
+  │                                               pendingEmailSend == true → sendReport() auto-trigger
+  │
+  └── onSilentSave?(validation) / onSave?(validation)
+          → handleValidationUpdate / handleValidationSave
+              → startUploadSession(fieldId:images: validation.images)
+                  ← validation.images = coordinator.images snapshot BEFORE task runs (thumbnails present)
+                  → FieldUploadSession { items: [ImageUploadItem(.pending, thumbnail)] }
+                  → notifyUploadStarted() → activeUploadCount++
 ```
 
 ### "Gửi Email" Button Flow
@@ -102,19 +153,22 @@ User ở FinalReportView, tap "Gửi Email"
 
 ```mermaid
 graph TD
-    A[InspectionDetailView] -->|makeUploadCallbacks| B[InspectionDetailViewModel]
-    A -->|onTaskCompleted| B
+    A[InspectionDetailView] -->|makeCoordinator for field| B[InspectionDetailViewModel]
     A -->|fullScreenCover| J[FinalReportView]
     J -->|@EnvironmentObject| B
     J -->|sheet isPresented| C[UploadStatusBottomSheet]
-    C -->|reads| B
-    E[InspectionValidationView] -->|onImageProgress/Done/Fail| F[InspectionValidationViewModel]
-    F -->|executeWithProgress| G[UploadInspectionMediaUseCase]
+    C -->|reads uploadSessions| B
+    B -->|owns uploadCoordinators| K[FieldUploadCoordinator]
+    K -->|onImageProgress/Done/Fail| B
+    K -->|onSilentSave / onTaskCompleted| B
+    B -->|makeCoordinator| E[InspectionValidationView]
+    E -->|coordinator ref| F[InspectionValidationViewModel]
+    F -->|coordinator.enqueue| K
+    K -->|executeWithProgress| G[UploadInspectionMediaUseCase]
     G -->|uploadImageWithProgress| H[FirebaseStorageService]
     H -->|observe .progress| H
-    F -->|callbacks @Sendable| B
     B -->|uploadSessions| C
-    J -->|onChange totalUploadingImageCount| J
+    J -->|onChange activeUploadCount| J
 ```
 
 ---
@@ -123,6 +177,14 @@ graph TD
 
 ### Presentation — New Files
 - [`UploadStatusBottomSheet.swift`](UploadStatusBottomSheet.swift) — Bottom sheet view; `struct UploadStatusBottomSheet: View`, private `struct ImageUploadRow: View`
+- [`FieldUploadCoordinator.swift`](FieldUploadCoordinator.swift) — Long-lived coordinator per field
+  - `@MainActor final class FieldUploadCoordinator: ObservableObject`
+  - `@Published private(set) var images: [InspectionImage]` — source of truth, mirrors down to VM via Combine
+  - `func enqueue(status:comments:)` — serial task chain `Task { [self] in _ = await prevTask?.value … }`
+  - `func retry(status:comments:)` — direct async path for `retryAllPendingUploads`
+  - `var onImageProgress / onImageDone / onImageFail: @Sendable` — wired by `InspectionDetailViewModel.makeCoordinator`
+  - `var onSilentSave / onUploadComplete / onTaskCompleted` — propagate results back to parent VM
+  - `maxConcurrentSlots` (network + RAM aware); `isOnWiFiOrEthernet` (one-shot NWPathMonitor snapshot)
 
 ### Presentation — Modified Files
 - [`InspectionDetailViewModel.swift`](InspectionDetailViewModel.swift)
@@ -130,17 +192,19 @@ graph TD
   - `@Published var showUploadStatusSheet: Bool`
   - `var pendingEmailSend: Bool` — khi upload xong + flag này true → FinalReportView auto-send email
   - `var totalUploadingImageCount: Int` — computed, counts pending+uploading images
+  - `private var uploadCoordinators: [String: FieldUploadCoordinator]` — one coordinator per field, lives for session duration
+  - `func makeCoordinator(for fieldId:) -> FieldUploadCoordinator` — get-or-create, wires all 6 callbacks
   - `func startUploadSession(fieldId:images:)` — creates session, calls `notifyUploadStarted()`
   - `func makeUploadCallbacks(for:)` — returns 3 `@Sendable` closures for per-image tracking
   - `func updateImageProgress(fieldId:imageIndex:progress:)`
   - `func markImageDone(fieldId:imageIndex:)`
   - `func markImageFailed(fieldId:imageIndex:)`
   - ~~`shouldShowFinalReport`~~ — removed; `pendingFinalReport` — removed; `requestFinalReport()` — removed
-- [`InspectionDetailView.swift`](InspectionDetailView.swift) — `@State showFinalReport`; "Hoàn tất" sets `showFinalReport = true` trực tiếp; FinalReportView inject `.environmentObject(viewModel)`; **không** host sheet nữa
+- [`InspectionDetailView.swift`](InspectionDetailView.swift) — `@State showFinalReport`; "Hoàn tất" sets `showFinalReport = true` trực tiếp; FinalReportView inject `.environmentObject(viewModel)`; **không** host sheet nữa; `.navigationDestination` passes `coordinator: viewModel.makeCoordinator(for: field.id)` thay vì 3 callbacks
 - [`FinalReport/FinalReportView.swift`](FinalReport/FinalReportView.swift) — `@EnvironmentObject InspectionDetailViewModel`; `isUploading = activeUploadCount > 0` (display count = `totalUploadingImageCount`); `.onChange(activeUploadCount)` auto-send sau Firestore write; **hosts** `.sheet(isPresented: $inspectionDetailVM.showUploadStatusSheet)` — sheet phải present từ trong `fullScreenCover` context để tránh dismiss conflict
 - [`InspectionDetailContentView.swift`](InspectionDetailContentView.swift) — "Hoàn tất" là simple button, không còn `hasActiveUploads`/`onShowUploadStatus`
-- [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) — 3 init params: `onImageProgress`, `onImageDone`, `onImageFail`
-- [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) — stores và gọi 3 `@Sendable` callbacks từ trong `TaskGroup`; `maxConcurrentSlots` (network + RAM aware); `isOnWiFiOrEthernet` (one-shot NWPathMonitor snapshot)
+- [`InspectionValidation/InspectionValidationView.swift`](InspectionValidation/InspectionValidationView.swift) — init nhận `coordinator: FieldUploadCoordinator` thay vì 3 `onImageProgress/Done/Fail` params; không còn wiring callbacks trực tiếp
+- [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift) — UI state only; delegates tất cả mutations qua coordinator; mirrors `coordinator.$images` via `imagesCancellable = coordinator.$images.dropFirst().assign(to: \.images, on: self)`; ~~`currentUploadTask`~~, ~~`uploadPhotosAndUpdateField`~~, ~~`maxConcurrentSlots`~~, ~~`isOnWiFiOrEthernet`~~ — đã chuyển sang `FieldUploadCoordinator`
 
 ### Domain — New Files
 - [`ImageUploadItem.swift`](../../../Domain/Entities/ImageUploadItem.swift)
@@ -154,7 +218,8 @@ graph TD
 
 ### Data — Modified Files
 - [`FirebaseStorageService.swift`](../../../Data/Services/FirebaseStorageService.swift)
-  - `func uploadImageWithProgress(_:path:onProgress: @Sendable @escaping (Double) -> Void) async throws -> String` — dùng `withCheckedThrowingContinuation` + `putData` + `task.observe(.progress)`
+  - `func uploadImageWithProgress(_:path:onProgress: @Sendable @escaping (Double) -> Void) async throws -> String` — 90s timeout (race via `withThrowingTaskGroup`) + `withTaskCancellationHandler` + `UploadTaskHolder (@unchecked Sendable)` để cancel Firebase `StorageUploadTask` khi Swift Task bị cancel → giải phóng URLSession connection ngay (không zombie)
+  - `private final class UploadTaskHolder: @unchecked Sendable` — bridge giữa `withCheckedThrowingContinuation` setup block và `onCancel` handler; cần `@unchecked Sendable` vì `StorageUploadTask` không conform `Sendable`
 - [`StorageRepositoryType.swift`](../../../Domain/Repositories/StorageRepositoryType.swift) — thêm protocol method `uploadImageWithProgress`
 - [`FirebaseStorageRepository.swift`](../../../Data/Repositories/FirebaseStorageRepository.swift) — implement method mới, forward sang `FirebaseStorageService`
 
@@ -169,6 +234,8 @@ Không có API endpoint mới — feature giao tiếp trực tiếp với **Fire
 | Upload với progress | `StorageReference.putData(_:metadata:completion:)` | Callback-based, không phải async/await |
 | Observe progress | `StorageUploadTask.observe(.progress) { snapshot }` | `snapshot.progress?.fractionCompleted` |
 | Get download URL | `StorageReference.downloadURL()` | async/await |
+
+**Lưu ý encoding:** `prepareForUpload()` thử **WebP trước** (iOS 14+, ~35% nhỏ hơn JPEG cùng quality). Fallback về JPEG nếu encode WebP thất bại. Tên file lưu trong Storage vẫn là `{UUID}.jpg` bất kể định dạng thực tế — không ảnh hưởng tới display vì Firebase Storage phục vụ đúng `contentType`.
 
 ---
 
@@ -188,6 +255,67 @@ Không có API endpoint mới — feature giao tiếp trực tiếp với **Fire
 | **Upload chậm do file size lớn** | Giảm `maxDimension` 2048→1600px, file nhỏ hơn ~35–40% — xem § Bugs Fixed | ✅ |
 | **Slot cố định lãng phí WiFi/RAM cao** | `maxConcurrentSlots` network+RAM aware — 3/4/5/6 slots tùy device — xem § B8 | ✅ |
 | **Concurrent field upload ghi đè nhau** | `updateFieldImageURLs` serializes writes qua `pendingFieldWrite` task chain — xem § Bugs Fixed (B7) | ✅ |
+| **Upload kẹt không tiếp tục (~300+ ảnh)** | 90s timeout tại `FirebaseStorageService`; `withTaskCancellationHandler` cancel Firebase task → connection freed → slot unblocked — xem § B9 | ✅ |
+| **Zombie URLSession connections (max 6/host)** | `holder.task?.cancel()` trong `onCancel` handler đảm bảo Firebase `StorageUploadTask` bị cancel đúng khi Swift Task timeout → connection freed ngay — xem § B9 | ✅ |
+| **600MB thumbnail held during 300-photo upload** | Strip thumbnail từ camera photos trước khi truyền vào `uploadPhotosAndUpdateField`; progressive release trong `for await` loop — xem § B9 | ✅ |
+
+---
+
+## Pending Upload Retry
+
+### Khi nào retry chạy?
+
+| Trigger | Nơi gọi | Ghi chú |
+|---------|---------|---------|
+| `InspectionDetailView` xuất hiện (`.task`) | `InspectionDetailViewModel.init` → gọi `retryAllPendingUploads()` | Retry ngay khi mở màn hình |
+| Mạng restore từ offline → online | `startNetworkMonitoring()` → `NWPathMonitor` callback | Chỉ retry khi trước đó thực sự offline (`wasOffline == true`) |
+
+### Flow: `retryAllPendingUploads()`
+
+```
+InspectionDetailViewModel.retryAllPendingUploads()
+      │
+      ├── PendingUploadStore.getAllPendingFields(for: inspectionId)
+      │   └── trả về [(fieldId, filePaths)] còn trong UserDefaults
+      │
+      └── Task { @MainActor } — xử lý tuần tự từng field (không song song)
+          │   (sequential để tránh memory spike khi nhiều field pending)
+          │
+          └── For each (fieldId, _):
+              ├── coord = makeCoordinator(for: fieldId)   ← get-or-create, wires tất cả callbacks
+              ├── existingImages = capturedPhotos[fieldId] ?? []
+              ├── InspectionValidationViewModel(coordinator: coord, initialImages: existingImages,
+              │       onSilentSave: handleValidationUpdate)   ← thin VM, tạm thời chỉ để gọi loadPendingCaptures
+              └── await vm.loadPendingCaptures()   ← await: chờ field này xong mới sang field tiếp
+                  │   (thumbnails được giải phóng sau mỗi field; VM deallocate sau await)
+                  │
+                  └── loadPendingCaptures():
+                      ├── PendingUploadStore.getPendingFilePaths(...)
+                      │   └── filter: FileManager.fileExists (bỏ stale paths)
+                      ├── InspectionImageCacheActor.loadFromPath(path) × N
+                      ├── coordinator.prependImages(loadedImages)
+                      ├── onSilentSave?(retryValidation)   ← startUploadSession (activeUploadCount++)
+                      └── await coordinator.retry(status:comments:)
+                              └── uploadPhotosAndUpdateField() → onTaskCompleted()
+```
+
+### Flow: `startNetworkMonitoring()`
+
+```
+InspectionDetailViewModel.init / viewDidLoad
+      │
+      ▼
+startNetworkMonitoring()
+      │
+      └── NWPathMonitor (queue: com.reportlms.network.monitor, qos: .utility)
+          └── pathUpdateHandler: { path }
+              ├── path.status != .satisfied  → wasOffline = true
+              └── path.status == .satisfied && wasOffline == true
+                    → wasOffline = false
+                    → retryAllPendingUploads()   ← auto-retry khi có mạng lại
+```
+
+**Lưu ý quan trọng:** `retryAllPendingUploads` chạy **tuần tự** (await từng field) — thiết kế có chủ ý để tránh OOM khi nhiều field pending. Mỗi `InspectionValidationViewModel` tạm thời (không phải `@StateObject`) — được tạo chỉ để chạy retry rồi deallocate, giải phóng toàn bộ thumbnail heap sau mỗi field.
 
 ---
 
@@ -241,11 +369,12 @@ Giảm `compressionQuality` (0.65) bị loại vì gây artifact JPEG trên ản
 // Trước:
 func prepareForUpload(maxDimension: CGFloat = 2048, compressionQuality: CGFloat = 0.8) -> Data?
 
-// Sau:
+// Sau (thêm WebP encoding + giảm maxDimension):
 func prepareForUpload(maxDimension: CGFloat = 1600, compressionQuality: CGFloat = 0.8) -> Data?
+// Encoding order: WebP (iOS 14+, ~35% nhỏ hơn) → fallback JPEG 0.8
 ```
 
-**Lợi ích thêm:** Renderer buffer nhỏ hơn ~30% → giảm peak memory trong `prepareForUpload`, hỗ trợ thêm cho B1 OOM fix.
+**Lợi ích thêm:** Renderer buffer nhỏ hơn ~30% → giảm peak memory trong `prepareForUpload`, hỗ trợ thêm cho B1 OOM fix. WebP encoding thêm ~35% giảm file size so với JPEG cùng quality.
 
 ---
 
@@ -410,7 +539,7 @@ try await storageService.updateFieldImageURLs(
 ### B8 — Upload slot cố định không tận dụng WiFi và thiết bị RAM cao
 
 **Ngày fix:** 2026-06-23
-**File:** [`InspectionValidation/InspectionValidationViewModel.swift`](InspectionValidation/InspectionValidationViewModel.swift)
+**File:** [`FieldUploadCoordinator.swift`](FieldUploadCoordinator.swift) — `maxConcurrentSlots`, `isOnWiFiOrEthernet` (trước đây trong `InspectionValidationViewModel`, đã chuyển sang coordinator khi refactor)
 
 **Root cause:**
 `maxConcurrent` cố định `isHighMemoryDevice ? 4 : 3` với ngưỡng ≥6 GB. Hai vấn đề:
@@ -442,7 +571,7 @@ Combined với app baseline (~300 MB sau fix cache):
 - **WiFi/Ethernet**: bandwidth cao, low latency → nhiều slot tận dụng được throughput thực sự
 - **Cellular**: packet loss cao hơn → ít slot giảm retransmission overhead và battery drain
 
-**Fix:** Thay `isHighMemoryDevice: Bool` bằng `maxConcurrentSlots: Int` với 3-tier RAM × network:
+**Fix:** Thay `isHighMemoryDevice: Bool` bằng `maxConcurrentSlots: Int` với 3-tier RAM × network. Logic hiện nằm trong `FieldUploadCoordinator` (không còn trong `InspectionValidationViewModel`):
 
 ```swift
 private var maxConcurrentSlots: Int {
@@ -478,6 +607,87 @@ private var isOnWiFiOrEthernet: Bool {
 | <6 GB (iPhone 12 trở xuống) | 3 | 3 |
 | ≥6 GB (iPhone 13–15)        | 5 | 4 |
 | ≥8 GB (iPhone 15 Pro+)      | 6 | 5 |
+
+---
+
+### B9 — Upload kẹt (stall) với ~300+ ảnh: zombie URLSession connections + hung continuations
+
+**Ngày fix:** 2026-06-25  
+**Files:**
+- [`Data/Services/FirebaseStorageService.swift`](../../../Data/Services/FirebaseStorageService.swift) — rewrite `uploadImageWithProgress` với timeout + `withTaskCancellationHandler` + `UploadTaskHolder`
+- [`FieldUploadCoordinator.swift`](FieldUploadCoordinator.swift) — thumbnail stripping trong `enqueue()` / `retry()` (gọi `strippedThumbnails(from:)` trước khi truyền vào `uploadPhotosAndUpdateField`); progressive release trong `for await` loop (trước đây trong `InspectionValidationViewModel`, đã chuyển sang coordinator khi refactor)
+
+**Triệu chứng:**  
+Khi upload ~300+ ảnh, app upload một lúc rồi kẹt hoàn toàn. Màn hình `UploadStatusBottomSheet` thấy hàng chục ảnh ở trạng thái "Đang chờ..." mãi không chuyển, không gửi email được.
+
+**Root cause (2 layer):**
+
+**Layer 1 — Hung continuation (Firebase không gọi callback):**  
+`putData(_:metadata:completion:)` là callback-based API. Nếu Firebase không gọi completion block (do network drop/internal timeout), `withCheckedThrowingContinuation` không bao giờ resume → slot bị block vĩnh viễn. Với `maxConcurrentSlots = 5`, 5 slot bị block → toàn bộ upload kẹt.
+
+**Layer 2 — Zombie URLSession connections:**  
+Timeout được đặt ở ViewModel (cancel Swift Task). Nhưng cancelling Swift Task **KHÔNG** cancel `StorageUploadTask` của Firebase. Firebase giữ URLSession connection cho đến khi upload tự hoàn tất hoặc Firebase nội bộ timeout. URLSession có giới hạn **6 connections/host**. Sau đủ lần timeout → tất cả 6 connections bị chiếm bởi zombie tasks → upload mới không mở được connection → mọi ảnh còn lại kẹt "Đang chờ..." mãi.
+
+```
+Timeline lỗi (300 ảnh, slots = 5):
+[t=0]   5 slots bắt đầu upload
+[t=?]   Firebase không respond → timeout → ViewModel cancel Swift Task
+        → Swift Task cancel ✅, nhưng Firebase StorageUploadTask vẫn chạy ngầm ❌
+        → 5 URLSession connections vẫn bị giữ (zombie)
+[loop]  5 slots mới pick ảnh tiếp → gặp Firebase zombie chưa finish → chỉ ~1 slot thực sự upload
+[t=N]   Sau nhiều vòng: tất cả 6 URLSession connections bị zombie chiếm
+        → không còn slot mở → toàn bộ ảnh tiếp theo kẹt "Đang chờ..." mãi
+```
+
+**Fix:**
+
+```swift
+// FirebaseStorageService.uploadImageWithProgress — core pattern:
+let holder = UploadTaskHolder()
+return try await withThrowingTaskGroup(of: String.self) { tg in
+    tg.addTask {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let uploadTask = imageRef.putData(imageData, metadata: metadata) { _, error in
+                    // continuation luôn resume — kể cả khi cancelled → no hung slot
+                    if let error { continuation.resume(throwing: error); return }
+                    Task { continuation.resume(returning: try await imageRef.downloadURL()...) }
+                }
+                holder.task = uploadTask
+            }
+        } onCancel: {
+            holder.task?.cancel()   // ← Firebase cancel → completion block fires → connection freed
+        }
+    }
+    tg.addTask {
+        try await Task.sleep(nanoseconds: 90_000_000_000)  // 90s timeout
+        throw URLError(.timedOut)
+    }
+    let result = try await tg.next()!
+    tg.cancelAll()  // loser task bị cancel: upload task nếu timeout win, ngược lại
+    return result
+}
+
+private final class UploadTaskHolder: @unchecked Sendable {
+    var task: StorageUploadTask?  // @unchecked: StorageUploadTask không Sendable
+}
+```
+
+Khi timeout thắng:
+1. `tg.cancelAll()` cancel upload task
+2. `withTaskCancellationHandler.onCancel` fires → `holder.task?.cancel()`
+3. Firebase gọi completion block với cancelled error → `withCheckedThrowingContinuation` resumes
+4. URLSession connection freed immediately — không còn zombie
+5. Slot clean, next image picks up
+
+**Thumbnail stripping (memory fix đi kèm):**  
+`saveValidation` và `retryPendingUploads` nay strip thumbnail khỏi camera photos trước khi truyền vào `uploadPhotosAndUpdateField`. Camera photos đọc từ `fileURL` (disk), không cần thumbnail. Không strip: 300 ảnh × 2MB thumbnail = 600MB pinned trong function parameter frame suốt quá trình upload → vượt jetsam threshold trên 4GB device.
+
+**Progressive release:**  
+Thumbnail được giải phóng ngay trong `for await` loop khi mỗi ảnh upload xong (thay vì batch release ở Phase 3 sau toàn bộ TaskGroup). Giảm peak từ ~600MB về gần 0 trong suốt quá trình upload.
+
+**Rule to remember:**
+> Cancelling Swift Task KHÔNG cancel Firebase `StorageUploadTask`. Luôn dùng `withTaskCancellationHandler` + `@unchecked Sendable` wrapper để propagate cancellation xuống Firebase layer. Không làm vậy: zombie uploads giữ URLSession connections và starvate tất cả upload tiếp theo.
 
 ---
 
@@ -529,4 +739,4 @@ Thêm 2 modifier vào `NavigationStack` body:
 
 ---
 
-*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-23 (B8: maxConcurrentSlots — network+RAM aware upload throttle; replaced isHighMemoryDevice with 3-tier slot table)*
+*Generated by `/ct-ai-document` on 2026-06-06 — Last updated: 2026-06-28 (Architecture refactor: upload logic extracted to `FieldUploadCoordinator`; `InspectionValidationViewModel` now thin UI-state only; callbacks wired via `makeCoordinator(for:)`; B8/B9 file references updated to reflect new owner)*

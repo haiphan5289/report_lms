@@ -104,8 +104,7 @@ Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDial
 | `comments` | `String` | Inspector notes |
 | `images` | `[InspectionImage]` | All images for this field — local entries hold thumbnail + fileURL, remote entries hold remoteURL only |
 | `showCamera` | `Bool` | Triggers `.sheet` with `CameraView` |
-| `isUploading` | `Bool` | `true` while any upload is in flight |
-| `uploadProgress` | `Double` | `0.0` → `1.0` aggregate upload progress |
+| `isLoading` | `Bool` | General loading state — distinct from upload tracking (upload state lives in `InspectionDetailViewModel.uploadSessions`) |
 | `snackbarMessage` | `String?` | Bound to `.lmsSnackbar(message:type:)` for error banners |
 | `showReorderMode` | `Bool` | Puts image list into delete-selection mode |
 | `isDirty` | `Bool` | `true` when status / comments / image count differ from initial values |
@@ -116,16 +115,20 @@ Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDial
 
 | Method | Description |
 |---|---|
-| `appendImages(_:)` | Generates 800 px thumbnail off-thread, writes full-res JPEG to disk via `InspectionImageCacheActor.cacheCapture()`, appends `InspectionImage(fileURL:thumbnail:)` to `images`, registers path in `PendingUploadStore`. Full-res UIImage is released after disk write. Auto-triggers `saveValidation(status: .passed, notifyParent: false)` |
-| `saveValidation(status:notifyParent:)` | Sets status, builds `FieldValidation`, saves draft, fires `onSave` (or `onSilentSave` when `notifyParent: false`), then uploads all local images and writes to Firestore. Clears `PendingUploadStore` entry on success |
-| `loadPendingCaptures()` | On field re-entry: reads pending file paths from `PendingUploadStore`, loads thumbnails from `InspectionImageCacheActor`, creates `InspectionImage(fileURL:thumbnail:)` entries, prepends them to `images`, then auto-triggers `retryPendingUploads()` |
+| `appendImages(_:)` | **Phase 1** (chunked 4-at-a-time, `.utility`): generates 800 px thumbnails, appends `InspectionImage(image: thumb)` to `images[]` immediately so UI updates right away. **Phase 2** (sequential nested Task): for each original image calls `cacheCapture()` then updates `images[id].fileURL` in-place after disk write. After all fileURLs set, calls `saveValidation(status: self.status, notifyParent: false)` exactly once |
+| `saveValidation(status:notifyParent:)` | Saves draft, creates `currentUploadTask` that chains onto previous task via `await prevTask?.value` (serial — prevents Firestore race when second batch captured mid-upload). Strips thumbnails from camera-photo entries before upload. Fires `onSave` or `onSilentSave` synchronously; upload + Firestore write runs async inside the chained task |
+| `loadPendingCaptures()` | On field re-entry: reads pending file paths from `PendingUploadStore`. Skips prepend if `images` already contains local entries (dedup guard). Loads thumbnails from `InspectionImageCacheActor`, prepends `InspectionImage(fileURL:thumbnail:)` entries. Calls `onSilentSave?` so parent calls `startUploadSession`, then calls `retryPendingUploads()` |
 | `requestDeleteImage(at:)` | Stores pending index and shows confirmation dialog |
+| `requestDeleteImage(byId:)` | Looks up index by `UUID`, forwards to `requestDeleteImage(at:)` |
 | `confirmDeleteImage()` | Removes the stored index after user confirms |
+| `cancelDeleteImage()` | Clears pending index without removing |
 | `updateComments(_:)` | Mutates `comments` and marks dirty |
+| `updateDescription(_:for:)` | Updates `images[id].description` by UUID — used by gallery `descriptionBinding` |
+| `moveImage(from:to:)` | Reorders `images[]` via drag-to-reorder; marks dirty |
 | `openCamera()` | Sets `showCamera = true` |
 | `toggleReorderMode()` | Flips `showReorderMode` |
 | `loadDraft()` | Restores status + comments from `UserDefaults` key `draft_validation_<fieldId>` |
-| `replaceImage(at:with:)` | Generates 800 px thumbnail from edited `UIImage`, replaces entry in-place preserving `description`. No `fileURL` — edited result is thumbnail-only |
+| `replaceImage(at:with:)` | Generates 800 px thumbnail from edited `UIImage`, replaces entry in-place preserving `description`. No `fileURL` — edited result is thumbnail-only (upload uses thumbnail quality, not full-res) |
 | `downloadImage(from:)` | Downloads a remote URL, caches in `ImageCacheActor`, returns `UIImage` (resized to max 2048 px) |
 
 ---
@@ -136,45 +139,72 @@ Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDial
 User takes photo in CameraView
     └── onPhotoCaptured([UIImage]) callback
             └── viewModel.appendImages(images)
-                    └── [Task @MainActor] for each new UIImage:
-                            Task.detached → img.resizedIfNeeded(800px) → thumb (~1.9 MB)
-                            InspectionImageCacheActor.cacheCapture(image, inspectionId, fieldId)
-                                ├── RAM: stores thumb (800px) — NOT full-res
-                                └── Disk: writes full-res JPEG to Documents/.../capture_<UUID>.jpg
-                            PendingUploadStore.addPending(filePath, inspectionId, fieldId)
-                            images.append(InspectionImage(fileURL: url, thumbnail: thumb))
-                    └── saveValidation(status: .passed, notifyParent: false)
-                            └── uploadPhotosAndUpdateField(...)
+                    └── Task { @MainActor }
+                            │
+                            ├── Phase 1 — bounded parallel resize (chunks of 4, .utility priority):
+                            │       while chunkStart < newImages.count:
+                            │           chunk = newImages[chunkStart..<chunkStart+4]
+                            │           tasks = chunk.map { Task.detached(.utility) { $0.resizedIfNeeded(800px) } }
+                            │           thumbnails += tasks.map { await $0.value }
+                            │       for thumb in thumbnails:
+                            │           images.append(InspectionImage(image: thumb))  ← no fileURL yet
+                            │       [UI shows thumbnails immediately — disk write NOT started yet]
+                            │
+                            └── Phase 2 — sequential disk writes (nested Task, 1 full-res in RAM at a time):
+                                    for each newImages[i]:
+                                        InspectionImageCacheActor.cacheCapture(image, thumbnail, inspectionId, fieldId)
+                                            ├── RAM: stores thumb (800px) — NOT full-res
+                                            └── Disk: writes full-res JPEG → Documents/.../capture_<UUID>.jpg
+                                        PendingUploadStore.addPending(filePath, inspectionId, fieldId)
+                                        images[id].fileURL = URL(fileURLWithPath: path)   ← update in-place by UUID
+                                    [all fileURLs set]
+                                    saveValidation(status: self.status, notifyParent: false)
 
 User re-enters same inspection field with pending uploads
     └── InspectionValidationView .task → viewModel.loadPendingCaptures()
             ├── PendingUploadStore.getPendingFilePaths() → [String]
+            ├── Guard: if images already has local entries → skip prepend (dedup)
             ├── InspectionImageCacheActor.loadFromPath(path) → UIImage (thumb from RAM or disk)
             ├── images.insert(contentsOf: InspectionImage(fileURL:thumbnail:), at: 0)
+            ├── onSilentSave?(retryValidation)          ← parent calls startUploadSession
             └── retryPendingUploads()
+                    ├── strip thumbnail=nil for fileURL entries
+                    └── uploadPhotosAndUpdateField(...)
 
 User taps "Đã kiểm tra" / "Không áp dụng"
     └── saveValidation(status:)
-            ├── onSave(validation)                      ← parent updates immediately
-            └── Task {
-                    uploadPhotosAndUpdateField(fieldId, images)
-                        ├── localImages = images.filter { !$0.isRemote }
-                        ├── Phase — Compress + Upload (max 4 concurrent slots, 3 on low-RAM):
-                        │     withTaskGroup → Task.detached(priority: .userInitiated) {
-                        │           Load full-res from fileURL:
-                        │               Data(contentsOf: fileURL) → UIImage → prepareForUpload()
-                        │               Falls back to thumbnail.prepareForUpload() if no fileURL
-                        │     } → [String URL]
-                        ├── merge existingRemoteURLs + newlyUploadedURLs
-                        ├── storageService.updateFieldImageURLs(...)
-                        └── PendingUploadStore.clearField(...)
-                    updateInspectionStatus()
-                    onUploadComplete?()
-                    onTaskCompleted?()
-                }
+            ├── saveDraft(validation)
+            ├── currentUploadTask = Task {
+            │       _ = await prevTask?.value            ← serial: wait for any prev upload first
+            │       imagesForUpload = images with thumbnail=nil for fileURL entries  ← strip
+            │       await uploadPhotosAndUpdateField(fieldId, imagesForUpload)
+            │           ├── fullIndexedLocal = images.enumerated().filter { !$0.isRemote }
+            │           ├── withTaskGroup (3 / 4 / 5 / 6 slots — see Thread Safety table):
+            │           │     addJob: Task.detached(.userInitiated) {
+            │           │         Data(contentsOf: fileURL) → UIImage → prepareForUpload()
+            │           │         Falls back to thumbnail.prepareForUpload() if no fileURL
+            │           │         uploadUseCase.executeWithProgress → URL
+            │           │         progressCb(idx, progress) / doneCb(idx) / failCb(idx)
+            │           │     }
+            │           │     for await (idx, url) in group:
+            │           │         ← on success, per image immediately: →
+            │           │         images[pos] = InspectionImage(remoteURL:)  ← 2 MB thumbnail freed NOW
+            │           │         Task.detached(.background) { cacheRemote(thumb, remoteURL, ...) }
+            │           │         ← seed next slot →
+            │           ├── merge existingRemoteURLs + newlyUploadedURLs
+            │           ├── storageService.updateFieldImageURLs(inspectionId, fieldId, uploadedURLs)
+            │           ├── PendingUploadStore.clearField(inspectionId, fieldId)
+            │           ├── onSilentSave?(updatedDraft)  ← propagates remote URLs to parent capturedPhotos
+            │           └── onUploadComplete?()
+            │       await updateInspectionStatus()       ← partial Firestore: only status field
+            │       onTaskCompleted?()                   ← decrements activeUploadCount
+            │   }
+            └── (notifyParent) ? onSave?(validation) : onSilentSave?(validation)
 ```
 
-> **Upload quality:** Full-res JPEG is always read from disk (via `fileURL`). The thumbnail stored in RAM is never used for upload. `prepareForUpload()` resizes to ≤1600 px and encodes as WebP/JPEG — same quality as before the memory fix.
+> **Upload quality:** Full-res JPEG is always read from disk (via `fileURL`). Thumbnails are stripped from the function-parameter copy before upload to prevent N × 2 MB accumulating in the async stack. The thumbnail in `self.images[]` is released progressively per image as each upload completes. `prepareForUpload()` resizes to ≤1600 px and encodes as WebP/JPEG.
+
+> **Serial upload guarantee:** `currentUploadTask` chains each new upload onto the previous via `await prevTask?.value`. If the user captures a second batch while a first upload is in flight, the second upload waits for the first to finish. This ensures `existingRemoteURLs` is always fresh (includes images just uploaded by the previous task) and prevents two concurrent tasks writing different URL sets to Firestore.
 
 ---
 
@@ -280,7 +310,7 @@ Documents/inspection-images/
             remote_<urlHash>.jpg     ← remote image (written after network fetch)
 ```
 
-- **RAM cache** (`InspectionImageCacheActor`): stores **thumbnails** (~800 px) keyed by file path. FIFO eviction at 200 entries. Full-res is never kept in RAM.
+- **RAM cache** (`InspectionImageCacheActor`): stores **thumbnails** (~800 px) keyed by file path. FIFO eviction at **60 entries** — when full, the oldest 30 are evicted (half-eviction). Full-res is never kept in RAM.
 - **PendingUploadStore** keys: `pendingUploads_<inspectionId>_<fieldId>` → `[String]` (absolute file paths)
 - `getPendingFilePaths()` auto-filters paths where `FileManager.fileExists` returns false
 
@@ -291,6 +321,7 @@ Documents/inspection-images/
 | Inspection completed | `InspectionImageCacheActor.evictInspection(id)` + `PendingUploadStore.clearInspection(id)` |
 | Inspection deleted | Same |
 | Upload success | `PendingUploadStore.clearField(inspectionId, fieldId)` — disk images kept until inspection eviction |
+| Memory warning | `InspectionImageCacheActor.evictAllRAM()` — clears all 60 RAM thumbnails; disk untouched (next display reloads from disk transparently) |
 
 ---
 
@@ -299,10 +330,10 @@ Documents/inspection-images/
 | Operation | Context |
 |---|---|
 | `@Published` property updates | `@MainActor` |
-| `appendImages` thumbnail generation | `Task.detached(priority: .userInitiated)` — background thread |
-| `appendImages` disk write (`cacheCapture`) | `InspectionImageCacheActor` actor — background |
+| `appendImages` Phase 1 thumbnail generation | `Task.detached(priority: .utility)` — chunked 4-at-a-time; `.utility` prevents thermal saturation vs `.userInitiated` on 300-photo batches |
+| `appendImages` Phase 2 disk write (`cacheCapture`) | `InspectionImageCacheActor` actor — sequential, 1 full-res image in RAM at a time |
 | Upload compress — load from disk + `prepareForUpload()` | `Task.detached(priority: .userInitiated)` |
-| Upload — Firebase Storage | `withTaskGroup`; max 4 slots (3 on low-RAM) |
+| Upload — Firebase Storage | `withTaskGroup`; **3** slots (<6 GB RAM), **5 WiFi / 4 cellular** (6–8 GB), **6 WiFi / 5 cellular** (≥8 GB) |
 | Firestore write | `storageService` actor — serial executor |
 | Edit/Share — full-res load from disk | `Task.detached` — background |
 

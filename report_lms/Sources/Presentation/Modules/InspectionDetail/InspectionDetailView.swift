@@ -73,9 +73,8 @@ struct InspectionDetailView: View {
             }
         }
         .navigationDestination(item: $viewModel.selectedValidationField) { field in
-            let callbacks = viewModel.makeUploadCallbacks(for: field.id)
             InspectionValidationView(
-                fieldId: field.id,
+                coordinator: viewModel.makeCoordinator(for: field.id),
                 fieldLabel: field.label,
                 initialImages: viewModel.getImages(for: field.id),
                 inspectionId: viewModel.inspection?.id,
@@ -84,17 +83,7 @@ struct InspectionDetailView: View {
                 },
                 onSilentSave: { validation in
                     viewModel.handleValidationUpdate(validation)
-                },
-                onUploadComplete: {
-                    viewModel.refreshInspection()
-                    viewModel.snackbarMessage = "Ảnh đã được lưu thành công!"
-                },
-                onTaskCompleted: {
-                    viewModel.notifyUploadCompleted()
-                },
-                onImageProgress: callbacks.onProgress,
-                onImageDone: callbacks.onDone,
-                onImageFail: callbacks.onFail
+                }
             )
         }
         .fullScreenCover(isPresented: $showFinalReport) {

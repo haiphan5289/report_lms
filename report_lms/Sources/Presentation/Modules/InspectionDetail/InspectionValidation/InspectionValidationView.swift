@@ -54,34 +54,25 @@ struct InspectionValidationView: View {
     private let fieldIdContext: String
     
     // MARK: - Initialization
+
+    /// Primary init — coordinator owned by InspectionDetailViewModel (long-lived).
     init(
-        fieldId: String,
+        coordinator: FieldUploadCoordinator,
         fieldLabel: String,
-        initialImages: [InspectionImage],
+        initialImages: [InspectionImage] = [],
         inspectionId: String? = nil,
         onSave: @escaping (FieldValidation) -> Void,
-        onSilentSave: ((FieldValidation) -> Void)? = nil,
-        onUploadComplete: (() -> Void)? = nil,
-        onTaskCompleted: (() -> Void)? = nil,
-        onImageProgress: (@Sendable (Int, Double) -> Void)? = nil,
-        onImageDone: (@Sendable (Int) -> Void)? = nil,
-        onImageFail: (@Sendable (Int) -> Void)? = nil
+        onSilentSave: ((FieldValidation) -> Void)? = nil
     ) {
         self.inspectionIdContext = inspectionId
-        self.fieldIdContext = fieldId
+        self.fieldIdContext = coordinator.fieldId
         _viewModel = StateObject(
             wrappedValue: InspectionValidationViewModel(
-                fieldId: fieldId,
+                coordinator: coordinator,
                 fieldLabel: fieldLabel,
                 initialImages: initialImages,
-                inspectionId: inspectionId,
                 onSave: onSave,
-                onSilentSave: onSilentSave,
-                onUploadComplete: onUploadComplete,
-                onTaskCompleted: onTaskCompleted,
-                onImageProgress: onImageProgress,
-                onImageDone: onImageDone,
-                onImageFail: onImageFail
+                onSilentSave: onSilentSave
             )
         )
     }
@@ -487,9 +478,10 @@ struct ClearBackgroundView: UIViewRepresentable {
 // MARK: - Preview
 
 #Preview("With Images") {
+    let coord = FieldUploadCoordinator(fieldId: "field1", inspectionId: "")
     NavigationStack {
         InspectionValidationView(
-            fieldId: "field1",
+            coordinator: coord,
             fieldLabel: "Carton Overview",
             initialImages: [
                 InspectionImage(image: UIImage(systemName: "photo") ?? UIImage()),
@@ -504,11 +496,11 @@ struct ClearBackgroundView: UIViewRepresentable {
 }
 
 #Preview("Empty State") {
+    let coord = FieldUploadCoordinator(fieldId: "field1", inspectionId: "")
     NavigationStack {
         InspectionValidationView(
-            fieldId: "field1",
-            fieldLabel: "Carton Overview",
-            initialImages: []
+            coordinator: coord,
+            fieldLabel: "Carton Overview"
         ) { validation in
             print("Saved: \(validation)")
         }
@@ -516,9 +508,10 @@ struct ClearBackgroundView: UIViewRepresentable {
 }
 
 #Preview("Dark Mode") {
+    let coord = FieldUploadCoordinator(fieldId: "field1", inspectionId: "")
     NavigationStack {
         InspectionValidationView(
-            fieldId: "field1",
+            coordinator: coord,
             fieldLabel: "Carton Overview",
             initialImages: [
                 InspectionImage(image: UIImage(systemName: "photo")!),
