@@ -103,6 +103,69 @@ actor InspectionImageCacheActor {
         return filePath
     }
 
+    // MARK: - Commit a capture-time pending file (crash/kill-safe hand-off from CameraViewModel)
+
+    /// Commits a photo already written at shutter-press time
+    /// (`Documents/inspection-images/<id>/<field>/pending_<uuid>.jpg`, see `CameraViewModel`)
+    /// into this field's normal capture entry. Same-volume rename — no re-encoding, no
+    /// full-resolution `UIImage` held here — so this is fast and cannot lose data even if
+    /// the app is killed mid-loop (anything not yet committed just stays a `pending_*.jpg`
+    /// file, recoverable via `recoverOrphanedPendingCaptures`).
+    func commitPendingCapture(from pendingURL: URL, thumbnail: UIImage, inspectionId: String, fieldId: String) async -> String? {
+        let dir = fieldURL(inspectionId: inspectionId, fieldId: fieldId)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            logger.error("Failed to create dir: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+
+        let uuidPart = pendingURL.deletingPathExtension().lastPathComponent
+            .replacingOccurrences(of: "pending_", with: "")
+        let destURL = dir.appendingPathComponent("capture_\(uuidPart).jpg")
+
+        do {
+            try FileManager.default.moveItem(at: pendingURL, to: destURL)
+        } catch {
+            logger.error("Failed to commit pending capture: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+
+        let filePath = destURL.path
+        addToRAM(key: filePath, image: thumbnail)
+        logger.debug("Committed pending capture: \(filePath, privacy: .public)")
+        return filePath
+    }
+
+    /// Scans a field's durable folder for `pending_*.jpg` files left behind when the app was
+    /// killed before `appendImages` Phase 2 could commit them (e.g. killed while the camera
+    /// sheet was still open). Commits each one and returns the resulting file paths so the
+    /// caller can register them with `PendingUploadStore` and re-insert them into the field's
+    /// image list. Corrupt/partial writes (e.g. killed mid-write) are deleted, not recovered.
+    func recoverOrphanedPendingCaptures(inspectionId: String, fieldId: String) async -> [String] {
+        let dir = fieldURL(inspectionId: inspectionId, fieldId: fieldId)
+        guard let entries = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+            return []
+        }
+
+        var recovered: [String] = []
+        for url in entries where url.lastPathComponent.hasPrefix("pending_") {
+            guard let data = try? Data(contentsOf: url), let full = UIImage(data: data) else {
+                try? FileManager.default.removeItem(at: url)
+                continue
+            }
+            let resized = full.resizedIfNeeded(maxDimension: 800)
+            let thumb = resized.preparingForDisplay() ?? resized
+            if let path = await commitPendingCapture(from: url, thumbnail: thumb, inspectionId: inspectionId, fieldId: fieldId) {
+                recovered.append(path)
+            }
+        }
+        if !recovered.isEmpty {
+            logger.log("Recovered \(recovered.count, privacy: .public) orphaned pending captures for field \(fieldId, privacy: .public)")
+        }
+        return recovered
+    }
+
     // MARK: - Load from absolute path (pending-upload retry)
 
     func loadFromPath(_ path: String) async -> UIImage? {
@@ -234,7 +297,15 @@ actor InspectionImageCacheActor {
     // MARK: - Private helpers
 
     private func fieldURL(inspectionId: String, fieldId: String) -> URL {
-        baseURL
+        Self.fieldDirectory(inspectionId: inspectionId, fieldId: fieldId)
+    }
+
+    /// Pure path computation, usable outside the actor — `CameraViewModel` needs this to know
+    /// where to write `pending_*.jpg` capture-time safety files without waiting on the actor.
+    nonisolated static func fieldDirectory(inspectionId: String, fieldId: String) -> URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docs
+            .appendingPathComponent("inspection-images", isDirectory: true)
             .appendingPathComponent(inspectionId, isDirectory: true)
             .appendingPathComponent(fieldId, isDirectory: true)
     }

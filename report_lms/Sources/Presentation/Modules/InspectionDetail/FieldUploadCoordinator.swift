@@ -117,6 +117,55 @@ final class FieldUploadCoordinator: ObservableObject {
         images[index] = image
     }
 
+    // MARK: - Quick Capture (shared by InspectionValidationViewModel.appendImages and
+    // InspectionDetailViewModel's field-list "quick capture" camera icon)
+
+    /// Commits freshly captured photos into `images` — Phase 1 (resize to 800px thumbnails,
+    /// max 4 concurrent) + Phase 2 (commit each pre-written pending file — cheap same-folder
+    /// rename, no re-encoding, since `CameraViewModel` already wrote the full-res JPEG to disk
+    /// at shutter-press time). This is the single path both callers use so quick-capture gets
+    /// the exact same durability guarantee and the exact same source of truth (`images`) as
+    /// the full validation screen — no separate RAM-only image store anywhere else.
+    ///
+    /// Does NOT enqueue an upload — callers decide when (see `enqueue`), since the full
+    /// validation screen wants an immediate local echo via `saveValidation` before enqueuing,
+    /// while quick-capture enqueues right away.
+    func commitCapturedPhotos(_ captured: [CapturedPhoto]) async {
+        guard !captured.isEmpty else { return }
+        let iid = inspectionId
+        let fid = fieldId
+
+        let chunkSize = 4
+        var thumbnails: [UIImage] = []
+        thumbnails.reserveCapacity(captured.count)
+        var chunkStart = 0
+        while chunkStart < captured.count {
+            let end = min(chunkStart + chunkSize, captured.count)
+            let tasks = captured[chunkStart..<end].map { photo in
+                Task.detached(priority: .utility) { photo.image.resizedIfNeeded(maxDimension: 800) }
+            }
+            for t in tasks { thumbnails.append(await t.value) }
+            chunkStart = end
+        }
+
+        var appendedIds: [UUID] = []
+        for thumb in thumbnails {
+            let img = InspectionImage(image: thumb)
+            appendedIds.append(img.id)
+            appendImage(img)
+        }
+
+        for (offset, photo) in captured.enumerated() {
+            let id = appendedIds[offset]
+            guard let thumb = images.first(where: { $0.id == id })?.thumbnail else { continue }
+            guard let path = await InspectionImageCacheActor.shared.commitPendingCapture(
+                from: photo.fileURL, thumbnail: thumb, inspectionId: iid, fieldId: fid
+            ) else { continue }
+            PendingUploadStore.shared.addPending(filePath: path, inspectionId: iid, fieldId: fid)
+            updateImageFileURL(id: id, fileURL: URL(fileURLWithPath: path))
+        }
+    }
+
     // MARK: - Upload API
 
     /// Enqueues an upload, chaining after any in-flight task.

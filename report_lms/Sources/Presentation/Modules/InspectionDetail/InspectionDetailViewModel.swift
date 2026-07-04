@@ -106,21 +106,51 @@ final class InspectionDetailViewModel: ObservableObject {
             )
         }
 
-        // Dismiss overlay as soon as inspection data is ready — photos load lazily in the UI
-        isLoading = false
-        contentViewModel.autoExpandFirstSection()
-
         // Populate capturedPhotos with remote URLs immediately — no network download needed.
         // Views use AsyncImage(url:) for lazy, on-demand loading.
         if let loaded = inspection {
             restoreCapturedPhotos(from: loaded)
         }
 
-        // Retry any uploads that were interrupted (e.g. app killed before upload completed).
-        retryAllPendingUploads()
+        // Also restore local images still awaiting upload (tracked in PendingUploadStore) —
+        // without this, a field's photo count/thumbnail is invisible until the user opens its
+        // validation screen, since `restoreCapturedPhotos` only knows about already-uploaded
+        // (`imageURLs`) photos. Awaited BEFORE the overlay dismisses so the very first render
+        // already has correct data — no dependency on a later async update to refresh the list.
+        await restoreLocalPendingPhotos()
+
+        isLoading = false
+        contentViewModel.autoExpandFirstSection()
+
+        // Note: the actual re-upload of pending images is NOT triggered here. It happens via:
+        //  - PendingUploadRetryService (global, fired once at app launch in report_lmsApp) — or
+        //  - InspectionValidationViewModel.loadPendingCaptures() when the user opens the field.
+        // Retrying here too used to race the global launch-time retry for the exact same
+        // PendingUploadStore entries (no lock between them), risking the same local image being
+        // uploaded twice to two different Storage paths. See `retryAllPendingUploads` — now only
+        // used for the network-restore case below, well after the launch-time retry has settled.
 
         // Watch for network restore — retry pending uploads when connection comes back.
         startNetworkMonitoring()
+    }
+
+    /// Restores images captured but not yet fully uploaded (still tracked in
+    /// `PendingUploadStore`) — read from durable disk, no network needed — so the field list
+    /// shows correct photo counts/thumbnails from the very first render after a cold launch.
+    private func restoreLocalPendingPhotos() async {
+        let pendingFields = PendingUploadStore.shared.getAllPendingFields(for: inspectionId)
+        guard !pendingFields.isEmpty else { return }
+
+        for (fieldId, paths) in pendingFields {
+            var loadedImages: [InspectionImage] = []
+            for path in paths {
+                guard let thumb = await InspectionImageCacheActor.shared.loadFromPath(path) else { continue }
+                loadedImages.append(InspectionImage(fileURL: URL(fileURLWithPath: path), thumbnail: thumb))
+            }
+            guard !loadedImages.isEmpty else { continue }
+            let existing = capturedPhotos[fieldId] ?? []
+            capturedPhotos[fieldId] = loadedImages + existing
+        }
     }
 
     deinit {
@@ -144,6 +174,15 @@ final class InspectionDetailViewModel: ObservableObject {
     /// Retries uploads for every field with pending local images.
     /// Sequential (cuốn chiếu): one field at a time — upload finishes + thumbnails freed
     /// before the next field starts. Prevents memory spikes when many fields are pending.
+    ///
+    /// Only called from the network-restore handler in `startNetworkMonitoring` — NOT from
+    /// `loadInspectionDetail` anymore. Calling it at launch used to race
+    /// `PendingUploadRetryService` (global, also fired at launch in `report_lmsApp`): both
+    /// would see the same `PendingUploadStore` entry and re-upload it independently, since
+    /// neither locks/coordinates with the other and `UploadInspectionMediaUseCase` generates a
+    /// fresh Storage path (UUID) per call — risking the same photo being uploaded twice under
+    /// two different URLs. By the time network is restored, the launch-time global retry has
+    /// long since settled, so this no longer races it.
     private func retryAllPendingUploads() {
         let pendingFields = PendingUploadStore.shared.getAllPendingFields(for: inspectionId)
         guard !pendingFields.isEmpty else { return }
@@ -362,19 +401,35 @@ final class InspectionDetailViewModel: ObservableObject {
         return "Field"
     }
 
-    func savePhoto(_ image: UIImage, for fieldId: String) {
-        if capturedPhotos[fieldId] == nil {
-            capturedPhotos[fieldId] = []
-        }
-        capturedPhotos[fieldId]?.append(InspectionImage(image: image))
-    }
+    /// Field-list "quick capture" camera icon — routes through the exact same
+    /// `FieldUploadCoordinator.commitCapturedPhotos` pipeline as the full validation screen
+    /// (`InspectionValidationViewModel.appendImages`), instead of a separate RAM-only path.
+    /// This gets quick-capture the same durability (disk-safe at shutter press), the same
+    /// single source of truth (`coordinator.images`, not a second `capturedPhotos`-only copy),
+    /// resized thumbnails (not full-res UIImages pinned in RAM), and — critically — an
+    /// immediate upload enqueue, so `submitInspection()` doesn't silently drop a quick-captured
+    /// photo that the user never got around to opening the validation screen for.
+    /// Note: does NOT clear `selectedFieldId` — the `fullScreenCover`'s `onDismiss` does that,
+    /// once the sheet has actually finished animating away. Clearing it here instead would run
+    /// the risk of invalidating the `if let fieldId = viewModel.selectedFieldId` guard around
+    /// `CameraView(...)` in `InspectionDetailView` while the cover is still on screen.
+    func handleQuickCapture(_ captured: [CapturedPhoto]) {
+        guard let fieldId = selectedFieldId, !captured.isEmpty else { return }
+        let coordinator = makeCoordinator(for: fieldId)
 
-    func handlePhotoSelection(_ images: [UIImage]) {
-        guard let fieldId = selectedFieldId else { return }
-        for image in images {
-            savePhoto(image, for: fieldId)
+        Task { @MainActor in
+            await coordinator.commitCapturedPhotos(captured)
+
+            // Immediate echo so the field list shows the new photo(s) right away — coordinator's
+            // own onSilentSave (wired in makeCoordinator) fires again once the actual upload
+            // completes, keeping capturedPhotos in sync with the final remote state too.
+            let validation = FieldValidation(
+                id: fieldId, status: .passed, comments: "",
+                images: coordinator.images, lastUpdated: Date()
+            )
+            self.handleValidationUpdate(validation)
+            coordinator.enqueue(status: .passed, comments: "")
         }
-        selectedFieldId = nil
     }
 
     func submitInspection() async {

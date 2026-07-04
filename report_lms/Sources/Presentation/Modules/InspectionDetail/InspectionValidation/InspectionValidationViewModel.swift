@@ -82,72 +82,27 @@ final class InspectionValidationViewModel: ObservableObject {
 
     // MARK: - Camera / Image Append
 
-    func appendImages(_ newImages: [UIImage]) {
+    /// - Parameter captured: photos from `CameraView`, each already durably written to disk at
+    ///   shutter-press time (`Documents/inspection-images/<id>/<field>/pending_<uuid>.jpg`).
+    ///   `coordinator.commitCapturedPhotos` only has to *commit* (rename) those files — it
+    ///   never re-encodes, so an app kill mid-commit can only lose photos that are still
+    ///   sitting as `pending_*.jpg` (recoverable next time this field loads — see
+    ///   `loadPendingCaptures`), never ones that were already on disk before this function ran.
+    func appendImages(_ captured: [CapturedPhoto]) {
         let iid = coordinator.inspectionId
         let fid = coordinator.fieldId
-        guard !newImages.isEmpty, !iid.isEmpty else { return }
-        print("[UploadSession] appendImages START fieldId=\(fid.prefix(8)) count=\(newImages.count)")
+        guard !captured.isEmpty, !iid.isEmpty else { return }
+        print("[UploadSession] appendImages START fieldId=\(fid.prefix(8)) count=\(captured.count)")
 
         Task { @MainActor in
-            // Phase 1 — bounded parallel resize (max 4 concurrent at .utility priority)
-            let chunkSize = 4
-            let chunkCount = (newImages.count + chunkSize - 1) / chunkSize
-            print("[UploadSession] Phase1 START chunks=\(chunkCount) priority=.utility")
-            var thumbnails: [UIImage] = []
-            thumbnails.reserveCapacity(newImages.count)
-            var chunkStart = 0
-            while chunkStart < newImages.count {
-                let end = min(chunkStart + chunkSize, newImages.count)
-                let tasks = newImages[chunkStart..<end].map { img in
-                    Task.detached(priority: .utility) { img.resizedIfNeeded(maxDimension: 800) }
-                }
-                for t in tasks { thumbnails.append(await t.value) }
-                chunkStart = end
-            }
-            print("[UploadSession] Phase1 DONE thumbnails=\(thumbnails.count)")
-
-            var appendedIds: [UUID] = []
-            for thumb in thumbnails {
-                let img = InspectionImage(image: thumb)
-                appendedIds.append(img.id)
-                coordinator.appendImage(img)
-            }
-            print("[UploadSession] appended \(appendedIds.count) thumbnails → images.count=\(coordinator.images.count)")
+            await coordinator.commitCapturedPhotos(captured)
+            print("[UploadSession] appendImages committed → images.count=\(coordinator.images.count)")
 
             if status == .pending { status = .passed }
             updateDirtyState()
 
-            // Phase 2 — serialised disk writes: release each full-res UIImage immediately
-            // after its JPEG is flushed to disk, preventing 20 × ~48 MB from being pinned
-            // in the closure for the entire loop (which caused OOM hangs at batch 4+).
-            var pendingImages: [UIImage?] = newImages.map { Optional($0) }
-            let totalCount = pendingImages.count
-            Task {
-                print("[UploadSession] Phase2 START serializing \(totalCount) disk writes fieldId=\(fid.prefix(8))")
-                for offset in 0..<totalCount {
-                    guard let img = pendingImages[offset] else {
-                        print("[UploadSession] Phase2 cacheCapture FAIL offset=\(offset)/\(totalCount - 1)")
-                        continue
-                    }
-                    let id = appendedIds[offset]
-                    let thumb = await MainActor.run { coordinator.images.first(where: { $0.id == id })?.thumbnail }
-                    guard let path = await InspectionImageCacheActor.shared.cacheCapture(
-                        image: img, thumbnail: thumb, inspectionId: iid, fieldId: fid
-                    ) else {
-                        pendingImages[offset] = nil
-                        print("[UploadSession] Phase2 cacheCapture FAIL offset=\(offset)/\(totalCount - 1)")
-                        continue
-                    }
-                    pendingImages[offset] = nil  // release ~48 MB immediately after disk write
-                    PendingUploadStore.shared.addPending(filePath: path, inspectionId: iid, fieldId: fid)
-                    await MainActor.run {
-                        coordinator.updateImageFileURL(id: id, fileURL: URL(fileURLWithPath: path))
-                    }
-                    print("[UploadSession] Phase2 ok offset=\(offset)/\(totalCount - 1) file=\((path as NSString).lastPathComponent)")
-                }
-                print("[UploadSession] Phase2 DONE → saveValidation status=\(self.status) notifyParent=false")
-                saveValidation(status: self.status, notifyParent: false)
-            }
+            print("[UploadSession] → saveValidation status=\(self.status) notifyParent=false")
+            saveValidation(status: self.status, notifyParent: false)
         }
     }
 
@@ -238,6 +193,19 @@ final class InspectionValidationViewModel: ObservableObject {
         let inspectionId = coordinator.inspectionId
         let fieldId = coordinator.fieldId
         guard !inspectionId.isEmpty else { return }
+
+        // Recover captures written to disk at shutter-press time that never finished
+        // committing — e.g. the app was killed while the camera sheet was still open, before
+        // `appendImages` Phase 2 ran. These have no PendingUploadStore entry yet.
+        let recoveredPaths = await InspectionImageCacheActor.shared.recoverOrphanedPendingCaptures(
+            inspectionId: inspectionId, fieldId: fieldId
+        )
+        for path in recoveredPaths {
+            PendingUploadStore.shared.addPending(filePath: path, inspectionId: inspectionId, fieldId: fieldId)
+        }
+        if !recoveredPaths.isEmpty {
+            print("[UploadSession] recovered \(recoveredPaths.count) orphaned pending captures fieldId=\(fieldId.prefix(8))")
+        }
 
         let paths = PendingUploadStore.shared.getPendingFilePaths(
             inspectionId: inspectionId, fieldId: fieldId

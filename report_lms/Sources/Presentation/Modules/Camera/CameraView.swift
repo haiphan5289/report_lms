@@ -67,12 +67,33 @@ struct CameraView: View {
     @State private var controlsVisible = false
     @GestureState private var capturePressed = false
     let source: CameraSource
-    let onPhotoCaptured: ([UIImage]) -> Void
+    private let onPhotosCaptured: ([CapturedPhoto]) -> Void
+    private let keepsFilesAfterHandoff: Bool
 
+    /// Legacy callback — receives plain `UIImage`s. The capture-time safety JPEGs are deleted
+    /// right after hand-off since this caller only wants the in-memory image.
     init(source: CameraSource, onPhotoCaptured: @escaping ([UIImage]) -> Void) {
         self.source = source
-        self.onPhotoCaptured = onPhotoCaptured
+        self.onPhotosCaptured = { photos in onPhotoCaptured(photos.map { $0.image }) }
+        self.keepsFilesAfterHandoff = false
         _viewModel = StateObject(wrappedValue: CameraViewModel(source: source))
+    }
+
+    /// Rich callback for callers that commit the durable capture-time JPEGs themselves (see
+    /// `InspectionValidationViewModel.appendImages`) — required so captured photos survive an
+    /// app kill/crash between shutter press and this screen being dismissed.
+    init(
+        source: CameraSource,
+        inspectionId: String,
+        fieldId: String,
+        onPhotosCaptured: @escaping ([CapturedPhoto]) -> Void
+    ) {
+        self.source = source
+        self.onPhotosCaptured = onPhotosCaptured
+        self.keepsFilesAfterHandoff = true
+        _viewModel = StateObject(
+            wrappedValue: CameraViewModel(source: source, inspectionId: inspectionId, fieldId: fieldId)
+        )
     }
 
     // MARK: - Body
@@ -85,6 +106,10 @@ struct CameraView: View {
             }
             .onDisappear {
                 viewModel.stopCamera()
+                // No-op if Done already claimed the photos (array is empty by then) — otherwise
+                // this is a Cancel tap, swipe-dismiss, or permission-alert cancel, and any
+                // pending capture files still referenced here must be cleaned up.
+                viewModel.finishedHandoff(keepFiles: false)
             }
             .lmsSnackbar(message: $viewModel.limitMessage, type: .info)
             .alert(localizationManager.localize("camera.permission.title"), isPresented: $viewModel.showPermissionAlert) {
@@ -216,7 +241,9 @@ struct CameraView: View {
 
                 if !viewModel.capturedImages.isEmpty {
                     Button(action: {
-                        onPhotoCaptured(viewModel.capturedImages)
+                        let photos = viewModel.capturedImages
+                        viewModel.finishedHandoff(keepFiles: keepsFilesAfterHandoff)
+                        onPhotosCaptured(photos)
                         dismiss()
                     }, label: {
                         Text(localizationManager.localize("camera.button.done"))
@@ -239,7 +266,7 @@ struct CameraView: View {
                 HStack(spacing: Layout.thumbnailSpacing) {
                     ForEach(viewModel.capturedImages.indices, id: \.self) { index in
                         ZStack(alignment: .topTrailing) {
-                            Image(uiImage: viewModel.capturedImages[index])
+                            Image(uiImage: viewModel.capturedImages[index].image)
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: Layout.thumbnailSize, height: Layout.thumbnailSize)

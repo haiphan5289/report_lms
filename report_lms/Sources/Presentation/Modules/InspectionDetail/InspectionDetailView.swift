@@ -68,8 +68,14 @@ struct InspectionDetailView: View {
         .fullScreenCover(isPresented: $viewModel.showCamera, onDismiss: {
             viewModel.selectedFieldId = nil
         }) {
-            CameraView(source: .inspection) { images in
-                viewModel.handlePhotoSelection(images)
+            if let fieldId = viewModel.selectedFieldId {
+                CameraView(
+                    source: .inspection,
+                    inspectionId: viewModel.inspectionId,
+                    fieldId: fieldId
+                ) { photos in
+                    viewModel.handleQuickCapture(photos)
+                }
             }
         }
         .navigationDestination(item: $viewModel.selectedValidationField) { field in

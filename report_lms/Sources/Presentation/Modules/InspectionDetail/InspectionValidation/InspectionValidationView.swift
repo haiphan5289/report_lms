@@ -121,8 +121,12 @@ struct InspectionValidationView: View {
             await viewModel.loadPendingCaptures()
         }
         .sheet(isPresented: $viewModel.showCamera) {
-            CameraView(source: .inspection) { images in
-                viewModel.appendImages(images)
+            CameraView(
+                source: .inspection,
+                inspectionId: viewModel.coordinator.inspectionId,
+                fieldId: viewModel.coordinator.fieldId
+            ) { photos in
+                viewModel.appendImages(photos)
             }
             .environmentObject(LocalizationManager.shared)
         }

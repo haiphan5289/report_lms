@@ -101,7 +101,7 @@ CameraView
 User tap nút chụp
     └── viewModel.capturePhoto()
             ├── guard source.allowsMultiplePhotos || capturedImages.isEmpty
-            │       └── nguồn .inspection đã có ảnh → DỪNG (single-photo enforcement)
+            ├── guard !isAtPhotoLimit (maxPhotos, VD 20 với .inspection)
             └── cameraController.capturePhoto(flashMode: flashMode)
                     ├── captureCompletion = completion   [main thread]
                     └── sessionQueue.async
@@ -112,9 +112,16 @@ User tap nút chụp
                                     ├── build Result<UIImage, Error>
                                     └── DispatchQueue.main.async
                                             ├── captureCompletion?(.success(image))
-                                            ├── captureCompletion = nil
-                                            └── viewModel: capturedImages.append(image)
+                                            └── captureCompletion = nil
+                                                    ↓
+                                    Task { @MainActor in await self.persistCapture(image) }
+                                            ├── writePendingFile(image:id:in: pendingCapturesDir)
+                                            │       └── JPEG 0.85 → pending_<uuid>.jpg  ← GHI DISK
+                                            │           NGAY, trước khi ảnh kịp hiện trong preview
+                                            └── capturedImages.append(CapturedPhoto(id:image:fileURL:))
 ```
+
+**Vì sao ghi disk ngay ở bước này (thêm sau bug "kill app mất ảnh"):** trước đây `capturedImages` chỉ là `[UIImage]` — sống hoàn toàn trong RAM cho tới khi cả pipeline (Done → resize → upload commit) chạy xong, có thể mất vài giây. Nếu app bị kill/crash trong khoảng đó, ảnh mất vĩnh viễn, không cách nào phục hồi. Giờ mỗi ảnh có bytes an toàn trên disk **trong vòng một khung hình** sau khi chụp — xem chi tiết đầy đủ ở [`IMAGE_CACHE_WORKFLOW.md` § Kiến trúc capture-time durability](report_lms/Sources/Presentation/Modules/InspectionDetail/IMAGE_CACHE_WORKFLOW.md).
 
 ---
 
@@ -168,8 +175,26 @@ Khi chụp:
 
 ```
 User tap "Done"
-    └── onPhotoCaptured(viewModel.capturedImages)   [callback về caller]
+    ├── let photos = viewModel.capturedImages
+    ├── viewModel.finishedHandoff(keepFiles: keepsFilesAfterHandoff)
+    │       ├── keepFiles: true  (rich init)  → giữ pending_*.jpg, caller tự commit
+    │       └── keepFiles: false (legacy init) → xoá pending_*.jpg ngay (caller chỉ cần UIImage)
+    ├── onPhotosCaptured(photos)   [callback về caller — [CapturedPhoto] hoặc [UIImage] tuỳ init]
     └── dismiss()
+```
+
+**2 initializer** — chọn tự động theo tham số truyền vào tại call site, không đổi cách gọi của các flow không cần an toàn disk:
+
+```swift
+// Legacy — nhận [UIImage], KHÔNG có safety-net disk (giữ đúng risk profile như trước)
+CameraView(source: .errorReport) { images in
+    viewModel.attachImages(images)
+}
+
+// Rich — nhận [CapturedPhoto] (ảnh + fileURL đã ghi disk), dùng cho flow inspection
+CameraView(source: .inspection, inspectionId: id, fieldId: fieldId) { photos in
+    viewModel.appendImages(photos)   // hoặc handleQuickCapture(photos)
+}
 ```
 
 ---
@@ -177,27 +202,35 @@ User tap "Done"
 ### Bước 8: Đóng Camera
 
 ```
-CameraView.onDisappear
-    └── viewModel.stopCamera()
-            └── cameraController.stopSession()
-                    └── sessionQueue.async → captureSession.stopRunning()
+CameraView.onDisappear   ← chạy với MỌI cách thoát: Done, Cancel, vuốt dismiss, huỷ permission alert
+    ├── viewModel.stopCamera()
+    │       └── cameraController.stopSession()
+    │               └── sessionQueue.async → captureSession.stopRunning()
+    └── viewModel.finishedHandoff(keepFiles: false)
+            └── No-op nếu Done đã claim ảnh (capturedImages rỗng lúc này)
+                Ngược lại: xoá sạch pending_*.jpg còn sót (Cancel/vuốt dismiss) — không rác
 ```
 
 ---
 
 ## 📦 CameraSource
 
-| Source | `allowsMultiplePhotos` | Sử dụng |
-|---|---|---|
-| `.errorReport` | `true` | Mở từ nút Report trên ErrorHomeView |
-| `.inspection` | `false` | Single-photo trong Inspection flow |
-| `.general` | `true` | Chụp ảnh chung |
+| Source | `allowsMultiplePhotos` | `maxPhotos` | Sử dụng |
+|---|---|---|---|
+| `.errorReport` | `true` | không giới hạn | Mở từ nút Report trên ErrorHomeView |
+| `.inspection` | `true` | 20 | Inspection flow (validation screen + quick-capture field-list) |
+| `.general` | `true` | không giới hạn | Chụp ảnh chung |
 
 ```swift
-// Cách tích hợp trong View khác
+// Legacy — [UIImage], không có safety-net disk
 CameraView(source: .errorReport) { images in
-    // images: [UIImage] — số lượng phụ thuộc vào source
     viewModel.attachImages(images)
+}
+.environmentObject(LocalizationManager.shared)
+
+// Rich — [CapturedPhoto], safety-net disk (dùng cho flow inspection)
+CameraView(source: .inspection, inspectionId: id, fieldId: fieldId) { photos in
+    viewModel.appendImages(photos)
 }
 .environmentObject(LocalizationManager.shared)
 ```
@@ -330,14 +363,20 @@ User tap "Lưu"
                              ┌────▼──────────┐
                              │   Capturing   │
                              └────┬──────────┘
-                                  │ success
+                                  │ success → persistCapture (ghi pending_<uuid>.jpg xuống disk)
                              ┌────▼──────────┐
-                             │  Thumbnail    │
-                             │   Strip       │◄──── delete image
+                             │  Thumbnail    │◄──── delete image (xoá cả file pending_*.jpg)
+                             │   Strip       │
                              └────┬──────────┘
-                                  │ tap Done
-                             ┌────▼──────────┐
-                             │  onPhotoCaptured│
+                                  │ tap Done                    │ Cancel / vuốt dismiss / permission cancel
+                             ┌────▼──────────┐              ┌────▼──────────────┐
+                             │ finishedHandoff│              │ finishedHandoff    │
+                             │ (keepFiles:    │              │ (keepFiles: false) │
+                             │  tuỳ init)     │              │  qua .onDisappear  │
+                             └────┬──────────┘              └────┬───────────────┘
+                                  │                                │ xoá sạch pending_*.jpg còn sót
+                             ┌────▼──────────┐                     ▼
+                             │ onPhotosCaptured│                (không có ảnh nào được trả về)
                              │  callback      │
                              └───────────────┘
 ```
