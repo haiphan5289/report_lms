@@ -7,28 +7,17 @@
 
 import Foundation
 import SwiftUI
-import OSLog
 
 @MainActor
 final class InspectionDetailContentViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var expandedSections: Set<String> = []
-    
-    // PDF Generation Properties
-    @Published var isGeneratingPDF = false
-    @Published var isShowingMailComposer = false
-    @Published var isShowingPDFPreview = false
-    @Published var pdfData: Data?
-    @Published var pdfError: String?
-    @Published var showMailUnavailableAlert = false
-    
+
     // MARK: - Private Properties
     private let onTextTap: (String) -> Void
     private let onCameraTap: (String) -> Void
     private weak var parentViewModel: InspectionDetailViewModel?
-    private let generatePDFUseCase: GenerateHTMLPDFReportUseCase
-    private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "inspection")
-    
+
     // MARK: - Computed Properties
     var inspection: Inspection? {
         parentViewModel?.inspection
@@ -59,21 +48,11 @@ final class InspectionDetailContentViewModel: ObservableObject {
     init(
         parentViewModel: InspectionDetailViewModel,
         onTextTap: @escaping (String) -> Void,
-        onCameraTap: @escaping (String) -> Void,
-        generatePDFUseCase: GenerateHTMLPDFReportUseCase? = nil
+        onCameraTap: @escaping (String) -> Void
     ) {
         self.parentViewModel = parentViewModel
         self.onTextTap = onTextTap
         self.onCameraTap = onCameraTap
-        
-        if let useCase = generatePDFUseCase {
-            self.generatePDFUseCase = useCase
-        } else {
-            guard let resolvedUseCase = Container.shared.resolve(GenerateHTMLPDFReportUseCase.self) else {
-                fatalError("GenerateHTMLPDFReportUseCase must be registered in DI container")
-            }
-            self.generatePDFUseCase = resolvedUseCase
-        }
     }
     
     // MARK: - Public Methods
@@ -113,96 +92,6 @@ final class InspectionDetailContentViewModel: ObservableObject {
     }
     
     /// Auto-expand first section when data loads
-    
-    // MARK: - PDF Generation
-    
-    /// Generate PDF and show preview
-    func generateAndPreviewPDF() async {
-        guard let detail = inspection else {
-            logger.error("Cannot generate PDF: No inspection detail available")
-            pdfError = "Không có dữ liệu kiểm tra"
-            return
-        }
-        
-        isGeneratingPDF = true
-        pdfError = nil
-        pdfData = nil
-        
-        logger.log("Starting PDF generation for inspection #\(detail.inspectionNumber)")
-        
-        // Get inspector name from KeychainManager
-        let inspectorName = KeychainManager.getStoredUsername() ?? "Unknown"
-        
-        do {
-            let data = try await generatePDFUseCase.execute(
-                detail: detail,
-                images: capturedPhotos,
-                inspectorName: inspectorName,
-                location: ""
-            )
-            
-            pdfData = data
-            isShowingPDFPreview = true
-            
-            logger.log("PDF generated successfully, size: \(data.count) bytes")
-        } catch {
-            logger.error("PDF generation failed: \(error.localizedDescription)")
-            pdfError = "Không thể tạo PDF: \(error.localizedDescription)"
-        }
-        
-        isGeneratingPDF = false
-    }
-    
-    /// Generate PDF and prepare for email sending
-    func generateAndSendPDF() async {
-        guard let detail = inspection else {
-            logger.error("Cannot generate PDF: No inspection detail available")
-            pdfError = "Không có dữ liệu kiểm tra"
-            return
-        }
-        
-        // Check if mail is available
-        guard MailComposerView.canSendMail else {
-            logger.warning("Mail services not available")
-            showMailUnavailableAlert = true
-            return
-        }
-        
-        isGeneratingPDF = true
-        pdfError = nil
-        pdfData = nil
-        
-        logger.log("Starting PDF generation for inspection #\(detail.inspectionNumber)")
-        
-        // Get inspector name from KeychainManager
-        let inspectorName = KeychainManager.getStoredUsername() ?? "Unknown"
-        
-        do {
-            let data = try await generatePDFUseCase.execute(
-                detail: detail,
-                images: capturedPhotos,
-                inspectorName: inspectorName,
-                location: ""
-            )
-            
-            pdfData = data
-            isShowingMailComposer = true
-            
-            logger.log("PDF generated successfully, opening mail composer")
-        } catch {
-            logger.error("PDF generation failed: \(error.localizedDescription)")
-            pdfError = "Không thể tạo PDF: \(error.localizedDescription)"
-        }
-        
-        isGeneratingPDF = false
-    }
-    
-    /// Reset PDF generation state
-    func resetPDFState() {
-        pdfData = nil
-        pdfError = nil
-        isShowingMailComposer = false
-    }
     func autoExpandFirstSection() {
         if let firstSection = inspection?.sections.first {
             expandedSections.insert(firstSection.id)

@@ -96,21 +96,6 @@ final class PDFReportRequestBuilder {
         )
     }
 
-    func buildWithDefaults() throws -> PDFReportRequest {
-        guard let inspectionData = inspection else {
-            throw PDFReportBuilderError.missingInspection
-        }
-        return PDFReportRequest(
-            inspection: inspectionData,
-            capturedImages: capturedImages,
-            inspectorName: inspectorName ?? "Unknown Inspector",
-            inspectionLocation: inspectionLocation ?? "Unknown Location",
-            defectCounts: defectCounts,
-            finalStatus: finalStatus,
-            summaryComments: summaryComments
-        )
-    }
-    
     /// Reset builder to initial state
     func reset() {
         inspection = nil
@@ -153,32 +138,15 @@ extension PDFReportRequestBuilder {
 
 // MARK: - Usage Example
 /*
- Usage in FinalReportViewModel:
- 
- func generateAndPreviewPDF() async {
-     guard let detail = inspectionDetail else { return }
-     
-     do {
-         let request = try PDFReportRequestBuilder()
-             .with(detail: detail)
-             .with(images: capturedPhotos)
-             .with(inspectorName: KeychainManager.getStoredUsername() ?? "Unknown")
-             .with(location: location)
-             .build()
-         
-         let data = try await generatePDFUseCase.execute(request: request)
-         pdfData = data
-         isShowingPDFPreview = true
-     } catch {
-         errorAlertMessage = error.localizedDescription
-         showErrorAlert = true
-     }
- }
- 
- // Or with defaults:
+ Usage in FinalReportViewModel.generateAndSendPDF():
+
  let request = try PDFReportRequestBuilder.withDefaults()
-     .with(detail: detail)
+     .with(inspection: detail)
      .with(images: capturedPhotos)
      .with(location: location)
+     .with(finalStatus: selectedStatus)
+     .with(summaryComments: summaryComments)
      .build()
+
+ let data = try await generatePDFUseCase.execute(request: request)
  */

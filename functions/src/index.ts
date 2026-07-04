@@ -132,6 +132,10 @@ function t(lang: Lang, key: string): string {
   return TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS["en"][key] ?? key;
 }
 
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 interface InspectionField {
   id:                  string;
   label:               string;
@@ -203,9 +207,17 @@ export const processReportQueue = onDocumentCreated(
         auth: { user: gmailUser.value(), pass: gmailPass.value() },
       });
 
+      // requestedBy falls back to the literal string "unknown" on the iOS side when no user
+      // is logged in (see ReportDeliveryQueueService.enqueue) — that's not a deliverable
+      // address, and handing it to nodemailer as a cc/replyTo would risk the whole send
+      // being rejected by the SMTP server, including the real recipients. Only trace-cc the
+      // sender when requestedBy is an actual email.
+      const traceEmail = isValidEmail(requestedBy) ? requestedBy : undefined;
+
       await transporter.sendMail({
         from:    `"LMS Report" <${gmailUser.value()}>`,
         to:      recipientEmails.join(", "),
+        ...(traceEmail ? { cc: traceEmail, replyTo: traceEmail } : {}),
         subject: `${t(lang, "emailSubject")}${inspectionNumber}`,
         html:    buildEmailHTML(inspectionNumber, inspection.companyName ?? "", requestedBy, lang),
         attachments: [{
@@ -215,7 +227,7 @@ export const processReportQueue = onDocumentCreated(
         }],
       });
 
-      console.log(`[${taskId}] Email sent to: ${recipientEmails.join(", ")}`);
+      console.log(`[${taskId}] Email sent to: ${recipientEmails.join(", ")}${traceEmail ? ` (cc: ${traceEmail})` : ""}`);
       await taskRef.update({ status: "sent", sentAt: admin.firestore.FieldValue.serverTimestamp() });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -632,7 +644,7 @@ async function generatePDF(
             rowBufs.forEach((buf, col) => {
               const imgX = MARGIN + col * (IMG_W + IMG_GAP);
               try {
-                doc.image(buf, imgX, y, { width: IMG_W, height: IMG_H });
+                doc.image(buf, imgX, y, { fit: [IMG_W, IMG_H], align: "center", valign: "center" });
                 doc.lineWidth(0.5).rect(imgX, y, IMG_W, IMG_H).strokeColor(C_BORDER).stroke();
               } catch (e) { console.warn(`Embed image failed: ${e}`); }
             });

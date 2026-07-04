@@ -118,14 +118,6 @@ struct FinalReportView: View {
                 )
             }
         }
-        .sheet(isPresented: $viewModel.isShowingPDFPreview) {
-            if let pdfData = viewModel.pdfData {
-                PDFPreviewView(
-                    pdfData: pdfData,
-                    fileName: "Bao_cao_kiem_tra_\(viewModel.inspection?.inspectionNumber ?? "").pdf"
-                )
-            }
-        }
         .overlay {
             if viewModel.isSavingPhotos {
                 LMSLoadingOverlay(message: localizationManager.localize("finalReport.loading.savePhotos"), style: .dark)

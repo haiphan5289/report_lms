@@ -20,27 +20,3 @@ protocol PDFGeneratorType {
         summaryComments: String
     ) async throws -> Data
 }
-
-/// Errors that can occur during PDF generation
-enum PDFGenerationError: LocalizedError {
-    case htmlGenerationFailed
-    case webViewRenderingFailed
-    case pdfConversionFailed
-    case noDataGenerated
-    case invalidInspectionData
-    
-    var errorDescription: String? {
-        switch self {
-        case .htmlGenerationFailed:
-            return "Không thể tạo HTML template"
-        case .webViewRenderingFailed:
-            return "Không thể render HTML"
-        case .pdfConversionFailed:
-            return "Không thể chuyển đổi sang PDF"
-        case .noDataGenerated:
-            return "Không có dữ liệu PDF được tạo"
-        case .invalidInspectionData:
-            return "Dữ liệu kiểm tra không hợp lệ"
-        }
-    }
-}

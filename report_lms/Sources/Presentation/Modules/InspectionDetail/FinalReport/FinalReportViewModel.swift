@@ -26,11 +26,8 @@ final class FinalReportViewModel: ObservableObject {
     
     // PDF Generation
     @Published var isGeneratingPDF = false
-    @Published var pdfGenerationProgress: Double = 0.0
     @Published var isShowingMailComposer = false
-    @Published var isShowingPDFPreview = false
     @Published var pdfData: Data?
-    @Published var pdfError: String?
     @Published var showMailUnavailableAlert = false
     
     // Photo Saving
@@ -133,67 +130,7 @@ final class FinalReportViewModel: ObservableObject {
     }
     
     // MARK: - PDF Generation
-    
-    /// Generate PDF and show preview (Using Builder Pattern)
-    func generateAndPreviewPDF() async {
-        guard let detail = inspection else {
-            logger.error("Cannot generate PDF: No inspection detail available")
-            errorAlertMessage = "Không có dữ liệu kiểm tra"
-            showErrorAlert = true
-            return
-        }
 
-        isGeneratingPDF = true
-        pdfGenerationProgress = 0.0
-        pdfError = nil
-        pdfData = nil
-
-        logger.log("Starting PDF generation with Builder Pattern for inspection #\(detail.inspectionNumber)")
-
-        do {
-            // Stage 1: build request → 30%
-            let request = try PDFReportRequestBuilder.withDefaults()
-                .with(inspection: detail)
-                .with(images: capturedPhotos)
-                .with(location: location)
-                .with(finalStatus: selectedStatus)
-                .with(summaryComments: summaryComments)
-                .build()
-            pdfGenerationProgress = 0.30
-
-            // Stage 2: fill to 85% while execute runs
-            let fillTask = Task {
-                var p = 0.30
-                while !Task.isCancelled && p < 0.85 {
-                    try? await Task.sleep(nanoseconds: 200_000_000)
-                    p = min(p + 0.08, 0.85)
-                    pdfGenerationProgress = p
-                }
-            }
-
-            let data = try await generatePDFUseCase.execute(request: request)
-            fillTask.cancel()
-
-            // Stage 3: done → 100%
-            pdfGenerationProgress = 1.0
-            pdfData = data
-            isShowingPDFPreview = true
-
-            logger.log("PDF generated successfully using Builder Pattern, size: \(data.count) bytes")
-        } catch let error as PDFReportBuilderError {
-            logger.error("Builder validation failed: \(error.localizedDescription)")
-            errorAlertMessage = "Lỗi xây dựng PDF: \(error.localizedDescription)"
-            showErrorAlert = true
-        } catch {
-            logger.error("PDF generation failed: \(error.localizedDescription)")
-            errorAlertMessage = "Không thể tạo PDF: \(error.localizedDescription)"
-            showErrorAlert = true
-        }
-
-        isGeneratingPDF = false
-        pdfGenerationProgress = 0.0
-    }
-    
     /// Generate PDF and prepare for email sending (Using Builder Pattern)
     func generateAndSendPDF() async {
         guard let detail = inspection else {
@@ -202,18 +139,17 @@ final class FinalReportViewModel: ObservableObject {
             showErrorAlert = true
             return
         }
-        
+
         // Check if mail is available
         guard MailComposerView.canSendMail else {
             logger.warning("Mail services not available")
             showMailUnavailableAlert = true
             return
         }
-        
+
         isGeneratingPDF = true
-        pdfError = nil
         pdfData = nil
-        
+
         logger.log("Starting PDF generation for email with Builder Pattern, inspection #\(detail.inspectionNumber)")
         
         do {
@@ -334,13 +270,6 @@ final class FinalReportViewModel: ObservableObject {
     func handleEmailSent() async {
         await markInspectionCompleted()
         showEmailSuccessAlert = true
-    }
-    
-    /// Reset PDF state
-    func resetPDFState() {
-        pdfData = nil
-        pdfError = nil
-        isShowingMailComposer = false
     }
     
     // MARK: - Photo Saving

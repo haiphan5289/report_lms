@@ -147,6 +147,9 @@ function t(lang, key) {
     var _a, _b, _c;
     return (_c = (_b = (_a = TRANSLATIONS[lang]) === null || _a === void 0 ? void 0 : _a[key]) !== null && _b !== void 0 ? _b : TRANSLATIONS["en"][key]) !== null && _c !== void 0 ? _c : key;
 }
+function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
 // ── Cloud Function ─────────────────────────────────────────────────────────────
 exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
     document: "report_delivery_queue/{taskId}",
@@ -186,18 +189,18 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
             service: "gmail",
             auth: { user: gmailUser.value(), pass: gmailPass.value() },
         });
-        await transporter.sendMail({
-            from: `"LMS Report" <${gmailUser.value()}>`,
-            to: recipientEmails.join(", "),
-            subject: `${t(lang, "emailSubject")}${inspectionNumber}`,
-            html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", requestedBy, lang),
-            attachments: [{
+        // requestedBy falls back to the literal string "unknown" on the iOS side when no user
+        // is logged in (see ReportDeliveryQueueService.enqueue) — that's not a deliverable
+        // address, and handing it to nodemailer as a cc/replyTo would risk the whole send
+        // being rejected by the SMTP server, including the real recipients. Only trace-cc the
+        // sender when requestedBy is an actual email.
+        const traceEmail = isValidEmail(requestedBy) ? requestedBy : undefined;
+        await transporter.sendMail(Object.assign(Object.assign({ from: `"LMS Report" <${gmailUser.value()}>`, to: recipientEmails.join(", ") }, (traceEmail ? { cc: traceEmail, replyTo: traceEmail } : {})), { subject: `${t(lang, "emailSubject")}${inspectionNumber}`, html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", requestedBy, lang), attachments: [{
                     filename: `${t(lang, "attachmentPrefix")}${inspectionNumber}.pdf`,
                     content: pdfBuffer,
                     contentType: "application/pdf",
-                }],
-        });
-        console.log(`[${taskId}] Email sent to: ${recipientEmails.join(", ")}`);
+                }] }));
+        console.log(`[${taskId}] Email sent to: ${recipientEmails.join(", ")}${traceEmail ? ` (cc: ${traceEmail})` : ""}`);
         await taskRef.update({ status: "sent", sentAt: admin.firestore.FieldValue.serverTimestamp() });
     }
     catch (error) {
@@ -527,7 +530,7 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
                         rowBufs.forEach((buf, col) => {
                             const imgX = MARGIN + col * (IMG_W + IMG_GAP);
                             try {
-                                doc.image(buf, imgX, y, { width: IMG_W, height: IMG_H });
+                                doc.image(buf, imgX, y, { fit: [IMG_W, IMG_H], align: "center", valign: "center" });
                                 doc.lineWidth(0.5).rect(imgX, y, IMG_W, IMG_H).strokeColor(C_BORDER).stroke();
                             }
                             catch (e) {

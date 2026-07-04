@@ -21,50 +21,6 @@ final class GenerateHTMLPDFReportUseCase {
     }
     
     // MARK: - Public Methods
-    
-    /// Execute PDF generation for an inspection
-    /// - Parameters:
-    ///   - detail: The inspection detail containing all sections and fields
-    ///   - images: Dictionary mapping field IDs to their captured images
-    ///   - inspectorName: Name of the inspector
-    ///   - location: Inspection location
-    /// - Returns: PDF data ready for sharing or saving
-    /// - Throws: PDFGenerationError if generation fails
-    func execute(
-        detail: Inspection,
-        images: [String: [InspectionImage]],
-        inspectorName: String,
-        location: String,
-        defectCounts: (critical: Int, major: Int, minor: Int) = (0, 0, 0),
-        finalStatus: FinalReportStatus = .pending,
-        summaryComments: String = ""
-    ) async throws -> Data {
-        logger.log("Executing PDF generation use case for inspection #\(detail.inspectionNumber)")
-
-        guard !detail.sections.isEmpty else {
-            logger.error("Inspection has no sections")
-            throw PDFGenerationError.invalidInspectionData
-        }
-
-        let resolvedImages = await resolveRemoteImages(images)
-
-        do {
-            let pdfData = try await pdfGenerator.generatePDF(
-                detail: detail,
-                images: resolvedImages,
-                inspectorName: inspectorName,
-                location: location,
-                defectCounts: defectCounts,
-                finalStatus: finalStatus,
-                summaryComments: summaryComments
-            )
-            logger.log("PDF generation completed successfully, size: \(pdfData.count) bytes")
-            return pdfData
-        } catch {
-            logger.error("PDF generation failed: \(error.localizedDescription)")
-            throw error
-        }
-    }
 
     /// Downloads any remote images so the synchronous PDF renderer has UIImage instances.
     private func resolveRemoteImages(_ images: [String: [InspectionImage]]) async -> [String: [InspectionImage]] {
@@ -104,7 +60,7 @@ final class GenerateHTMLPDFReportUseCase {
     /// Execute PDF generation with a unified request object (Builder Pattern)
     /// - Parameter request: Complete PDF generation request containing all required data
     /// - Returns: PDF data ready for sharing or saving
-    /// - Throws: PDFGenerationError or PDFReportRequestError if generation/validation fails
+    /// - Throws: PDFReportRequestError if validation fails
     func execute(request: PDFReportRequest) async throws -> Data {
         logger.log("Executing PDF generation with request model for inspection #\(request.inspection.inspectionNumber)")
         

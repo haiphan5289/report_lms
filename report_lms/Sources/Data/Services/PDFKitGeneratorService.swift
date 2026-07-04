@@ -485,8 +485,7 @@ final class PDFKitGeneratorService: PDFGeneratorType {
 
                 ctx.cgContext.saveGState()
                 UIBezierPath(roundedRect: inset, cornerRadius: 4).addClip()
-                let resized = resizeImage(img.image, to: CGSize(width: Layout.imageWidth * 2, height: Layout.imageHeight * 2))
-                resized.draw(in: inset)
+                drawAspectFit(img.image, in: inset)
                 ctx.cgContext.restoreGState()
 
                 UIColor(white: 0.75, alpha: 1).setStroke()
@@ -593,10 +592,19 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         }
     }
 
-    private func resizeImage(_ image: UIImage, to size: CGSize) -> UIImage {
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
+    /// Draws `image` inside `rect`, scaled to fit while preserving aspect ratio and centered
+    /// (mirrors SwiftUI's `.aspectRatio(contentMode: .fit)`) — unlike a plain `image.draw(in:)`
+    /// into `rect`, which stretches the image to the exact rect size and distorts it whenever
+    /// the source aspect ratio doesn't match the target box.
+    private func drawAspectFit(_ image: UIImage, in rect: CGRect) {
+        let imageSize = image.size
+        guard imageSize.width > 0, imageSize.height > 0 else { return }
+        let scale = min(rect.width / imageSize.width, rect.height / imageSize.height)
+        let fittedSize = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        let origin = CGPoint(
+            x: rect.minX + (rect.width - fittedSize.width) / 2,
+            y: rect.minY + (rect.height - fittedSize.height) / 2
+        )
+        image.draw(in: CGRect(origin: origin, size: fittedSize))
     }
 }
