@@ -47,7 +47,7 @@ Both `generateAndPreviewPDF()` (local) and `sendReportViaQueue()` (Firebase) pro
 - Sections **with images** start on a fresh page; sections **without images** continue on the current page (new page only if `y + 60 > CONTENT_MAX_Y`)
 - Section header (bold 14pt + blue underline)
 - Fields numbered `S.F` (e.g. `1.2 Field Label`)
-- 4-column photo grid (≈122×92 pt per image, 4:3 ratio)
+- 4-column photo grid (≈122×92 pt per image, 4:3 ratio) — **aspect-fit** (preserves source aspect ratio, centered, letterboxed if not 4:3). Previously stretched to fill the cell and distorted non-4:3 photos — fixed on both the Cloud Function (`doc.image(..., { fit: [w, h], align: "center", valign: "center" })`) and iOS (`PDFKitGeneratorService.drawAspectFit`, replacing the old stretch-only `resizeImage`)
 - Footer on every page: separator + "Report created with report_lms." + "Order:… page: N"
 
 ---
@@ -130,13 +130,13 @@ let taskId = try await queueDeliveryUseCase.execute(
 | File | Role |
 |------|------|
 | `PDFReportRequest.swift` | Request model (Domain/Entities) |
-| `PDFReportRequestBuilder.swift` | Builder (Domain/Entities) |
-| `PDFKitGeneratorService.swift` | iOS PDF renderer — Qarma layout (Data/Services) |
-| `GenerateHTMLPDFReportUseCase.swift` | Use case wiring builder → service (Domain/UseCases) |
-| `PDFGeneratorType.swift` | Protocol (Domain/Repositories) |
-| `FinalReportViewModel.swift` | Both preview and queue delivery call sites |
-| `functions/src/index.ts` | Cloud Function — same Qarma layout in Node.js/pdfkit |
+| `PDFReportRequestBuilder.swift` | Builder (Domain/Entities) — `.build()` only now, `buildWithDefaults()` removed (unused) |
+| `PDFKitGeneratorService.swift` | iOS PDF renderer — Qarma layout, aspect-fit photo grid (Data/Services) |
+| `GenerateHTMLPDFReportUseCase.swift` | Use case wiring builder → service (Domain/UseCases) — `execute(request:)` only now, direct-params overload removed (unused) |
+| `PDFGeneratorType.swift` | Protocol (Domain/Repositories) — `PDFGenerationError` removed (no throw sites left) |
+| `FinalReportViewModel.swift` | Queue delivery (`sendReportViaQueue`) + legacy mail-composer fallback (`generateAndSendPDF`, only reachable if `FeatureFlags.useFirebaseReportDelivery == false`). `generateAndPreviewPDF()`/`isShowingPDFPreview` removed — dead since the "Xem PDF" preview button was removed from the UI |
+| `functions/src/index.ts` | Cloud Function — same Qarma layout in Node.js/pdfkit, aspect-fit photo grid, trace-CC/Reply-To to `requestedBy` |
 
 ---
 
-*Last updated: 2026-06-06 — feat/login branch — blank page fix (PDFDocument margins→0); smart section page-break; "Xem PDF" button removed from UI*
+*Last updated: 2026-07-04 — feat/login branch — blank page fix (PDFDocument margins→0); smart section page-break; "Xem PDF" button removed from UI; removed dead code left behind by that removal (`generateAndPreviewPDF`, `buildWithDefaults`, direct-params `execute()` overload, `PDFGenerationError`); trace-CC + Reply-To to `requestedBy`; photo grid switched from stretch to aspect-fit.*

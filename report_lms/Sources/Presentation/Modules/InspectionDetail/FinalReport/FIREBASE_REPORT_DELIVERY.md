@@ -105,8 +105,35 @@ firebase functions:secrets:set GMAIL_APP_PASSWORD  # App Password (2FA)
 4. compressImageBuffer() — resize về max 800×600, JPEG 70%
 5. generatePDF() — Qarma-style layout với pdfkit + NotoSans fonts
 6. nodemailer.sendMail() — đính kèm PDF, gửi đến recipientEmails
+                            + cc/replyTo = requestedBy (xem § Trace Email)
 7. Cập nhật status → "sent" | "failed"
 ```
+
+---
+
+## Trace Email (CC người gửi)
+
+Mỗi email báo cáo tự động **CC** cho chính người đã bấm gửi (`requestedBy`, lấy từ `Auth.auth().currentUser?.email` lúc enqueue — [`ReportDeliveryQueueService.swift:82`](../../../../../Sources/Data/Services/ReportDeliveryQueueService.swift#L82)), để họ luôn có 1 bản trong hộp thư tự tra lại sau này. `replyTo` cũng trỏ về `requestedBy` — người nhận bấm "Reply" sẽ về đúng người gửi, không phải hộp mail chung `GMAIL_USER`.
+
+```ts
+// functions/src/index.ts
+const traceEmail = isValidEmail(requestedBy) ? requestedBy : undefined;
+
+await transporter.sendMail({
+  from: `"LMS Report" <${gmailUser.value()}>`,   // vẫn 1 tài khoản Gmail cố định
+  to: recipientEmails.join(", "),
+  ...(traceEmail ? { cc: traceEmail, replyTo: traceEmail } : {}),
+  ...
+});
+```
+
+**Vì sao không đổi hẳn "From" thành email người gửi:** Gmail SMTP (`nodemailer` + `service: "gmail"`) yêu cầu xác thực bằng đúng 1 tài khoản cố định (`GMAIL_USER`/`GMAIL_APP_PASSWORD`) — không thể set `From` thành 1 địa chỉ Gmail khác mà tài khoản xác thực không sở hữu (Gmail chặn/spam ngay). Đã cân nhắc dùng Google OAuth (`gmail.send` scope) để gửi thật từ Gmail của user, nhưng bị loại vì:
+- User dùng nhiều loại email khác nhau (không chỉ Gmail/1 Google Workspace domain) → OAuth chỉ cover được 1 phần user, vẫn phải giữ đường fallback cho phần còn lại.
+- `gmail.send` là sensitive scope — app không giới hạn nội bộ 1 domain thì phải qua Google security assessment (CASA), không tương xứng effort cho 1 tính năng gửi báo cáo nội bộ.
+
+→ CC + Reply-To là giải pháp tự động 100% (không cần user cấp quyền gì thêm), hoạt động với **mọi loại email**, không cần đổi kiến trúc gửi mail.
+
+**Guard "unknown":** `requestedBy` fallback về chuỗi `"unknown"` nếu không có user đăng nhập lúc enqueue. Đưa thẳng `"unknown"` vào `cc`/`replyTo` có thể khiến SMTP từ chối *cả* email (kể cả recipient thật) vì không phải định dạng email hợp lệ. `isValidEmail(requestedBy)` guard trước — nếu không hợp lệ, bỏ qua CC/Reply-To hoàn toàn, email vẫn gửi bình thường cho recipient.
 
 ---
 
@@ -209,6 +236,20 @@ Sections có ảnh → bắt đầu trang mới. Sections không có ảnh → t
 | `TABLE_ROW_H` | 24px | Chiều cao hàng checklist/defect table |
 | `FOOTER_Y` | `PAGE_H − 28` | Vị trí footer |
 | `CONTENT_MAX_Y` | `PAGE_H − 46` | Y tối đa trước footer |
+
+### Content Mode ảnh trong lưới 4 cột
+
+Ảnh được vẽ theo kiểu **aspect-fit** (giữ tỉ lệ gốc, căn giữa trong khung `IMG_W × IMG_H`, có khoảng trắng nếu tỉ lệ lệch 4:3) — giống `.scaledToFit()` trong SwiftUI. Trước đây ảnh bị **stretch** (kéo méo) vì `doc.image()` được truyền cả `width`+`height` mà không có `fit` — đã fix ở cả 2 phía:
+
+```ts
+// functions/src/index.ts — pdfkit
+doc.image(buf, imgX, y, { fit: [IMG_W, IMG_H], align: "center", valign: "center" });
+```
+
+```swift
+// PDFKitGeneratorService.swift — iOS
+drawAspectFit(img.image, in: inset)   // tự tính scale = min(rect.w/img.w, rect.h/img.h), căn giữa
+```
 
 ### Status Colors
 
@@ -314,5 +355,5 @@ report_lms/Sources/
 
 ---
 
-*Last updated: 2026-06-06 — feat/login branch*  
-*Changes: Qarma-style PDF layout (cover page, 4-col grid, per-page footer, status banner); finalStatus + summaryComments threaded through queue delivery; fixed blank pages (PDFDocument margins set to 0 so pdfkit auto-break threshold doesn't conflict with FOOTER_Y); smart section page-break (only force new page when section has images or not enough room).*
+*Last updated: 2026-07-04 — feat/login branch*  
+*Changes: Qarma-style PDF layout (cover page, 4-col grid, per-page footer, status banner); finalStatus + summaryComments threaded through queue delivery; fixed blank pages (PDFDocument margins set to 0 so pdfkit auto-break threshold doesn't conflict with FOOTER_Y); smart section page-break (only force new page when section has images or not enough room); trace-CC + Reply-To to requestedBy with "unknown" guard; photo grid switched from stretch to aspect-fit (both Cloud Function and iOS).*

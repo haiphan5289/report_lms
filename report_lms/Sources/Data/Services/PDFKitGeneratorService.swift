@@ -185,7 +185,7 @@ final class PDFKitGeneratorService: PDFGeneratorType {
              "Checklist Name",        "Final CheckList"),
             ("Planned Date",          dateStr,
              "Sampling Method",       "100% inspection"),
-            ("Supplier Name",         detail.factoryName,
+            ("Supplier Name",         detail.factoryName.isEmpty ? "N/A" : detail.factoryName,
              nil,                     nil),
         ], at: y)
         y += 8
@@ -345,24 +345,48 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         y += rh
 
         for (i, section) in sections.sorted(by: { $0.order < $1.order }).enumerated() {
-            let hasPhotos = section.fields.contains {
-                !(images[$0.id]?.isEmpty ?? true)
-            }
-            let rowBg    = i % 2 == 0 ? UIColor.white : UIColor(white: 0.985, alpha: 1)
-            let indicator = hasPhotos ? "✓" : "—"
-            let indColor  = hasPhotos
-                ? UIColor(red: 0.20, green: 0.63, blue: 0.29, alpha: 1)
-                : UIColor(white: 0.6, alpha: 1)
+            let total = section.fields.count
+            let completed = section.fields.filter { !(images[$0.id]?.isEmpty ?? true) }.count
+            let progress: CGFloat = total > 0 ? CGFloat(completed) / CGFloat(total) : 0
+            let rowBg = i % 2 == 0 ? UIColor.white : UIColor(white: 0.985, alpha: 1)
 
             drawCell("\(i + 1)   \(section.title)",
                      rect: CGRect(x: Layout.margin, y: y, width: nameW, height: rh),
                      bg: rowBg, fg: .black, font: regFnt, border: border)
-            drawCell(indicator,
-                     rect: CGRect(x: Layout.margin + nameW, y: y, width: statusW, height: rh),
-                     bg: rowBg, fg: indColor, font: boldFnt, border: border)
+
+            // Status cell: background + border + progress bar — mirrors the Cloud Function's
+            // drawChecklistTable (functions/src/index.ts) so local and emailed PDFs show the
+            // same completion stat for a section, not just the same colors/spacing.
+            let cellRect = CGRect(x: Layout.margin + nameW, y: y, width: statusW, height: rh)
+            rowBg.setFill()
+            UIBezierPath(rect: cellRect).fill()
+            border.setStroke()
+            let cellBorder = UIBezierPath(rect: cellRect)
+            cellBorder.lineWidth = 0.5
+            cellBorder.stroke()
+
+            let barW: CGFloat = 55
+            let barH: CGFloat = 5
+            let barX = cellRect.midX - barW / 2
+            let barY = cellRect.midY - barH / 2
+            UIColor(white: 0.88, alpha: 1).setFill()
+            UIBezierPath(rect: CGRect(x: barX, y: barY, width: barW, height: barH)).fill()
+            if progress > 0 {
+                checklistProgressColor(progress).setFill()
+                UIBezierPath(rect: CGRect(x: barX, y: barY, width: barW * progress, height: barH)).fill()
+            }
+
             y += rh
         }
         return y
+    }
+
+    /// Same thresholds as the Cloud Function's `progressColor` in `functions/src/index.ts`.
+    private func checklistProgressColor(_ progress: CGFloat) -> UIColor {
+        if progress <= 0 { return UIColor(white: 0.6196, alpha: 1) }          // #9e9e9e
+        if progress < 0.5 { return UIColor(red: 1.0, green: 0.5961, blue: 0.0, alpha: 1) }      // #ff9800
+        if progress < 1.0 { return UIColor(red: 0.1294, green: 0.5882, blue: 0.9529, alpha: 1) } // #2196f3
+        return UIColor(red: 0.20, green: 0.6314, blue: 0.2902, alpha: 1)      // #33a14a
     }
 
     // MARK: - Defect Count Table

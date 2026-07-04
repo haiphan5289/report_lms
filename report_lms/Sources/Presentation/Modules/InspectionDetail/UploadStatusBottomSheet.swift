@@ -23,6 +23,24 @@ struct UploadStatusBottomSheet: View {
         static let emptyIconSize: CGFloat = 46
     }
 
+    /// First item currently `.uploading`, in list order (session order, then item order) — used
+    /// as the auto-scroll anchor so the visible viewport tracks whichever image is actually
+    /// uploading right now, instead of the user having to hunt for it across many sessions/rows.
+    /// Only changes when a *different* item becomes the frontrunner (e.g. it finishes and the
+    /// next one starts) — progress ticks on the same item don't change this value, so scrolling
+    /// doesn't jitter on every percent update.
+    private var currentUploadingItemID: String? {
+        for session in sessions {
+            if let item = session.items.first(where: {
+                if case .uploading = $0.status { return true }
+                return false
+            }) {
+                return item.id
+            }
+        }
+        return nil
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -60,18 +78,35 @@ struct UploadStatusBottomSheet: View {
     // MARK: - Session Scroll
 
     private var sessionScrollView: some View {
-        ScrollView {
-            LazyVStack(spacing: Layout.cardSpacing) {
-                ForEach(sessions) { session in
-                    SessionCard(session: session, listVisible: listVisible)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: Layout.cardSpacing) {
+                    ForEach(sessions) { session in
+                        SessionCard(session: session, listVisible: listVisible)
+                    }
+                }
+                .padding(.horizontal, Layout.horizontalPadding)
+                .padding(.top, Layout.topPadding)
+                .padding(.bottom, Layout.bottomPadding)
+            }
+            .opacity(headerVisible ? 1 : 0)
+            .offset(y: headerVisible ? 0 : 18)
+            .onChange(of: currentUploadingItemID) { _, newID in
+                guard let newID else { return }
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    proxy.scrollTo(newID, anchor: .center)
                 }
             }
-            .padding(.horizontal, Layout.horizontalPadding)
-            .padding(.top, Layout.topPadding)
-            .padding(.bottom, Layout.bottomPadding)
+            .task {
+                // Let the entrance animation settle before jumping the scroll offset.
+                try? await Task.sleep(for: .milliseconds(450))
+                if let id = currentUploadingItemID {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                }
+            }
         }
-        .opacity(headerVisible ? 1 : 0)
-        .offset(y: headerVisible ? 0 : 18)
     }
 
     // MARK: - Empty State
@@ -146,6 +181,7 @@ private struct SessionCard: View {
                         .easeOut(duration: 0.35).delay(Double(min(index, 6)) * 0.07),
                         value: listVisible
                     )
+                    .id(item.id)
 
                 if index < session.items.count - 1 {
                     Divider()

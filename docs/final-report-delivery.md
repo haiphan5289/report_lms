@@ -29,6 +29,8 @@
 | Đánh dấu inspection hoàn tất SAU khi enqueue, không đợi email gửi xong | `sendReportViaQueue()` gọi `markInspectionCompleted()` ngay sau khi enqueue task thành công (trước khi Cloud Function chạy xong) — xem § Edge Cases về rủi ro liên quan |
 | `markInspectionCompleted()` đọc lại inspection tươi từ storage, không dùng snapshot cũ | Comment tại [`FinalReportViewModel.swift:307-308`](../report_lms/Sources/Presentation/Modules/InspectionDetail/FinalReport/FinalReportViewModel.swift#L307-L308): `self.inspection` là snapshot lúc mở màn hình, dùng nó sẽ ghi đè `imageURLs` về `[]` trên Firestore nếu ảnh vừa upload xong sau đó |
 | Chỉ ảnh local (chưa remote) mới được lưu vào Photos Library | `FinalReportViewModel.allPhotos` filter `$0.isRemote ? nil : $0.image` — ảnh đã ở Firebase Storage thì không lưu lại vào máy |
+| Mọi email báo cáo tự động CC + Reply-To cho người gửi | `requestedBy` (tự động = `Auth.auth().currentUser?.email`) được CC vào email để trace lại, và đặt làm `replyTo` — nhưng bỏ qua hoàn toàn nếu `requestedBy == "unknown"` (không đăng nhập), tránh SMTP từ chối cả email vì địa chỉ không hợp lệ. Xem [`FIREBASE_REPORT_DELIVERY.md` § Trace Email](../report_lms/Sources/Presentation/Modules/InspectionDetail/FinalReport/FIREBASE_REPORT_DELIVERY.md#trace-email-cc-người-gửi) |
+| Ảnh trong PDF luôn giữ tỉ lệ gốc (aspect-fit), không bị kéo méo | Cả 2 nơi render PDF (iOS `PDFKitGeneratorService.drawAspectFit`, Cloud Function `doc.image(..., { fit: [...] })`) đều scale-to-fit + căn giữa trong khung 4:3, thay vì stretch tự do như trước |
 
 ---
 
@@ -40,17 +42,18 @@
 
 | Layer | File | Role |
 |-------|------|------|
-| Presentation | [`FinalReportView.swift`](../report_lms/Sources/Presentation/Modules/InspectionDetail/FinalReport/FinalReportView.swift) | UI: quantities/status/location/summary/notification/email sections, action buttons, save-photos, recipients picker sheet, Mail composer sheet, PDF preview sheet |
-| Presentation | [`FinalReportViewModel.swift`](../report_lms/Sources/Presentation/Modules/InspectionDetail/FinalReport/FinalReportViewModel.swift) | `sendReport()` routing, `generateAndPreviewPDF()`/`generateAndSendPDF()` (legacy), `sendReportViaQueue()` (Firebase), `saveAllPhotosToLibrary()` |
+| Presentation | [`FinalReportView.swift`](../report_lms/Sources/Presentation/Modules/InspectionDetail/FinalReport/FinalReportView.swift) | UI: quantities/status/location/summary/notification/email sections, action buttons, save-photos, recipients picker sheet, Mail composer sheet (legacy path only — PDF preview sheet đã bị xoá cùng `generateAndPreviewPDF()`, xem Recent Changes) |
+| Presentation | [`FinalReportViewModel.swift`](../report_lms/Sources/Presentation/Modules/InspectionDetail/FinalReport/FinalReportViewModel.swift) | `sendReport()` routing, `generateAndSendPDF()` (legacy, chỉ chạy khi flag = `false`), `sendReportViaQueue()` (Firebase), `saveAllPhotosToLibrary()` |
+| Presentation | [`SendEmailListView.swift`](../report_lms/Sources/Presentation/Modules/SendEmailList/SendEmailListView.swift) + [`SendEmailListViewModel.swift`](../report_lms/Sources/Presentation/Modules/SendEmailList/SendEmailListViewModel.swift) | Màn hình quản lý delivery queue riêng (danh sách task đã gửi/lỗi) — caller thật của `retryTask`/`allTasksStream`/`deleteTask(s)`, nằm ngoài `FinalReport/` nên bị bỏ sót ở lượt đầu (xem Recent Changes) |
 | Domain | [`PDFReportRequest.swift`](../report_lms/Sources/Domain/Entities/PDFReportRequest.swift) | DTO — input cho PDF generator, có `isValid`/`validationError` |
-| Domain | [`PDFReportRequestBuilder.swift`](../report_lms/Sources/Domain/Entities/PDFReportRequestBuilder.swift) | Builder pattern, validate required fields trước khi build `PDFReportRequest` |
-| Domain | [`GenerateHTMLPDFReportUseCase.swift`](../report_lms/Sources/Domain/UseCases/GenerateHTMLPDFReportUseCase.swift) | Use case gọi `PDFGeneratorType` để render PDF (chưa đọc chi tiết trong lượt này — xem Notes) |
+| Domain | [`PDFReportRequestBuilder.swift`](../report_lms/Sources/Domain/Entities/PDFReportRequestBuilder.swift) | Builder pattern, validate required fields trước khi build `PDFReportRequest` — chỉ còn `.build()` (`buildWithDefaults()` đã xoá, không có caller) |
+| Domain | [`GenerateHTMLPDFReportUseCase.swift`](../report_lms/Sources/Domain/UseCases/GenerateHTMLPDFReportUseCase.swift) | Use case gọi `PDFGeneratorType` để render PDF — chỉ còn `execute(request:)` (overload params trực tiếp đã xoá, không có caller sau khi dọn dead code) |
 | Domain | [`QueueReportDeliveryUseCase.swift`](../report_lms/Sources/Domain/UseCases/QueueReportDeliveryUseCase.swift) | Validate recipients, build `TaskPayload`, gọi `ReportDeliveryQueueService.enqueue`, expose `statusStream(taskId:)` |
 | Domain | [`FinalReportStatus.swift`](../report_lms/Sources/Domain/Entities/FinalReportStatus.swift) | `.accepted`/`.pending`/`.rejected`, `serverKey` convert sang ASCII cho Firestore |
-| Domain | [`PDFGeneratorType.swift`](../report_lms/Sources/Domain/Repositories/PDFGeneratorType.swift) | Protocol cho PDF generator (chưa đọc chi tiết — xem Notes) |
-| Data | [`PDFKitGeneratorService.swift`](../report_lms/Sources/Data/Services/PDFKitGeneratorService.swift) | iOS-side PDF renderer, layout "Qarma-style" — mirror thủ công của Cloud Function |
+| Domain | [`PDFGeneratorType.swift`](../report_lms/Sources/Domain/Repositories/PDFGeneratorType.swift) | Protocol cho PDF generator — `enum PDFGenerationError` đã xoá (0 throw site sau khi dọn dead code) |
+| Data | [`PDFKitGeneratorService.swift`](../report_lms/Sources/Data/Services/PDFKitGeneratorService.swift) | iOS-side PDF renderer, layout "Qarma-style" — mirror thủ công của Cloud Function; ảnh vẽ aspect-fit qua `drawAspectFit(_:in:)` |
 | Data | [`ReportDeliveryQueueService.swift`](../report_lms/Sources/Data/Services/ReportDeliveryQueueService.swift) | Firestore CRUD cho collection `report_delivery_queue`: `enqueue`, `statusStream`, `allTasksStream`, `deleteTask(s)`, `deleteTasksForInspection`, `retryTask`, `latestSentTask` |
-| Backend | [`functions/src/index.ts`](../functions/src/index.ts) | Cloud Function `processReportQueue` — trigger `onDocumentCreated("report_delivery_queue/{taskId}")`, render PDF (pdfkit + NotoSans + sharp), gửi email (nodemailer + Gmail) |
+| Backend | [`functions/src/index.ts`](../functions/src/index.ts) | Cloud Function `processReportQueue` — trigger `onDocumentCreated("report_delivery_queue/{taskId}")`, render PDF (pdfkit + NotoSans + sharp, ảnh aspect-fit), gửi email (nodemailer + Gmail, CC/Reply-To `requestedBy`) |
 
 ### Data Flow
 
@@ -68,9 +71,10 @@ FinalReportView (user chọn status/location/comments/recipients, tap "Gửi bá
       │                     ├── Fetch inspection tươi từ Firestore (collection "inspections")
       │                     ├── prefetchImages() — tải field.imageURLs theo batch 5
       │                     ├── compressImageBuffer() — sharp resize 800×600, JPEG 70%
-      │                     ├── generatePDF() — Qarma layout, pdfkit + NotoSans
+      │                     ├── generatePDF() — Qarma layout, pdfkit + NotoSans, ảnh aspect-fit
       │                     ├── Upload PDF → Storage: inspections/{id}/reports/{taskId}.pdf
-      │                     └── nodemailer.sendMail() → cập nhật status sent/failed
+      │                     └── nodemailer.sendMail() — cc/replyTo = requestedBy (nếu hợp lệ)
+      │                             → cập nhật status sent/failed
       │         ← statusStream yield .sent | .failed → showEmailSuccessAlert | showErrorAlert
       │
       └── FeatureFlags.useFirebaseReportDelivery == false
@@ -131,7 +135,7 @@ FinalReportView (user chọn status/location/comments/recipients, tap "Gửi bá
 | `language` | String | iOS | `LocalizationManager.shared.currentLanguage.rawValue` |
 | `status` | String | Cả 2 | `queued` (iOS ghi lúc tạo) → `processing` → `sent`/`failed` (Cloud Function update) |
 | `requestedAt` | Timestamp | iOS | Server timestamp lúc tạo |
-| `requestedBy` | String | iOS | `Auth.auth().currentUser?.email ?? "unknown"` |
+| `requestedBy` | String | iOS | `Auth.auth().currentUser?.email ?? "unknown"` — Cloud Function dùng làm `cc`/`replyTo` nếu hợp lệ (không phải `"unknown"`), ngoài việc hiển thị trong chữ ký email |
 | `sentAt` | Timestamp | Cloud Function | Lúc gửi email thành công |
 | `errorMessage` | String | Cloud Function | Lý do fail (nếu có) |
 | `pdfStoragePath` | String | Cloud Function | `inspections/{id}/reports/{taskId}.pdf` trên Firebase Storage |
@@ -151,7 +155,8 @@ FinalReportView (user chọn status/location/comments/recipients, tap "Gửi bá
 | Ảnh field lỗi khi tải/nén (URL hỏng, timeout > 10s) | `prefetchImages` catch từng ảnh riêng lẻ, log warning, bỏ qua — không fail cả PDF | ✅ |
 | PDF vượt giới hạn Gmail 25MB (quá nhiều ảnh) | Không có check dung lượng tường minh trước khi gửi — chỉ giảm rủi ro bằng nén ảnh (800×600, JPEG 70%); xem ước tính "~150-200 ảnh tối đa" trong `FIREBASE_REPORT_DELIVERY.md` | ❌ (chỉ giảm thiểu, không chặn cứng) |
 | **Ảnh vẫn đang upload lúc user bấm "Gửi báo cáo" / "Hoàn tất"** | `sendReportViaQueue()` không check `activeUploadCount`/`uploadSessions` trước khi enqueue + `markInspectionCompleted()`. Cloud Function tuy đọc Firestore tươi (không dùng snapshot cũ) nhưng nếu ảnh chưa kịp ghi `imageURLs` lên Firestore tại thời điểm Cloud Function chạy, ảnh đó vẫn bị thiếu trong PDF — cùng bản chất với gap đã ghi nhận ở `InspectionDetailViewModel.submitInspection()` (xem [`IMAGE_CACHE_WORKFLOW.md` § Giới hạn đã biết](../report_lms/Sources/Presentation/Modules/InspectionDetail/IMAGE_CACHE_WORKFLOW.md)) | ❌ |
-| Retry khi task `failed` | `ReportDeliveryQueueService.retryTask(taskId:)` set lại `status: queued` để Cloud Function xử lý lại — nhưng **không có UI nào trong `FinalReportView`/`FinalReportViewModel` gọi hàm này** (chỉ tìm thấy định nghĩa, chưa xác nhận call site trong `FinalReport/`) | ⚠️ Chưa xác nhận đầy đủ — cần kiểm tra thêm (có thể nằm ở màn hình khác quản lý queue) |
+| Retry khi task `failed` | `ReportDeliveryQueueService.retryTask(taskId:)` set lại `status: queued` để Cloud Function xử lý lại — caller thật là `SendEmailListViewModel.swift` (màn hình quản lý queue riêng, không nằm trong `FinalReport/`), không phải `FinalReportView`/`FinalReportViewModel` | ✅ (đã xác nhận call site sau khi mở rộng phạm vi tìm kiếm — xem Recent Changes) |
+| `requestedBy == "unknown"` (không đăng nhập lúc gửi) | `isValidEmail(requestedBy)` guard trong Cloud Function — bỏ qua `cc`/`replyTo` hoàn toàn, email vẫn gửi bình thường cho recipient | ✅ |
 
 ---
 
@@ -180,11 +185,24 @@ FinalReportView (user chọn status/location/comments/recipients, tap "Gửi bá
 > Additional context, open questions, or known limitations — chỉ liệt kê điều đã verify được, không suy đoán.
 
 - `FeatureFlags.useFirebaseReportDelivery` hiện hard-code `true` kèm comment `// TODO: revert before commit` ([`FeatureFlags.swift:12`](../report_lms/Sources/Common/Helpers/FeatureFlags.swift#L12)) — comment phía trên nó mô tả một cơ chế env-var (`USE_FIREBASE_DELIVERY=1`) nhưng code hiện tại **không đọc** biến môi trường đó, chỉ trả `true` vô điều kiện. Nên xác nhận với người maintain trước khi coi đây là "flag thật" hay chỉ là code tạm.
-- `GenerateHTMLPDFReportUseCase.swift` và `PDFGeneratorType.swift` đã xác nhận tồn tại (qua `find`) nhưng **chưa đọc nội dung** trong lượt tạo tài liệu này — nếu cần mô tả chi tiết luồng render PDF phía iOS, nên đọc bổ sung 2 file này.
 - Hai file layout PDF (iOS `PDFKitGeneratorService.swift` và Cloud Function `functions/src/index.ts`) triển khai **độc lập, không share code** — mọi thay đổi layout phải sửa cả 2 nơi thủ công (đã ghi nhận trong `PDF_REFACTORING_QUICK_REFERENCE.md`).
-- `ReportDeliveryQueueService.retryTask(taskId:)` tồn tại nhưng chưa xác nhận có UI nào gọi nó trong `FinalReport/` — cần kiểm tra thêm (có thể thuộc một màn hình quản lý delivery queue riêng, ngoài phạm vi 2 folder được chỉ định).
 - Không tìm thấy check dung lượng PDF trước khi gửi email (giới hạn Gmail 25MB) — chỉ có ước tính lý thuyết trong doc kỹ thuật, chưa có guard cứng trong code.
+- Cân nhắc thêm guard `activeUploadCount == 0` trước khi cho phép `sendReportViaQueue()` — cùng gốc với gap `submitInspection()` đã ghi nhận trong `IMAGE_CACHE_WORKFLOW.md`, vẫn chưa fix.
 
 ---
 
-*Generated by `/ct-ai-document` on 2026-07-04*
+## Recent Changes (2026-07-04)
+
+- **Dọn dead code** phát hiện qua audit caller toàn repo (không chỉ 2 folder ban đầu):
+  - `FinalReportViewModel.generateAndPreviewPDF()` + `resetPDFState()` — 0 caller, còn sót lại từ lúc nút "Xem PDF" bị xoá khỏi UI.
+  - `.sheet(isPresented: $viewModel.isShowingPDFPreview) { PDFPreviewView... }` trong `FinalReportView.swift` — sheet không thể mở được vì hàm trigger nó đã dead.
+  - `PDFReportRequestBuilder.buildWithDefaults()`, `GenerateHTMLPDFReportUseCase.execute(detail:images:...)` (overload cũ), `PDFGeneratorType.PDFGenerationError` — tất cả 0 caller/0 throw site sau khi dây chuyền phía trên bị dọn.
+  - `InspectionDetailContentViewModel.generateAndPreviewPDF()`/`generateAndSendPDF()` (bản trùng tên, khác class) — cũng đã xoá ở vòng audit trước.
+- **Sửa nhận định sai ở lượt tạo doc đầu** — `ReportDeliveryQueueService.retryTask`/`allTasksStream`/`deleteTask(s)` **có** caller thật, chỉ là nằm ở module `SendEmailList/` (ngoài phạm vi 2 folder được giao ban đầu `functions/` + `FinalReport/`, và không match keyword "pdf" nên bị bỏ sót ở lượt detect-file bằng grep).
+- **Thêm trace-CC + Reply-To**: mọi email báo cáo tự động CC + Reply-To cho `requestedBy` (email người gửi, tự động từ `Auth.auth().currentUser?.email`) — có guard bỏ qua nếu giá trị là `"unknown"`. Chi tiết: [`FIREBASE_REPORT_DELIVERY.md` § Trace Email](../report_lms/Sources/Presentation/Modules/InspectionDetail/FinalReport/FIREBASE_REPORT_DELIVERY.md#trace-email-cc-người-gửi).
+- **Sửa content mode ảnh trong PDF** từ stretch (méo ảnh không đúng tỉ lệ 4:3) sang aspect-fit (giữ tỉ lệ, căn giữa) — cả Cloud Function (`pdfkit` `fit:`) và iOS (`PDFKitGeneratorService.drawAspectFit`, thay cho `resizeImage` cũ đã xoá).
+- Đã build/verify sạch cả 2 phía (`xcodebuild` + `tsc`) sau mỗi thay đổi. **Chưa `firebase deploy`** — code Cloud Function mới chỉ tồn tại local, cần deploy để có hiệu lực trên production.
+
+---
+
+*Generated by `/ct-ai-document` on 2026-07-04, updated manually same day following implementation.*

@@ -417,7 +417,7 @@ function drawSectionHeader(doc, title, y, fonts) {
 async function generatePDF(inspection, inspectionNumber, location, requestedBy, finalStatus, summaryComments, lang = "vi") {
     const imageMap = await prefetchImages(inspection);
     return new Promise((resolve, reject) => {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e;
         const chunks = [];
         const doc = new pdfkit_1.default({ margins: { top: 0, bottom: 0, left: 0, right: 0 }, size: "A4", autoFirstPage: false });
         const hasNoto = fs.existsSync(FONT_REGULAR) && fs.existsSync(FONT_BOLD);
@@ -464,7 +464,7 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
                 t(lang, "orderQty"), String((_e = inspection.orderQuantity) !== null && _e !== void 0 ? _e : 0)],
             [t(lang, "location"), location || "N/A", t(lang, "checklistName"), t(lang, "checklistNameValue")],
             [t(lang, "plannedDate"), dateStr, t(lang, "samplingMethod"), t(lang, "samplingMethodValue")],
-            [t(lang, "supplierName"), (_g = (_f = inspection.factory) !== null && _f !== void 0 ? _f : inspection.factoryName) !== null && _g !== void 0 ? _g : "N/A", null, null],
+            [t(lang, "supplierName"), inspection.factory || inspection.factoryName || "N/A", null, null],
         ], y, fonts);
         y += 8;
         // Inspector conclusion row (badge + optional notes)

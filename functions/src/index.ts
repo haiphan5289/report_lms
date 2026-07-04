@@ -567,7 +567,7 @@ async function generatePDF(
                                                          t(lang, "orderQty"),      String(inspection.orderQuantity ?? 0)],
       [t(lang, "location"),      location || "N/A",     t(lang, "checklistName"),  t(lang, "checklistNameValue")],
       [t(lang, "plannedDate"),   dateStr,               t(lang, "samplingMethod"), t(lang, "samplingMethodValue")],
-      [t(lang, "supplierName"),  inspection.factory ?? inspection.factoryName ?? "N/A", null, null],
+      [t(lang, "supplierName"),  inspection.factory || inspection.factoryName || "N/A", null, null],
     ], y, fonts);
     y += 8;
 
