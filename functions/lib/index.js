@@ -406,9 +406,10 @@ function drawDefectTable(doc, critical, major, minor, startY, fonts) {
 }
 /** Section heading: bold 14pt title + 1.5pt blue underline. */
 function drawSectionHeader(doc, title, y, fonts) {
-    doc.font(fonts.B).fontSize(14).fillColor(C_DARK)
-        .text(title, MARGIN, y, { width: CW, lineBreak: false });
-    const lineY = y + 14 * 1.2 + 3;
+    doc.font(fonts.B).fontSize(14).fillColor(C_DARK);
+    const titleH = doc.heightOfString(title, { width: CW });
+    doc.text(title, MARGIN, y, { width: CW });
+    const lineY = y + titleH + 3;
     doc.moveTo(MARGIN, lineY).lineTo(MARGIN + CW, lineY)
         .lineWidth(1.5).strokeColor(C_BLUE).stroke();
     return lineY + 6;
@@ -450,10 +451,12 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
         doc.font(fonts.R).fontSize(11).fillColor(C_GRAY)
             .text(`${t(lang, "reportTitle")} ${inspectionNumber}`, MARGIN, y, { lineBreak: false });
         y += Math.ceil(11 * 1.2) + 4;
-        // Bold subtitle: order number + product name
-        doc.font(fonts.B).fontSize(20).fillColor(C_DARK)
-            .text(`${inspectionNumber}: ${(_b = inspection.productName) !== null && _b !== void 0 ? _b : ""}`, MARGIN, y, { width: CW, lineBreak: false });
-        y += Math.ceil(20 * 1.2) + 8;
+        // Bold subtitle: order number + product name (wraps to multiple lines for long names)
+        const subtitle = `${inspectionNumber}: ${(_b = inspection.productName) !== null && _b !== void 0 ? _b : ""}`;
+        doc.font(fonts.B).fontSize(20).fillColor(C_DARK);
+        const subtitleH = doc.heightOfString(subtitle, { width: CW });
+        doc.text(subtitle, MARGIN, y, { width: CW });
+        y += subtitleH + 8;
         // Separator
         drawHLine(doc, y);
         y += 10;
