@@ -59,7 +59,7 @@ final class FinalReportViewModel: ObservableObject {
     }
     
     var availableRecipients: [FinalReportRecipient] {
-        FinalReportRecipient.mockRecipients
+        EmailRecipientStore.shared.recipients
     }
     
     var allPhotos: [UIImage] {
@@ -82,6 +82,8 @@ final class FinalReportViewModel: ObservableObject {
         self.inspection = inspection
         self.capturedPhotos = capturedPhotos
         self.recipientEmail = "freelancerios0502@gmail.com"
+        // Pre-check "default" recipients so the user doesn't have to tap-select them every report.
+        self.selectedRecipients = EmailRecipientStore.shared.recipients.filter { $0.isDefault }
 
         if let useCase = generatePDFUseCase {
             self.generatePDFUseCase = useCase
@@ -203,15 +205,9 @@ final class FinalReportViewModel: ObservableObject {
         defer { isSendingToServer = false }
 
         do {
-            var allRecipients = selectedRecipients
-            let trimmed = recipientEmail.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty {
-                allRecipients.append(FinalReportRecipient(name: trimmed, email: trimmed))
-            }
-
             let taskId = try await queueDeliveryUseCase.execute(
                 inspection: inspection,
-                recipients: allRecipients,
+                recipients: selectedRecipients,
                 location: location,
                 finalStatus: selectedStatus,
                 summaryComments: summaryComments

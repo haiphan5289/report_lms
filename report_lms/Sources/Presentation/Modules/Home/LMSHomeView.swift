@@ -127,6 +127,10 @@ struct LMSHomeView: View {
                                 viewModel.showMenu = false
                             }
                             viewModel.navigationPath.append("sendEmailList")
+                        case .emailRecipients:
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                viewModel.openEmailRecipients()
+                            }
                         case .logout:
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 viewModel.showMenu = false
@@ -144,6 +148,9 @@ struct LMSHomeView: View {
                 .transition(.move(edge: .leading))
                 .zIndex(2)
             }
+        }
+        .sheet(isPresented: $viewModel.showEmailRecipientsSheet) {
+            EmailRecipientListView()
         }
     }
 

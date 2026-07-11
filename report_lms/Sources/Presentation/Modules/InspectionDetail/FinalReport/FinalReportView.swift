@@ -66,10 +66,6 @@ struct FinalReportView: View {
                             .opacity(contentVisible ? 1 : 0)
                             .offset(y: contentVisible ? 0 : 16)
                             .animation(.easeOut(duration: 0.35).delay(0.32), value: contentVisible)
-                        emailSection
-                            .opacity(contentVisible ? 1 : 0)
-                            .offset(y: contentVisible ? 0 : 16)
-                            .animation(.easeOut(duration: 0.35).delay(0.38), value: contentVisible)
                         actionButtonsSection
                             .opacity(contentVisible ? 1 : 0)
                             .offset(y: contentVisible ? 0 : 16)
@@ -297,21 +293,6 @@ struct FinalReportView: View {
         }
     }
 
-    private var emailSection: some View {
-        LMSSectionContainer(title: localizationManager.localize("finalReport.section.email")) {
-            TextField(
-                localizationManager.localize("finalReport.email.placeholder"),
-                text: $viewModel.recipientEmail
-            )
-            .padding(12)
-            .background(LMSColor.backgroundSecondary)
-            .cornerRadius(8)
-            .keyboardType(.emailAddress)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-        }
-    }
-
     private var actionButtonsSection: some View {
         let isUploading = inspectionDetailVM.activeUploadCount > 0
         let uploadCount = inspectionDetailVM.totalUploadingImageCount
@@ -378,26 +359,49 @@ struct FinalReportView: View {
 
     private var recipientsPickerView: some View {
         NavigationStack {
-            List {
-                ForEach(viewModel.availableRecipients) { recipient in
-                    Button(action: {
-                        viewModel.toggleRecipient(recipient)
-                    }) {
-                        HStack {
-                            Image(systemName: "person.circle.fill")
-                                .foregroundColor(LMSColor.primary)
-                                .font(.system(size: 24))
-                            LMSLabel(recipient.name, style: .body, color: .primary)
-                            Spacer()
-                            if viewModel.isRecipientSelected(recipient) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(LMSColor.primary)
-                                    .font(.system(size: 24))
-                            }
-                        }
-                        .contentShape(Rectangle())
+            Group {
+                if viewModel.availableRecipients.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "envelope.badge.person.crop")
+                            .font(.system(size: 40))
+                            .foregroundColor(LMSColor.secondary)
+                        LMSLabel(
+                            localizationManager.localize("finalReport.recipients.empty.title"),
+                            style: .headline,
+                            alignment: .center
+                        )
+                        LMSLabel(
+                            localizationManager.localize("finalReport.recipients.empty.subtitle"),
+                            style: .subheadline,
+                            color: .secondary,
+                            alignment: .center
+                        )
                     }
-                    .buttonStyle(.plain)
+                    .padding(32)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(viewModel.availableRecipients) { recipient in
+                            Button(action: {
+                                viewModel.toggleRecipient(recipient)
+                            }) {
+                                HStack {
+                                    Image(systemName: "person.circle.fill")
+                                        .foregroundColor(LMSColor.primary)
+                                        .font(.system(size: 24))
+                                    LMSLabel(recipient.name, style: .body, color: .primary)
+                                    Spacer()
+                                    if viewModel.isRecipientSelected(recipient) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(LMSColor.primary)
+                                            .font(.system(size: 24))
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
             }
             .navigationTitle(localizationManager.localize("finalReport.recipients.title"))

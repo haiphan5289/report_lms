@@ -136,6 +136,11 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+/** Strip characters unsafe for a filename/email attachment name, collapsing whitespace to underscores. */
+function sanitizeFilenamePart(value: string): string {
+  return value.trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "_");
+}
+
 interface InspectionField {
   id:                  string;
   label:               string;
@@ -221,7 +226,7 @@ export const processReportQueue = onDocumentCreated(
         subject: `${t(lang, "emailSubject")}${inspectionNumber}`,
         html:    buildEmailHTML(inspectionNumber, inspection.companyName ?? "", requestedBy, lang),
         attachments: [{
-          filename:    `${t(lang, "attachmentPrefix")}${inspectionNumber}.pdf`,
+          filename: `Final_Report_${sanitizeFilenamePart(inspection.productName || inspectionNumber)}.pdf`,
           content:     pdfBuffer,
           contentType: "application/pdf",
         }],

@@ -26,8 +26,19 @@ struct OrderDetailBottomSheet: View {
     @State private var showPDFPreview = false
     @State private var downloadError: String? = nil
 
+    // Status change
+    @State private var currentStatus: InspectionStatus
+    @State private var showStatusSheet = false
+    @State private var statusChangeError: String? = nil
+
     private let deliveryService = Container.shared.resolve(ReportDeliveryQueueService.self)!
     private let storageService  = Container.shared.resolve(FirebaseStorageService.self)!
+    private let inspectionStorage = Container.shared.resolve(InspectionStorageServiceType.self)!
+
+    init(inspection: Inspection) {
+        self.inspection = inspection
+        _currentStatus = State(initialValue: inspection.status)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -76,6 +87,19 @@ struct OrderDetailBottomSheet: View {
                 )
             }
         }
+        .sheet(isPresented: $showStatusSheet) {
+            StatusChangeSheet(
+                title: "Đổi trạng thái",
+                message: "Chọn trạng thái mới cho \"\(inspection.inspectionNumber.isEmpty ? "đơn hàng này" : inspection.inspectionNumber)\"",
+                confirmTitle: "Xác nhận",
+                currentStatus: currentStatus
+            ) { newStatus in
+                Task { await updateStatus(to: newStatus) }
+            }
+            .presentationDetents([.height(620)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(24)
+        }
         .task {
             withAnimation { headerVisible = true }
             try? await Task.sleep(for: .milliseconds(120))
@@ -107,9 +131,22 @@ struct OrderDetailBottomSheet: View {
                     style: .title2
                 )
                 LMSLabel(inspection.companyName.isEmpty ? "---" : inspection.companyName, style: .subheadline, color: .secondary)
+                if let err = statusChangeError {
+                    LMSLabel(err, style: .caption, color: .custom(.red))
+                }
             }
             Spacer()
-            StatusBadge(status: inspection.status)
+            VStack(alignment: .trailing, spacing: 4) {
+                Button(action: { showStatusSheet = true }) {
+                    HStack(spacing: 4) {
+                        StatusBadge(status: currentStatus)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -258,6 +295,20 @@ struct OrderDetailBottomSheet: View {
             sentTask = try await deliveryService.latestSentTask(for: inspection.id)
         } catch {
             taskLoadError = "Không thể tải thông tin: \(error.localizedDescription)"
+        }
+    }
+
+    private func updateStatus(to newStatus: InspectionStatus) async {
+        guard newStatus != currentStatus else { return }
+        // Optimistic update — badge reflects immediately; list refreshes via .inspectionDidUpdate
+        let previousStatus = currentStatus
+        currentStatus = newStatus
+        statusChangeError = nil
+        do {
+            try await inspectionStorage.updateInspectionStatus(inspectionId: inspection.id, status: newStatus)
+        } catch {
+            currentStatus = previousStatus
+            statusChangeError = "Không thể đổi trạng thái đơn hàng"
         }
     }
 

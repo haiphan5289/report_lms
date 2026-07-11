@@ -70,6 +70,23 @@ final class OrdersViewModel: ObservableObject {
         inspections = storageService.getAllInspections()
     }
 
+    func updateStatus(id: String, to newStatus: InspectionStatus) async {
+        guard let index = inspections.firstIndex(where: { $0.id == id }),
+              inspections[index].status != newStatus else { return }
+        // Optimistic update — reflect immediately in UI
+        let previousStatus = inspections[index].status
+        inspections[index].status = newStatus
+        do {
+            try await storageService.updateInspectionStatus(inspectionId: id, status: newStatus)
+        } catch {
+            // Rollback on failure
+            if let idx = inspections.firstIndex(where: { $0.id == id }) {
+                inspections[idx].status = previousStatus
+            }
+            errorMessage = "Không thể đổi trạng thái đơn hàng"
+        }
+    }
+
     func deleteInspection(id: String) async {
         // Optimistic update — remove immediately from UI
         let backup = inspections

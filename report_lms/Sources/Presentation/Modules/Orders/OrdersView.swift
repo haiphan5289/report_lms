@@ -12,6 +12,7 @@ struct OrdersView: View {
     @EnvironmentObject private var localizationManager: LocalizationManager
     @State private var inspectionToDelete: Inspection?
     @State private var inspectionToDetail: Inspection?
+    @State private var inspectionToChangeStatus: Inspection?
 
     // Animation
     @State private var listVisible = false
@@ -55,6 +56,22 @@ struct OrdersView: View {
                 Task { await viewModel.deleteInspection(id: inspection.id) }
             }
             .presentationDetents([.height(340)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(24)
+        }
+        .sheet(item: $inspectionToChangeStatus) { inspection in
+            StatusChangeSheet(
+                title: localizationManager.localize("orders.changeStatus.title"),
+                message: String(format: localizationManager.localize("orders.changeStatus.message"),
+                    inspection.inspectionNumber.isEmpty
+                        ? localizationManager.localize("orders.delete.defaultName")
+                        : inspection.inspectionNumber),
+                confirmTitle: localizationManager.localize("orders.changeStatus.confirm"),
+                currentStatus: inspection.status
+            ) { newStatus in
+                Task { await viewModel.updateStatus(id: inspection.id, to: newStatus) }
+            }
+            .presentationDetents([.height(620)])
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(24)
         }
@@ -152,7 +169,8 @@ struct OrdersView: View {
                 OrderCardView(
                     inspection: inspection,
                     onTap: { inspectionToDetail = inspection },
-                    onDelete: { inspectionToDelete = inspection }
+                    onDelete: { inspectionToDelete = inspection },
+                    onChangeStatus: { inspectionToChangeStatus = inspection }
                 )
                 .padding(.horizontal, 16)
                 .opacity(listVisible ? 1 : 0)
@@ -219,6 +237,7 @@ struct OrderCardView: View {
     let inspection: Inspection
     let onTap: () -> Void
     let onDelete: () -> Void
+    let onChangeStatus: () -> Void
 
     @GestureState private var cardPressed = false
 
@@ -237,7 +256,10 @@ struct OrderCardView: View {
                         style: .headline
                     )
                     Spacer()
-                    StatusBadge(status: inspection.status)
+                    Button(action: onChangeStatus) {
+                        StatusBadge(status: inspection.status)
+                    }
+                    .buttonStyle(.plain)
                     LMSButton("", icon: "trash", variant: .iconOnly, action: onDelete)
                         .foregroundColor(.red)
                         .frame(width: 32, height: 32)

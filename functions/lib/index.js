@@ -150,6 +150,10 @@ function t(lang, key) {
 function isValidEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
+/** Strip characters unsafe for a filename/email attachment name, collapsing whitespace to underscores. */
+function sanitizeFilenamePart(value) {
+    return value.trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "_");
+}
 // ── Cloud Function ─────────────────────────────────────────────────────────────
 exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
     document: "report_delivery_queue/{taskId}",
@@ -196,7 +200,7 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         // sender when requestedBy is an actual email.
         const traceEmail = isValidEmail(requestedBy) ? requestedBy : undefined;
         await transporter.sendMail(Object.assign(Object.assign({ from: `"LMS Report" <${gmailUser.value()}>`, to: recipientEmails.join(", ") }, (traceEmail ? { cc: traceEmail, replyTo: traceEmail } : {})), { subject: `${t(lang, "emailSubject")}${inspectionNumber}`, html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", requestedBy, lang), attachments: [{
-                    filename: `${t(lang, "attachmentPrefix")}${inspectionNumber}.pdf`,
+                    filename: `${sanitizeFilenamePart(inspection.productName || inspectionNumber)}.pdf`,
                     content: pdfBuffer,
                     contentType: "application/pdf",
                 }] }));

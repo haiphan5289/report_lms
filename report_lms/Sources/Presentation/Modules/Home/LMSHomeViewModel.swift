@@ -14,6 +14,7 @@ final class LMSHomeViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var showMenu = false
     @Published var showCloudAction = false
+    @Published var showEmailRecipientsSheet = false
     @Published var selectedTab: Tab = .plan
     @Published var navigationPath = NavigationPath()
     @Published var dataRefreshTrigger = 0
@@ -63,6 +64,13 @@ final class LMSHomeViewModel: ObservableObject {
     func navigateToOrders() {
         showMenu = false
         navigationPath.append("orders")
+    }
+
+    /// Opens "Danh sách Email" as a bottom sheet — not a NavigationStack push like the other
+    /// menu destinations, since it's a self-contained CRUD screen, not part of the tab flow.
+    func openEmailRecipients() {
+        showMenu = false
+        showEmailRecipientsSheet = true
     }
 
     func handleNewInspectionCreated(_ inspection: Inspection) {
