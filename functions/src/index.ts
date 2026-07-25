@@ -136,9 +136,20 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-/** Strip characters unsafe for a filename/email attachment name, collapsing whitespace to underscores. */
+/** Strip characters unsafe for a filename/email attachment name, turning dashes into spaces. */
 function sanitizeFilenamePart(value: string): string {
-  return value.trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "_");
+  return value.trim().replace(/[\\/:*?"<>|]/g, "").replace(/-/g, " ").replace(/\s+/g, " ");
+}
+
+/** Turn an email local-part into a display name, e.g. "hai.phan@chotot.vn" -> "Hai Phan". Non-email values (e.g. "unknown") pass through unchanged. */
+function deriveDisplayName(value: string): string {
+  const at = value.indexOf("@");
+  if (at <= 0) return value;
+  return value.slice(0, at)
+    .split(".")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 interface InspectionField {
@@ -226,7 +237,7 @@ export const processReportQueue = onDocumentCreated(
         subject: `${t(lang, "emailSubject")}${inspectionNumber}`,
         html:    buildEmailHTML(inspectionNumber, inspection.companyName ?? "", requestedBy, lang),
         attachments: [{
-          filename: `Final_Report_${sanitizeFilenamePart(inspection.productName || inspectionNumber)}.pdf`,
+          filename: `Final Report ${sanitizeFilenamePart(inspection.productName || inspectionNumber)}.pdf`,
           content:     pdfBuffer,
           contentType: "application/pdf",
         }],
@@ -569,7 +580,7 @@ async function generatePDF(
 
     // Info table
     y = drawInfoTable(doc, [
-      [t(lang, "inspector"),     requestedBy || "N/A",  t(lang, "inspectionDate"), dateTimeStr],
+      [t(lang, "inspector"),     requestedBy ? deriveDisplayName(requestedBy) : "N/A",  t(lang, "inspectionDate"), dateTimeStr],
       [t(lang, "plannedSample"), `${inspection.aqlInspectionQuantity ?? 0}/${inspection.inspectedQuantity ?? 0}`,
                                                          t(lang, "orderQty"),      String(inspection.orderQuantity ?? 0)],
       [t(lang, "location"),      location || "N/A",     t(lang, "checklistName"),  t(lang, "checklistNameValue")],
@@ -707,7 +718,7 @@ function buildEmailHTML(
     <p>${t(lang, "emailGreeting")}</p>
     <p>${body}</p>
     <p>${t(lang, "emailCta")}</p>
-    <p>${t(lang, "emailClosing")}<br/><strong>${esc(requestedBy ?? "")}</strong></p>
+    <p>${t(lang, "emailClosing")}<br/><strong>${esc(requestedBy ? deriveDisplayName(requestedBy) : "")}</strong></p>
     <div class="footer">${t(lang, "emailFooter")}</div>
   </div>
 </body>

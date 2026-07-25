@@ -77,7 +77,7 @@ InspectionValidationView(
 | Header | `headerSection` | Field title + camera shortcut button |
 | Status & Comments | `statusSection` | Current validation status chip + `TextEditor` for remarks |
 | Image Gallery | `imageGallerySection` | Vertical list of `ImageGalleryItemView` cells; hidden when `viewModel.hasImages == false` |
-| Actions | `actionsSection` | "Chụp thêm ảnh" (add photo) + toggle delete-mode button ("Xoá hình ảnh" / "Hoàn tất") |
+| Actions | `actionsSection` | "Chụp thêm ảnh" (add photo) + "Sắp xếp ảnh" sort-mode toggle (shown when 2+ images) + delete-mode toggle ("Xoá hình ảnh" / "Hoàn tất") |
 | Bottom Bar | `bottomActionsView` | Fixed overlay with **Đã kiểm tra** (Pass) and **Không áp dụng** (N/A) buttons |
 
 All content sections animate in with a staggered `easeOut` slide-up on `.task` (0 ms → 80 ms → 160 ms → 240 ms).
@@ -108,7 +108,8 @@ Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDial
 | `showCamera` | `Bool` | Triggers `.sheet` with `CameraView` |
 | `isLoading` | `Bool` | General loading state — distinct from upload tracking (upload state lives in `InspectionDetailViewModel.uploadSessions`) |
 | `snackbarMessage` | `String?` | Bound to `.lmsSnackbar(message:type:)` for error banners |
-| `showReorderMode` | `Bool` | Puts image list into delete-selection mode |
+| `showDeleteMode` | `Bool` | Puts image list into delete-selection mode _(renamed from `showReorderMode`, which never reordered)_ |
+| `showSortMode` | `Bool` | Swaps the gallery for a compact drag-to-reorder `List` (`.onMove` → `moveImage(from:to:)`); mutually exclusive with `showDeleteMode` |
 | `isDirty` | `Bool` | `true` when status / comments / image count differ from initial values |
 | `showDeleteConfirmation` | `Bool` | Triggers `DeleteConfirmationView` fullScreenCover |
 | `isDownloading` | `Bool` | `true` while loading a remote or disk image for edit/share; shows `LMSLoadingOverlay` |
@@ -126,9 +127,10 @@ Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDial
 | `cancelDeleteImage()` | Clears pending index without removing |
 | `updateComments(_:)` | Mutates `comments` and marks dirty |
 | `updateDescription(_:for:)` | Updates `images[id].description` by UUID — used by gallery `descriptionBinding` |
-| `moveImage(from:to:)` | Reorders `images[]` via drag-to-reorder; marks dirty |
+| `moveImage(from:to:)` | Reorders `images[]` via `coordinator.moveImages` (`Array.move(fromOffsets:toOffset:)`); marks dirty. Wired to the sort-mode `List.onMove`. Firestore order is preserved even if the user reorders mid-upload — `uploadPhotosAndUpdateField` reads the live `images` order at write time, not the pre-upload snapshot |
 | `openCamera()` | Sets `showCamera = true` |
-| `toggleReorderMode()` | Flips `showReorderMode` |
+| `toggleDeleteMode()` | Flips `showDeleteMode`; turns off `showSortMode` |
+| `toggleSortMode()` | Flips `showSortMode`; turns off `showDeleteMode` |
 | `loadDraft()` | Restores status + comments from `UserDefaults` key `draft_validation_<fieldId>` |
 | `replaceImage(at:with:)` | Generates 800 px thumbnail from edited `UIImage`, replaces entry in-place preserving `description`. No `fileURL` — edited result is thumbnail-only (upload uses thumbnail quality, not full-res) |
 | `downloadImage(from:)` | Downloads a remote URL, caches in `ImageCacheActor`, returns `UIImage` (resized to max 2048 px) |

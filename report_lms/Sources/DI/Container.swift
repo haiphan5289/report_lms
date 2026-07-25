@@ -99,6 +99,10 @@ final class Container {
             LoginUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
         }
 
+        register(ForgotPasswordUseCase.self) {
+            ForgotPasswordUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
+        }
+
         register(UploadInspectionMediaUseCase.self) {
             UploadInspectionMediaUseCase(storageRepository: Container.shared.resolve(StorageRepositoryType.self)!)
         }
@@ -141,6 +145,9 @@ final class Container {
                 loginUseCase: Container.shared.resolve(LoginUseCase.self)!,
                 userManager: Container.shared.resolve(UserManager.self)!
             )
+        }
+        register(ForgotPasswordViewModel.self) {
+            ForgotPasswordViewModel(forgotPasswordUseCase: Container.shared.resolve(ForgotPasswordUseCase.self)!)
         }
         register(LMSHomeViewModel.self) {
             LMSHomeViewModel()

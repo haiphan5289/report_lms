@@ -150,9 +150,20 @@ function t(lang, key) {
 function isValidEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
-/** Strip characters unsafe for a filename/email attachment name, collapsing whitespace to underscores. */
+/** Strip characters unsafe for a filename/email attachment name, turning dashes into spaces. */
 function sanitizeFilenamePart(value) {
-    return value.trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "_");
+    return value.trim().replace(/[\\/:*?"<>|]/g, "").replace(/-/g, " ").replace(/\s+/g, " ");
+}
+/** Turn an email local-part into a display name, e.g. "hai.phan@chotot.vn" -> "Hai Phan". Non-email values (e.g. "unknown") pass through unchanged. */
+function deriveDisplayName(value) {
+    const at = value.indexOf("@");
+    if (at <= 0)
+        return value;
+    return value.slice(0, at)
+        .split(".")
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
 }
 // ── Cloud Function ─────────────────────────────────────────────────────────────
 exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
@@ -200,7 +211,7 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         // sender when requestedBy is an actual email.
         const traceEmail = isValidEmail(requestedBy) ? requestedBy : undefined;
         await transporter.sendMail(Object.assign(Object.assign({ from: `"LMS Report" <${gmailUser.value()}>`, to: recipientEmails.join(", ") }, (traceEmail ? { cc: traceEmail, replyTo: traceEmail } : {})), { subject: `${t(lang, "emailSubject")}${inspectionNumber}`, html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", requestedBy, lang), attachments: [{
-                    filename: `${sanitizeFilenamePart(inspection.productName || inspectionNumber)}.pdf`,
+                    filename: `Final Report ${sanitizeFilenamePart(inspection.productName || inspectionNumber)}.pdf`,
                     content: pdfBuffer,
                     contentType: "application/pdf",
                 }] }));
@@ -466,7 +477,7 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
         y += 10;
         // Info table
         y = drawInfoTable(doc, [
-            [t(lang, "inspector"), requestedBy || "N/A", t(lang, "inspectionDate"), dateTimeStr],
+            [t(lang, "inspector"), requestedBy ? deriveDisplayName(requestedBy) : "N/A", t(lang, "inspectionDate"), dateTimeStr],
             [t(lang, "plannedSample"), `${(_c = inspection.aqlInspectionQuantity) !== null && _c !== void 0 ? _c : 0}/${(_d = inspection.inspectedQuantity) !== null && _d !== void 0 ? _d : 0}`,
                 t(lang, "orderQty"), String((_e = inspection.orderQuantity) !== null && _e !== void 0 ? _e : 0)],
             [t(lang, "location"), location || "N/A", t(lang, "checklistName"), t(lang, "checklistNameValue")],
@@ -589,7 +600,7 @@ function buildEmailHTML(inspectionNumber, companyName, requestedBy, lang = "vi")
     <p>${t(lang, "emailGreeting")}</p>
     <p>${body}</p>
     <p>${t(lang, "emailCta")}</p>
-    <p>${t(lang, "emailClosing")}<br/><strong>${esc(requestedBy !== null && requestedBy !== void 0 ? requestedBy : "")}</strong></p>
+    <p>${t(lang, "emailClosing")}<br/><strong>${esc(requestedBy ? deriveDisplayName(requestedBy) : "")}</strong></p>
     <div class="footer">${t(lang, "emailFooter")}</div>
   </div>
 </body>

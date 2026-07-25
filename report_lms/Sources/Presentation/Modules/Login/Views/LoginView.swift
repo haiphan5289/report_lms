@@ -122,7 +122,7 @@ struct LoginView: View {
     private var forgotPasswordLink: some View {
         HStack {
             Spacer()
-            NavigationLink(destination: ForgotPasswordView()) {
+            NavigationLink(destination: ForgotPasswordView(viewModel: Container.shared.resolve(ForgotPasswordViewModel.self)!)) {
                 Text(localizationManager.localize("login.forgotPassword"))
                     .font(.footnote)
                     .foregroundColor(.accentColor)

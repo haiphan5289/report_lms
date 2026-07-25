@@ -74,7 +74,12 @@ final class LocalizationManager: ObservableObject {
 
             // MARK: Forgot Password
             "forgotPassword.title": "Quên mật khẩu",
-            "forgotPassword.message": "Tính năng đang được phát triển.",
+            "forgotPassword.message": "Nhập email đã đăng ký để nhận link đặt lại mật khẩu.",
+            "forgotPassword.emailPlaceholder": "Email",
+            "forgotPassword.button": "Gửi link đặt lại mật khẩu",
+            "forgotPassword.button.loading": "Đang gửi...",
+            "forgotPassword.success": "Nếu email tồn tại trong hệ thống, bạn sẽ nhận được email hướng dẫn đặt lại mật khẩu.",
+            "forgotPassword.backToLogin": "Quay lại đăng nhập",
 
             // MARK: Menu
             "menu.title": "Menu",
@@ -281,7 +286,12 @@ final class LocalizationManager: ObservableObject {
 
             // MARK: Forgot Password
             "forgotPassword.title": "Forgot Password",
-            "forgotPassword.message": "This feature is under development.",
+            "forgotPassword.message": "Enter your registered email to receive a password reset link.",
+            "forgotPassword.emailPlaceholder": "Email",
+            "forgotPassword.button": "Send Reset Link",
+            "forgotPassword.button.loading": "Sending...",
+            "forgotPassword.success": "If that email is registered, you'll receive a password reset email shortly.",
+            "forgotPassword.backToLogin": "Back to Login",
 
             // MARK: Menu
             "menu.title": "Menu",

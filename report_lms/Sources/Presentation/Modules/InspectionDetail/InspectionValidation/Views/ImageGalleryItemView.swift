@@ -20,7 +20,6 @@ struct ImageGalleryItemView: View {
     var fieldId: String?
 
     @State private var appeared = false
-    @GestureState private var thumbnailPressed = false
 
     init(
         inspectionImage: InspectionImage,
@@ -105,12 +104,6 @@ struct ImageGalleryItemView: View {
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 3)
-                    .scaleEffect(thumbnailPressed ? 0.97 : 1.0)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.65), value: thumbnailPressed)
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 0)
-                            .updating($thumbnailPressed) { _, state, _ in state = true }
-                    )
 
                     ImageSideActionsPanel(
                         onEdit: onEdit,

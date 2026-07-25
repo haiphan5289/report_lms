@@ -1,0 +1,38 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Reminder: invoke ct-bugfix-skill before analyzing this problem.'"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Reminder: invoke ct-swiftui-expert-skill before writing UI code.'"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Reminder: invoke review-code skill before responding.'"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Reminder: invoke ct-alternative-approaches skill before responding.'"
+          }
+        ]
+      }
+    ]
+  }
+}

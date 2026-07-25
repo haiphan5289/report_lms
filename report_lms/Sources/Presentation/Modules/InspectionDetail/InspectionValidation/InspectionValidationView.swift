@@ -25,6 +25,8 @@ struct InspectionValidationView: View {
         static let pressedScale: CGFloat = 0.92
         static let bottomBarTopPadding: CGFloat = 12
         static let bottomBarBottomPadding: CGFloat = 6
+        static let sortRowHeight: CGFloat = 72
+        static let sortThumbnailSize: CGFloat = 56
     }
     
     // MARK: - Properties
@@ -271,12 +273,14 @@ struct InspectionValidationView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 40)
+            } else if viewModel.showSortMode {
+                sortableImageList
             } else {
                 VStack(spacing: 16) {
                     ForEach(viewModel.images) { image in
                         ImageGalleryItemView(
                             inspectionImage: image,
-                            isReorderMode: viewModel.showReorderMode,
+                            isReorderMode: viewModel.showDeleteMode,
                             onDelete: { viewModel.requestDeleteImage(byId: image.id) },
                             onEdit: {
                                 print("🔍 [InspectionValidationView] onEdit tapped — imageId=\(image.id)")
@@ -309,6 +313,77 @@ struct InspectionValidationView: View {
         .shadow(color: LMSColor.shadow, radius: 2, x: 0, y: 1)
     }
 
+    // MARK: - Sortable Image List (sort mode)
+
+    /// Compact drag-to-reorder rows. A `List` needs an explicit height inside the outer
+    /// ScrollView, so rows are fixed-height — full gallery cards stay in normal mode.
+    private var sortableImageList: some View {
+        List {
+            ForEach(Array(viewModel.images.enumerated()), id: \.element.id) { index, image in
+                HStack(spacing: 12) {
+                    sortThumbnail(for: image)
+                        .frame(width: Layout.sortThumbnailSize, height: Layout.sortThumbnailSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    VStack(alignment: .leading, spacing: 2) {
+                        LMSLabel("Ảnh \(index + 1)", style: .body)
+                        if !image.description.isEmpty {
+                            LMSLabel(image.description, style: .caption, color: .secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            }
+            .onMove { source, destination in
+                viewModel.moveImage(from: source, to: destination)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollDisabled(true)
+        .environment(\.editMode, .constant(.active))
+        .frame(height: CGFloat(viewModel.images.count) * Layout.sortRowHeight)
+    }
+
+    @ViewBuilder
+    private func sortThumbnail(for image: InspectionImage) -> some View {
+        if let remoteURL = image.remoteURL {
+            if let iid = inspectionIdContext {
+                InspectionCachedImage(url: remoteURL, inspectionId: iid, fieldId: fieldIdContext) { phase in
+                    sortThumbnailPhase(phase)
+                }
+            } else {
+                CachedAsyncImage(url: remoteURL) { phase in
+                    sortThumbnailPhase(phase)
+                }
+            }
+        } else {
+            Image(uiImage: image.image)
+                .resizable()
+                .scaledToFill()
+        }
+    }
+
+    @ViewBuilder
+    private func sortThumbnailPhase(_ phase: AsyncImagePhase) -> some View {
+        switch phase {
+        case .success(let img):
+            img.resizable().scaledToFill()
+        case .failure:
+            Image(systemName: "photo.slash")
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGray5))
+        case .empty:
+            LMSSkeleton()
+        @unknown default:
+            EmptyView()
+        }
+    }
+
     private var actionsSection: some View {
         VStack(spacing: 12) {
             // Add more photos button
@@ -320,15 +395,27 @@ struct InspectionValidationView: View {
             ) {
                 viewModel.openCamera()
             }
-            
+
+            // Sort images button — only useful with 2+ images
+            if viewModel.images.count > 1 {
+                LMSButton(
+                    viewModel.showSortMode ? "Hoàn tất" : "Sắp xếp ảnh",
+                    icon: viewModel.showSortMode ? "checkmark" : "arrow.up.arrow.down",
+                    variant: viewModel.showSortMode ? .primary : .secondary,
+                    isFullWidth: true
+                ) {
+                    viewModel.toggleSortMode()
+                }
+            }
+
             // Delete images button
             LMSButton(
-                viewModel.showReorderMode ? "Hoàn tất" : "Xoá hình ảnh",
-                icon: viewModel.showReorderMode ? "checkmark" : "trash.fill",
-                variant: viewModel.showReorderMode ? .primary : .destructive,
+                viewModel.showDeleteMode ? "Hoàn tất" : "Xoá hình ảnh",
+                icon: viewModel.showDeleteMode ? "checkmark" : "trash.fill",
+                variant: viewModel.showDeleteMode ? .primary : .destructive,
                 isFullWidth: true
             ) {
-                viewModel.toggleReorderMode()
+                viewModel.toggleDeleteMode()
             }
         }
     }

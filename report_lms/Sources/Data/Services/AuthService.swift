@@ -37,4 +37,8 @@ final class AuthService: AuthServiceType {
         let token = try await user.getIDToken(forcingRefresh: true)
         return UserSession(id: user.uid, username: user.email ?? "", token: token)
     }
+
+    func sendPasswordReset(email: String) async throws {
+        try await Auth.auth().sendPasswordReset(withEmail: email)
+    }
 }

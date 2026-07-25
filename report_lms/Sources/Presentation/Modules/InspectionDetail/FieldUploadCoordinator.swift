@@ -343,18 +343,17 @@ final class FieldUploadCoordinator: ObservableObject {
             return results.sorted { $0.0 < $1.0 }.map { (offset: $0.0, urlString: $0.1) }
         }
 
-        let uploadedURLs = existingRemoteURLs + successfulUploads.map { $0.urlString }
-        guard !uploadedURLs.isEmpty else { return }
+        print("[UploadSession] uploads finished ok=\(successfulUploads.count)/\(fullIndexedLocal.count)")
 
-        let existingDescriptions = strippedImages.compactMap { img -> String? in
-            guard img.isRemote else { return nil }
-            return img.description
-        }
-        let newDescriptions = successfulUploads.map { upload -> String in
-            guard let imageId = imageIdByIndex[upload.offset] else { return "" }
-            return images.first(where: { $0.id == imageId })?.description ?? ""
-        }
-        let uploadedDescriptions = existingDescriptions + newDescriptions
+        // Read the LIVE images array — not the pre-upload snapshots — so the Firestore write
+        // preserves any reorder/delete the user performed while uploads were in flight.
+        // Every successful upload has already been swapped to .remote in `images` (by id)
+        // in the progressive-release loop above, so filtering .isRemote here yields the
+        // full URL list in the user's current visual order.
+        let remoteImages = images.filter { $0.isRemote }
+        let uploadedURLs = remoteImages.compactMap { $0.remoteURL?.absoluteString }
+        guard !uploadedURLs.isEmpty else { return }
+        let uploadedDescriptions = remoteImages.map { $0.description }
 
         do {
             try await storageService.updateFieldImageURLs(

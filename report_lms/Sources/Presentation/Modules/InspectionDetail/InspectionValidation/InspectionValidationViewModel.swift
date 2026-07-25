@@ -21,7 +21,11 @@ final class InspectionValidationViewModel: ObservableObject {
     @Published var showCamera: Bool = false
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    @Published var showReorderMode: Bool = false
+    /// Delete-selection mode — shows the xmark overlay on each gallery cell.
+    /// (Renamed from `showReorderMode`, which never actually reordered anything.)
+    @Published var showDeleteMode: Bool = false
+    /// Sort mode — swaps the gallery for a compact drag-to-reorder List.
+    @Published var showSortMode: Bool = false
     @Published var isDirty: Bool = false
     @Published var showDeleteConfirmation: Bool = false
     @Published var isDownloading: Bool = false
@@ -138,7 +142,16 @@ final class InspectionValidationViewModel: ObservableObject {
         updateDirtyState()
     }
 
-    func toggleReorderMode() { showReorderMode.toggle() }
+    /// Delete mode and sort mode are mutually exclusive — enabling one disables the other.
+    func toggleDeleteMode() {
+        showDeleteMode.toggle()
+        if showDeleteMode { showSortMode = false }
+    }
+
+    func toggleSortMode() {
+        showSortMode.toggle()
+        if showSortMode { showDeleteMode = false }
+    }
 
     func openCamera() { showCamera = true }
 
