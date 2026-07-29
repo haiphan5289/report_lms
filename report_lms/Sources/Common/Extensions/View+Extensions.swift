@@ -17,4 +17,31 @@ extension View {
             self
         }
     }
+
+    /// Fade + slide-up entrance, delayed by `index` steps of `delayStep` seconds — for staggered list/form field reveals.
+    func staggeredEntrance(
+        visible: Bool,
+        index: Int,
+        delayStep: Double = 0.08,
+        duration: Double = 0.35,
+        offsetY: CGFloat = 16
+    ) -> some View {
+        self
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible ? 0 : offsetY)
+            .animation(.easeOut(duration: duration).delay(Double(index) * delayStep), value: visible)
+    }
+}
+
+extension Binding where Value == CGFloat {
+    /// Plays a brief horizontal shake by animating this binding, then resets it — for validation/error feedback.
+    func triggerShake() {
+        withAnimation(.easeInOut(duration: 0.06).repeatCount(4, autoreverses: true)) {
+            wrappedValue = 8
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            withAnimation { wrappedValue = 0 }
+        }
+    }
 }

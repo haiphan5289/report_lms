@@ -1,0 +1,82 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function myCompanyId() {
+      return myProfile().companyId;
+    }
+
+    // True once the caller has completed company onboarding (has a users/{uid} doc).
+    // Checked with exists() (never errors on a missing doc) before any get().data access,
+    // since mid-onboarding (createCompany / joinCompany in progress) the profile doc
+    // doesn't exist yet.
+    function hasProfile() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // users/{uid} — each user may only read/write their own profile document.
+    // Created by CompanyService on sign-up (createCompany / joinCompany); never client-editable afterwards.
+    match /users/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update, delete: if false;
+    }
+
+    // companies/{companyId} — created directly by the client during onboarding
+    // (CompanyService.createCompany), read during both createCompany (immediately after
+    // creating) and joinCompany (resolving a join code, before the caller has a profile
+    // yet — hence the `!hasProfile()` escape hatch below). Never client-editable afterwards
+    // (name changes, etc. would need a dedicated admin flow).
+    match /companies/{companyId} {
+      allow read: if isSignedIn() && (!hasProfile() || myCompanyId() == companyId);
+      allow create: if isSignedIn() && !hasProfile() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // joinCodes/{code} — write-only from the trusted CompanyService path (setData with a
+    // brand-new document ID acting as a uniqueness check). Readable by any signed-in user
+    // so joinCompany() can resolve a code to a companyId before the user has a profile yet.
+    match /joinCodes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // inspections/{inspectionId} — the core data isolation boundary. A user may only
+    // read/write inspections whose companyId matches their own profile's companyId.
+    match /inspections/{inspectionId} {
+      allow read: if isSignedIn() && resource.data.companyId == myCompanyId();
+      allow create: if isSignedIn() && request.resource.data.companyId == myCompanyId();
+      allow update: if isSignedIn() && resource.data.companyId == myCompanyId()
+                    && request.resource.data.companyId == myCompanyId();
+      allow delete: if isSignedIn() && resource.data.companyId == myCompanyId();
+
+      match /errorItems/{errorItemId} {
+        allow read, write: if isSignedIn()
+                            && get(/databases/$(database)/documents/inspections/$(inspectionId)).data.companyId == myCompanyId();
+      }
+    }
+
+    // report_delivery_queue/{taskId} — written by the app, read/processed by the
+    // processReportQueue Cloud Function (admin SDK, bypasses rules). The task payload
+    // itself has no companyId field (see ReportDeliveryQueueService.TaskPayload), so
+    // membership is checked by looking up the referenced inspection instead.
+    function ownsQueuedInspection(inspectionId) {
+      return get(/databases/$(database)/documents/inspections/$(inspectionId)).data.companyId == myCompanyId();
+    }
+    match /report_delivery_queue/{taskId} {
+      allow read: if isSignedIn() && ownsQueuedInspection(resource.data.inspectionId);
+      allow create: if isSignedIn() && ownsQueuedInspection(request.resource.data.inspectionId);
+      allow update, delete: if false;
+    }
+  }
+}

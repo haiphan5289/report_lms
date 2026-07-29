@@ -190,7 +190,7 @@ private final class PreviewProgressStorageService: InspectionStorageServiceType 
         self.mockInspections = inspections
     }
 
-    func loadCache() async throws {}
+    func loadCache(companyId: String) async throws {}
     func getAllInspections() -> [Inspection] { mockInspections }
     func getInspection(by id: String) -> Inspection? { mockInspections.first { $0.id == id } }
     func saveInspection(_ inspection: Inspection) async throws { mockInspections.append(inspection) }
@@ -218,6 +218,7 @@ private let mockInProgressInspections: [Inspection] = [
     Inspection(
         id: "p1",
         inspectionNumber: "INS-2026-010",
+        companyId: "mock-company",
         companyName: "Công ty TNHH ABC",
         productName: "Áo thun cotton",
         productCode: "AT-001",
@@ -232,6 +233,7 @@ private let mockInProgressInspections: [Inspection] = [
     Inspection(
         id: "p2",
         inspectionNumber: "INS-2026-011",
+        companyId: "mock-company",
         companyName: "Công ty TNHH XYZ",
         productName: "Quần jean nam",
         productCode: "QJ-002",

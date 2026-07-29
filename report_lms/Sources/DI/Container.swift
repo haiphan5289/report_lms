@@ -55,9 +55,15 @@ final class Container {
         let inspectionService = InspectionService()
         registerSingleton(InspectionServiceType.self, instance: inspectionService)
         
+        let companyService = CompanyService()
+        registerSingleton(CompanyServiceType.self, instance: companyService)
+
         // Repositories - Singleton to maintain publisher state
         let authRepository = AuthRepository(service: firebaseAuthService)
         registerSingleton(AuthRepositoryType.self, instance: authRepository)
+
+        let companyRepository = CompanyRepository(service: companyService)
+        registerSingleton(CompanyRepositoryType.self, instance: companyRepository)
 
         let storageRepository = FirebaseStorageRepository(service: firebaseStorageService)
         registerSingleton(StorageRepositoryType.self, instance: storageRepository)
@@ -107,6 +113,30 @@ final class Container {
             UpdateDisplayNameUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
         }
 
+        register(SignUpUseCase.self) {
+            SignUpUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
+        }
+
+        register(RollbackSignUpUseCase.self) {
+            RollbackSignUpUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
+        }
+
+        register(CreateCompanyUseCase.self) {
+            CreateCompanyUseCase(repository: Container.shared.resolve(CompanyRepositoryType.self)!)
+        }
+
+        register(JoinCompanyUseCase.self) {
+            JoinCompanyUseCase(repository: Container.shared.resolve(CompanyRepositoryType.self)!)
+        }
+
+        register(FetchUserProfileUseCase.self) {
+            FetchUserProfileUseCase(repository: Container.shared.resolve(CompanyRepositoryType.self)!)
+        }
+
+        register(FetchCompanyUseCase.self) {
+            FetchCompanyUseCase(repository: Container.shared.resolve(CompanyRepositoryType.self)!)
+        }
+
         register(UploadInspectionMediaUseCase.self) {
             UploadInspectionMediaUseCase(storageRepository: Container.shared.resolve(StorageRepositoryType.self)!)
         }
@@ -147,6 +177,26 @@ final class Container {
         register(LoginViewModel.self) {
             LoginViewModel(
                 loginUseCase: Container.shared.resolve(LoginUseCase.self)!,
+                fetchUserProfileUseCase: Container.shared.resolve(FetchUserProfileUseCase.self)!,
+                storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
+                userManager: Container.shared.resolve(UserManager.self)!
+            )
+        }
+        register(CreateCompanyViewModel.self) {
+            CreateCompanyViewModel(
+                signUpUseCase: Container.shared.resolve(SignUpUseCase.self)!,
+                createCompanyUseCase: Container.shared.resolve(CreateCompanyUseCase.self)!,
+                rollbackSignUpUseCase: Container.shared.resolve(RollbackSignUpUseCase.self)!,
+                storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
+                userManager: Container.shared.resolve(UserManager.self)!
+            )
+        }
+        register(JoinCompanyViewModel.self) {
+            JoinCompanyViewModel(
+                signUpUseCase: Container.shared.resolve(SignUpUseCase.self)!,
+                joinCompanyUseCase: Container.shared.resolve(JoinCompanyUseCase.self)!,
+                rollbackSignUpUseCase: Container.shared.resolve(RollbackSignUpUseCase.self)!,
+                storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
                 userManager: Container.shared.resolve(UserManager.self)!
             )
         }

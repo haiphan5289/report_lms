@@ -1,30 +1,30 @@
 ---
 name: ui-score
-description: "Score Flutter UI code for AI Laundry app across 5 dimensions: Design System adoption, Color tokens, Spacing & layout, Typography, and Performance. Produces a scored report (0–50 pts) with grade A–F and actionable fix list. Use before PR or when you want a quick UI health check."
-argument-hint: "[file path or feature folder — e.g. lib/features/dashboard/presentation]"
+description: "Score SwiftUI code for report_lms across 5 dimensions: LMS Design System adoption, Color tokens, Spacing & layout consistency, Typography, and Performance/Code quality. Produces a scored report (0–50 pts) with grade A–F and actionable fix list. Use before PR or when you want a quick UI health check."
+argument-hint: "[file path or module folder — e.g. Sources/Presentation/Modules/SignUp]"
 model: sonnet
 ---
 
-# AI Laundry — UI Score Skill
+# report_lms — UI Score Skill
 
-> **Anti-Hallucination:** Only flag violations you can see in the code. Never reference App* components that do not exist in `lib/core/design_system/`. Verified list is in the scoring rubric below.
+> **Anti-Hallucination:** Only flag violations you can see in the code. Never reference `LMS*` components that do not exist in `Sources/Common/`. Verified list is in the scoring rubric below. This is a SwiftUI project (report_lms) — do not apply Flutter/`App*`/CDS (Cho Tot) conventions here.
 
 ## Purpose
 
-This skill audits Flutter UI files and produces a **scored report** with:
+This skill audits SwiftUI files in report_lms and produces a **scored report** with:
 - A numeric score per dimension (0–10)
 - An overall score out of 50
 - A letter grade (A–F)
 - A prioritised fix list with file path and line number
 
-> **UI Pipeline:** Run `/ui-score` before PR for token/design system compliance. For visual quality and animation polish, also run `/pa-premium-ui <ScreenName>` — it covers layout depth, motion, loading states, and dark mode issues that ui-score does not catch.
+> **UI Pipeline:** Run `/ui-score` before PR for LMS Design System token/component compliance. For visual quality and animation polish, also run `/pa-premium-ui <ScreenName>`. For a fuller feature + UX + code review, use `/screen-review`.
 
 ---
 
 ## Input Format
 
 ```
-TARGET: [file path or folder — e.g. lib/features/dashboard/presentation]
+TARGET: [file path or module folder — e.g. Sources/Presentation/Modules/SignUp]
 ```
 
 If no target is provided, ask the user for the path before proceeding.
@@ -37,9 +37,10 @@ Follow these steps **in order**.
 
 ### Step 1 — Discover Files
 
-Read the TARGET path. Collect all `.dart` files that contain UI code:
-- `*_screen.dart`, `*_view.dart`, `*_page.dart`
-- `*_widget.dart`, `*_card.dart`, `*_tile.dart`, `*_section.dart`
+Read the TARGET path. Collect all `.swift` files that contain UI code — i.e. anything declaring a `View`, `ViewModifier`, or `ButtonStyle`:
+- Files under `Presentation/Modules/**/Views/` or `**/*View.swift`
+- Files under `Common/Components/**`
+- Skip `ViewModel.swift`, `UseCase.swift`, `Repository.swift`, `Service.swift`, `Entity.swift` files — those are not UI code (score `/screen-review` covers architecture/logic, not this skill).
 
 List each discovered file before scoring.
 
@@ -63,31 +64,34 @@ Each dimension starts at **10 points**. Deduct points for each violation found.
 
 ---
 
-### D1 — Design System Adoption (0–10)
+### D1 — LMS Design System Adoption (0–10)
 
-Checks whether AppDesignSystem components are used wherever a verified equivalent exists.
+Checks whether `LMS*` components (`Sources/Common/Components/`, `Sources/Common/Colors/`) are used wherever a verified equivalent exists.
 
-**Verified AppDesignSystem components (these MUST be used):**
+**Verified LMS Design System components (these MUST be used):**
 
-| Raw Flutter Widget | Required App* Replacement |
+| Raw SwiftUI | Required LMS Replacement |
 |---|---|
-| `Text(...)` | `AppText.*` variant |
-| `ElevatedButton`, `TextButton`, `OutlinedButton`, `IconButton` | `AppButton` or `AppButton.icon()` |
-| `TextField`, `TextFormField` | `AppTextField` |
-| `Card(...)` | `AppCard` |
-| `CircularProgressIndicator` (for loading states) | `AppLoader` |
-| Skeleton placeholders (custom containers) | `AppSkeleton` or `AppOrderCardSkeleton` |
-| Ad-hoc empty Column+Icon+Text for empty/error | `AppEmptyState` |
-| `Divider()` | `AppDivider` |
-| `VerticalDivider()` | `AppVerticalDivider` |
+| `Text(...)` (any user-facing string) | `LMSLabel(_:style:color:alignment:)` |
+| `Button(...)` styled ad hoc (custom background/cornerRadius/padding) | `LMSButton(_:variant:size:isFullWidth:isLoading:isDisabled:action:)` |
+| `TextField(...)` / `SecureField(...)` | `LMSTextField(_:text:icon:size:validationState:helperText:isSecure:keyboardType:autocapitalization:maxLength:onCommit:)` |
+| Bare `ProgressView()` as a full-screen/section loading state | `LMSLoadingView` or `LMSLoadingOverlay` |
+| Ad-hoc shimmer/gray-box loading placeholder | `LMSSkeleton` / `LMSInspectionCardSkeleton` |
+| Ad-hoc bottom toast/snackbar `VStack` | `LMSSnackbar` |
+| Ad-hoc "Label: Value" row (`HStack { Text(...); Spacer(); Text(...) }`) | `LMSInfoRow` |
+| Ad-hoc bordered/padded section wrapper | `LMSSectionContainer` |
+| Ad-hoc upload/progress bar | `LMSUploadProgressBar` |
 
 **Deductions:**
-- `-2` per use of raw `Text(...)` where AppText would apply
-- `-2` per use of raw button widget (ElevatedButton, TextButton, OutlinedButton)
-- `-2` per use of raw `TextField` / `TextFormField`
-- `-2` per use of raw `Card(...)` where AppCard applies
-- `-1` per use of `CircularProgressIndicator` in a loading state instead of AppLoader/AppSkeleton
-- `-1` per ad-hoc empty state instead of AppEmptyState
+- `-2` per use of raw `Text(...)` for user-facing copy where `LMSLabel` would apply
+- `-2` per use of a raw `Button(...)` with custom styling (background/cornerRadius/padding built inline) instead of `LMSButton`
+- `-2` per use of raw `TextField`/`SecureField` instead of `LMSTextField`
+- `-1` per bare `ProgressView()` used as a loading state instead of `LMSLoadingView`/`LMSLoadingOverlay`
+- `-1` per ad-hoc empty/error state (`VStack { Image; Text; Text }` pattern) not matching the project's established empty-state pattern (see e.g. `ReportLMSHomeView.emptyStateView`)
+
+**Acceptable (no deduction):**
+- A custom `ButtonStyle` used deliberately for a one-off interaction (e.g. `SignUpChoiceButtonStyle`, `CardPressStyle`) — this is an established project pattern for press effects that `LMSButton` doesn't cover; only flag if it duplicates something `LMSButton` variants already provide (primary/secondary/tertiary/destructive/ghost).
+- Native `NavigationLink`, `Toggle`, `Picker` — no LMS wrapper exists for these.
 
 **Minimum score:** 0 (cannot go negative)
 
@@ -95,78 +99,73 @@ Checks whether AppDesignSystem components are used wherever a verified equivalen
 
 ### D2 — Color Tokens (0–10)
 
-Checks whether all color values use `AppColors.*` tokens.
+Checks whether color values use `LMSColor.*` (and its nested `LMSColor.Button`/`LMSColor.Shadow`/`LMSColor.Border`) or `LMSTextColor` wherever a token exists.
 
 **Deductions:**
-- `-3` per use of `Color(0xFF...)` or `Color(0x...)` in feature code
-- `-2` per use of `Colors.*` (e.g. `Colors.blue`, `Colors.grey`) in feature code
-- `-1` per hardcoded opacity applied to a non-AppColors value (e.g. `Colors.black.withOpacity(0.5)`)
-- `-1` per use of `Theme.of(context).colorScheme.*` directly where an AppColors token exists
+- `-3` per hardcoded custom color: `Color(red:green:blue:)`, `Color(hex:)`, or any literal RGB/hex value
+- `-2` per use of a raw semantic color that has a direct `LMSColor` equivalent — e.g. `.red`/`Color.red` for an error state instead of `LMSColor.destructive` / `LMSTextColor.error`, `.green` instead of `LMSColor.success`
+- `-1` per repeated inline `Color.blue.opacity(0.1)`-style construction that duplicates an existing `LMSColor` token (e.g. `LMSColor.primaryLight`, `LMSColor.primaryBorder`) instead of reusing it
+- `-1` per new custom shadow/border color literal instead of `LMSColor.Shadow.*` / `LMSColor.Border.*`
 
-**Acceptable (no deduction):**
-- `Colors.transparent`
-- `Colors.white` / `Colors.black` when no AppColors token maps to it
+**Acceptable (no deduction) — these are the established convention in this codebase, including inside the LMS components themselves:**
+- `Color(.systemBackground)`, `Color(.systemGray4)`, `.secondary`, `.primary`, `Color(.tertiaryLabel)` — iOS system adaptive colors used directly (this project does not route every system color through `LMSColor`; only flag when a more specific `LMSColor` token exists and was ignored)
+- `.foregroundColor(.secondary)` / `.foregroundColor(.accentColor)` for de-emphasized text or standard interactive tint
 
 ---
 
-### D3 — Spacing & Layout Tokens (0–10)
+### D3 — Spacing & Layout Consistency (0–10)
 
-Checks whether padding, margin, gap, and border-radius values use design tokens.
+This project has **no shared spacing/radius token enum** — the established convention is a `private enum Layout` with named `static let` `CGFloat` constants scoped to each view (see `LoginView.Layout`, `ForgotPasswordView.Layout`). Checks whether that convention is followed and whether values are consistent with the rest of the codebase.
 
 **Deductions:**
-- `-2` per hardcoded `EdgeInsets` with literal numbers (e.g. `EdgeInsets.all(16)`, `EdgeInsets.only(top: 8)`)
-- `-2` per hardcoded `SizedBox(width: 8)` or `SizedBox(height: 16)` where AppSpacing token applies
-- `-2` per hardcoded `BorderRadius.circular(N)` where AppRadius token applies
-- `-1` per hardcoded `Padding(padding: EdgeInsets.fromLTRB(...))` with literal numbers
+- `-2` per view with 3+ raw numeric literals used directly in `.padding(...)`, `VStack(spacing:)`, `HStack(spacing:)` instead of being pulled into a `private enum Layout` (or reusing an existing one)
+- `-2` per `.cornerRadius(N)` / `RoundedRectangle(cornerRadius: N)` using a radius outside the codebase's established values (`8` for buttons/text fields/cards, `12` for section cards) without a stated reason
+- `-1` per one-off magic number that duplicates a value already named in that same file's `Layout` enum (e.g. `.padding(.horizontal, 24)` used inline right next to `Layout.horizontalPadding = 24`)
+- `-1` per inconsistent spacing scale within the same screen (e.g. mixing 6, 10, 14, 18 for similar-purpose gaps instead of the project's common values: 4, 8, 12, 16, 20, 24, 32)
 
-**AppSpacing tokens reference:**
-
-| Token | Value |
-|---|---|
-| `AppSpacing.xs` | 4.0 |
-| `AppSpacing.sm` | 8.0 |
-| `AppSpacing.md` | 16.0 |
-| `AppSpacing.lg` | 24.0 |
-| `AppSpacing.xl` | 32.0 |
-| `AppSpacing.xxl` | 48.0 |
-
-**AppRadius tokens reference:**
-
-| Token | Value |
-|---|---|
-| `AppRadius.brSm` | 4px |
-| `AppRadius.brMd` | 8px |
-| `AppRadius.brLg` | 12px |
-| `AppRadius.brXl` | 16px |
-| `AppRadius.brFull` | 999px |
+**Acceptable (no deduction):**
+- A `private enum Layout` with named constants, even if the file only has 1–2 spacing values — this is the target pattern, not a violation
+- One-off framing values tied to a specific asset/icon size (e.g. `.frame(width: 64, height: 64)` for a hero icon)
 
 ---
 
 ### D4 — Typography (0–10)
 
-Checks whether all text styling uses AppText variants and AppTypography — never raw TextStyle.
+Checks whether all text styling goes through `LMSLabel` + `LMSTextStyle`/`LMSTextColor` — never raw `Font`/`TextStyle` construction on a bare `Text`.
 
 **Deductions:**
-- `-3` per hardcoded `TextStyle(fontSize: N, ...)` applied directly on a widget
-- `-2` per raw `Text(...)` styled with `style: TextStyle(...)` instead of using an AppText variant
-- `-1` per use of `fontWeight: FontWeight.*` directly on a Text widget
-- `-1` per missing text color that should reference `AppColors.*` (text using default color when contrast is ambiguous)
+- `-3` per hardcoded `.font(.system(size: N, weight: .semibold))` (or similar raw `Font` literal) applied directly to a widget
+- `-2` per raw `Text(...)` styled with `.font(...)`/`.foregroundColor(...)` manually instead of using `LMSLabel` with an `LMSTextStyle`/`LMSTextColor`
+- `-1` per `.fontWeight(.bold)`/`.fontWeight(.semibold)` applied directly to a raw `Text` instead of picking the `LMSTextStyle` case whose `.weight` already matches
+- `-1` per text color chosen ad hoc (`.foregroundColor(.gray)`, `.foregroundColor(Color(white: 0.4))`) instead of an `LMSTextColor` case
 
-**AppText variants reference:**
-`display`, `h1`, `h2`, `h3`, `title`, `bodyLg`, `body`, `label`, `caption`, `overline`
+**Acceptable (no deduction):**
+- `Text(...)` used purely as a layout primitive inside a custom component's own internal implementation (e.g. inside `LMSButton`'s `contentView`, inside `LMSTextField`'s helper text) — those ARE the design system, not a consumer of it. Only flag raw `Text` usage in *feature/screen* code, not inside `Common/Components/`.
+- Monospaced/system fonts for a deliberately distinct visual (e.g. a join-code display in `.system(.largeTitle, design: .monospaced)`) — flag only if unexplained by the UI's intent.
+
+**LMSTextStyle variants reference:**
+`.largeTitle`, `.title`, `.title2`, `.title3`, `.headline`, `.subheadline`, `.body`, `.callout`, `.footnote`, `.caption`, `.caption2`
+
+**LMSTextColor variants reference:**
+`.primary`, `.secondary`, `.tertiary`, `.success`, `.warning`, `.error`, `.custom(Color)`
 
 ---
 
 ### D5 — Performance & Code Quality (0–10)
 
-Checks Flutter UI performance best practices.
+Checks SwiftUI/Swift-specific best practices relevant to this project's MVVM + Clean Architecture (Presentation → Domain → Data).
 
 **Deductions:**
-- `-2` per missing `const` constructor on a widget that qualifies (no dynamic data, no callbacks)
-- `-2` per business logic inside `build()` (data transformation, calculations, conditionals beyond simple null checks)
-- `-2` per large widget tree (>80 lines in a single `build()` method) without widget extraction
-- `-1` per `print(...)` call (use `debugPrint()`)
-- `-1` per `setState()` inside an async callback without a `mounted` check
+- `-2` per force unwrap (`!`) or force try (`try!`) in view/view-model code on a value that isn't guaranteed non-nil (e.g. `Container.shared.resolve(X.self)!` is an accepted DI convention in this codebase — do NOT flag that specific pattern; DO flag force-unwraps of user input, network responses, or optional model fields)
+- `-2` per business logic (data transformation, date math, validation beyond a simple `.isEmpty` check) written inline inside a `View`'s `body` instead of the `ViewModel`
+- `-2` per `View` `body`/`private var` exceeding ~80 lines without extraction into a subview or computed property
+- `-1` per `print(...)` call in production code path (this project uses `OSLog`'s `Logger` — see `FirestoreInspectionStorageService` for the convention — or is at minimum pre-existing debug logging that should not be copied into new code)
+- `-1` per `Task { ... }` performing a `@Published` property mutation after an `await` without being on `@MainActor` (either the enclosing method marked `@MainActor` or an explicit `await MainActor.run { ... }`)
+- `-1` per new `ObservableObject`/`ViewModel` whose async mutating methods aren't `@MainActor`-annotated per-method (see `LoginViewModel.login()` for the established pattern — do NOT flag class-level `@MainActor` as required; flag its *absence* on methods that mutate `@Published` state after an await)
+
+**Acceptable (no deduction):**
+- `Container.shared.resolve(X.self)!` — this is the project's standard DI resolution pattern, used pervasively; only flag if the resolved type is genuinely unregistered (verify against `DI/Container.swift`)
+- `#Preview` blocks constructing dependencies manually with force-unwraps — preview code is exempt from D5
 
 ---
 
@@ -196,9 +195,9 @@ Checks Flutter UI performance best practices.
 
 | Dimension | Score | Issues Found |
 |---|---|---|
-| D1 · Design System Adoption | N/10 | N violations |
+| D1 · LMS Design System Adoption | N/10 | N violations |
 | D2 · Color Tokens | N/10 | N violations |
-| D3 · Spacing & Layout Tokens | N/10 | N violations |
+| D3 · Spacing & Layout Consistency | N/10 | N violations |
 | D4 · Typography | N/10 | N violations |
 | D5 · Performance & Code Quality | N/10 | N violations |
 | **Overall** | **N/50** | **Grade: [A/B/C/D/F]** |
@@ -213,37 +212,32 @@ Checks Flutter UI performance best practices.
 
 ## Issues by Dimension
 
-### D1 · Design System Adoption — N/10
+### D1 · LMS Design System Adoption — N/10
 
-- ❌ `[file.dart:line]` — `Text("Doanh thu")` → use `AppText.body("Doanh thu")`
-- ❌ `[file.dart:line]` — `ElevatedButton(...)` → use `AppButton(...)`
-- ✅ AppCard used correctly in stat_card.dart
-- ✅ AppEmptyState used in dashboard_home_view.dart
+- ❌ `[File.swift:line]` — `Text("Tạo công ty")` → use `LMSLabel("Tạo công ty", style: .title)`
+- ❌ `[File.swift:line]` — ad-hoc styled `Button(...)` → use `LMSButton(...)`
+- ✅ `LMSTextField` used correctly for all form fields in CreateCompanyView.swift
+- ✅ `LMSButton` used for primary CTA in JoinCompanyView.swift
 
 ### D2 · Color Tokens — N/10
 
-- ❌ `[file.dart:line]` — `Color(0xFF2563EB)` → use `AppColors.primary`
-- ❌ `[file.dart:line]` — `Colors.grey` → use `AppColors.slate500`
-- ✅ All gradient colors use AppColors tokens
+- ❌ `[File.swift:line]` — `Color.red` for an error label → use `LMSTextColor.error` / `LMSColor.destructive`
+- ✅ `LMSColor.success` used correctly for the success icon
 
-### D3 · Spacing & Layout Tokens — N/10
+### D3 · Spacing & Layout Consistency — N/10
 
-- ❌ `[file.dart:line]` — `EdgeInsets.all(16)` → use `EdgeInsets.all(AppSpacing.md)`
-- ❌ `[file.dart:line]` — `SizedBox(height: 8)` → use `SizedBox(height: AppSpacing.sm)`
-- ✅ Horizontal padding uses AppSpacing.md throughout
+- ❌ `[File.swift:line]` — raw `.padding(.horizontal, 24)` repeated 3x without a `Layout` enum → extract `Layout.horizontalPadding`
+- ✅ `Layout` enum present and used consistently in CreateCompanyView.swift
 
 ### D4 · Typography — N/10
 
-- ❌ `[file.dart:line]` — `TextStyle(fontSize: 14, fontWeight: FontWeight.bold)` → use `AppText.label(...)`
-- ✅ Greeting uses AppText.h2
-- ✅ Date uses AppText.body with AppColors.slate500
+- ❌ `[File.swift:line]` — `Text(...).font(.system(size: 14, weight: .semibold))` → use `LMSLabel(..., style: .subheadline)`
+- ✅ Title uses `LMSLabel` with `.title` style
 
 ### D5 · Performance & Code Quality — N/10
 
-- ❌ `[file.dart:line]` — Missing `const` on `SizedBox(height: AppSpacing.lg)`
-- ❌ `[file.dart:line]` — Currency formatting inside `build()` → move to ViewModel or `late final` field
-- ✅ Animation controllers disposed in dispose()
-- ✅ mounted check present before setState after async
+- ❌ `[File.swift:line]` — `@Published var isSuccess` mutated after `await` inside a non-`@MainActor` method
+- ✅ `Container.shared.resolve(...)!` used per established DI convention (not flagged)
 
 ---
 
@@ -251,11 +245,11 @@ Checks Flutter UI performance best practices.
 
 Fix these in order — highest impact first:
 
-1. `[file.dart:line]` [D1-CRITICAL] Replace `ElevatedButton` with `AppButton`
-2. `[file.dart:line]` [D1-CRITICAL] Replace `Text(...)` with `AppText.body(...)`
-3. `[file.dart:line]` [D2-HIGH] Replace `Color(0xFF...)` with AppColors token
-4. `[file.dart:line]` [D3-MEDIUM] Replace hardcoded EdgeInsets with AppSpacing tokens
-5. `[file.dart:line]` [D5-LOW] Add `const` to static SizedBox widgets
+1. `[File.swift:line]` [D1-CRITICAL] Replace ad-hoc `Button` with `LMSButton`
+2. `[File.swift:line]` [D1-CRITICAL] Replace raw `Text(...)` with `LMSLabel(...)`
+3. `[File.swift:line]` [D2-HIGH] Replace `Color.red` with `LMSTextColor.error`
+4. `[File.swift:line]` [D3-MEDIUM] Extract repeated padding literals into a `Layout` enum
+5. `[File.swift:line]` [D5-LOW] Mark the async mutating method `@MainActor`
 ```
 
 ---
@@ -263,9 +257,9 @@ Fix these in order — highest impact first:
 ## Anti-Hallucination Checklist
 
 Before outputting the report:
-- [ ] Every App* component flagged as missing **actually exists** in the verified list above
+- [ ] Every `LMS*` component flagged as missing **actually exists** in `Sources/Common/Components/` or `Sources/Common/Colors/` — verified list: `LMSLabel`, `LMSButton`, `LMSTextField`, `LMSColor` (+ `.Button`/`.Shadow`/`.Border`), `LMSTextStyle`, `LMSTextColor`, `LMSSectionContainer`, `LMSInfoRow`, `LMSSkeleton`/`LMSInspectionCardSkeleton`, `LMSLoadingView`/`LMSLoadingOverlay`, `LMSSnackbar`, `LMSUploadProgressBar`
 - [ ] Every file path and line number cited was read in Step 2
 - [ ] No violations invented from assumptions — only from code actually seen
-- [ ] `AppColors.textSecondary` does NOT exist — use `AppColors.slate500`
-- [ ] `AppText` does NOT accept `fontWeight` parameter — use different AppText variant instead
-- [ ] `hint` (not `hintText`), `label` (not `text`) for AppTextField parameters
+- [ ] Not confusing this project's `LMS*` components with Cho Tot's `CDS*`/`AppDesignSystem`/Flutter `App*` components from other projects/skills — this project has none of those
+- [ ] Raw `Text`/`Color`/`Font` usage *inside* `Sources/Common/Components/` itself is NOT flagged — that's the design system's own implementation, not a consumer of it
+- [ ] `Container.shared.resolve(X.self)!` is NOT flagged as a force-unwrap violation — it's this project's standard DI pattern

@@ -26,6 +26,34 @@ final class AuthService: AuthServiceType {
         }
     }
 
+    func signUp(email: String, password: String) async throws -> LoginResponse {
+        do {
+            let result = try await Auth.auth().createUser(withEmail: email, password: password)
+            return LoginResponse(
+                id: result.user.uid,
+                username: result.user.email ?? email,
+                token: try await result.user.getIDToken()
+            )
+        } catch let error as NSError {
+            let message: String
+            switch AuthErrorCode(rawValue: error.code) {
+            case .emailAlreadyInUse:
+                message = "Email này đã được đăng ký"
+            case .weakPassword:
+                message = "Mật khẩu quá yếu, vui lòng chọn mật khẩu khác"
+            case .invalidEmail:
+                message = "Email không hợp lệ"
+            default:
+                message = "Không thể tạo tài khoản, vui lòng thử lại"
+            }
+            throw NSError(domain: "FirebaseAuth", code: error.code, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+    }
+
+    func deleteCurrentUser() async throws {
+        try await Auth.auth().currentUser?.delete()
+    }
+
     func refreshSession() async throws -> UserSession {
         guard let user = Auth.auth().currentUser else {
             throw NSError(

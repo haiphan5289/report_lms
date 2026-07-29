@@ -157,6 +157,7 @@ struct InspectionCardView: View {
     InspectionCardView(
         inspection: Inspection(
             inspectionNumber: "001",
+            companyId: "mock-company",
             companyName: "KUKA",
             productName: "Ghe",
             productCode: "001",
@@ -176,6 +177,7 @@ struct InspectionCardView: View {
     InspectionCardView(
         inspection: Inspection(
             inspectionNumber: "002",
+            companyId: "mock-company",
             companyName: "Very Long Company Name For Testing",
             productName: "Product with a very long name",
             productCode: "PROD-12345",

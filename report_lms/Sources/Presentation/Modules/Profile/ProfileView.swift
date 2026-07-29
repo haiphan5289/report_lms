@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - ProfileView
 
@@ -13,6 +14,7 @@ struct ProfileView: View {
     @EnvironmentObject private var localizationManager: LocalizationManager
     @FocusState private var isNameFieldFocused: Bool
     @State private var contentVisible = false
+    @State private var didCopyJoinCode = false
 
     // MARK: - Body
 
@@ -20,6 +22,7 @@ struct ProfileView: View {
         ScrollView {
             VStack(spacing: 16) {
                 displayNameSection
+                companyCodeSection
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
@@ -90,6 +93,53 @@ struct ProfileView: View {
                 }
                 .padding(.top, 4)
             }
+        }
+    }
+
+    // MARK: - Company Code Section
+
+    private var companyCodeSection: some View {
+        LMSSectionContainer(title: localizationManager.localize("profile.section.companyCode")) {
+            VStack(alignment: .leading, spacing: 8) {
+                LMSLabel(
+                    localizationManager.localize("profile.companyCode.hint"),
+                    style: .caption,
+                    color: .secondary
+                )
+
+                if let joinCode = viewModel.companyJoinCode {
+                    HStack(spacing: 12) {
+                        LMSInfoRow(
+                            label: localizationManager.localize("profile.section.companyCode"),
+                            value: joinCode,
+                            valueStyle: .headline,
+                            backgroundColor: LMSColor.primaryLight
+                        )
+                        .frame(maxWidth: .infinity)
+
+                        LMSButton(
+                            localizationManager.localize(
+                                didCopyJoinCode ? "profile.companyCode.copied" : "profile.companyCode.copy"
+                            ),
+                            icon: didCopyJoinCode ? "checkmark" : "doc.on.doc",
+                            variant: .iconOnly
+                        ) {
+                            copyJoinCode(joinCode)
+                        }
+                    }
+                } else if viewModel.isLoadingCompanyJoinCode {
+                    LMSLabel(localizationManager.localize("common.loading"), style: .caption, color: .secondary)
+                }
+            }
+        }
+    }
+
+    private func copyJoinCode(_ code: String) {
+        UIPasteboard.general.string = code
+        withAnimation(.easeOut(duration: 0.2)) { didCopyJoinCode = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation(.easeOut(duration: 0.2)) { didCopyJoinCode = false }
         }
     }
 }

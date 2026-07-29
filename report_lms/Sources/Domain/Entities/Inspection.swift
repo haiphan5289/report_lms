@@ -12,6 +12,7 @@ struct Inspection: Identifiable, Equatable, Hashable, Codable {
     // MARK: - Basic Information (from CreateInspectionView)
     let id: String
     let inspectionNumber: String
+    let companyId: String
     let companyName: String
     let productName: String
     let productCode: String
@@ -39,6 +40,7 @@ struct Inspection: Identifiable, Equatable, Hashable, Codable {
     init(
         id: String = UUID().uuidString,
         inspectionNumber: String = "",
+        companyId: String,
         companyName: String = "",
         productName: String,
         productCode: String,
@@ -58,6 +60,7 @@ struct Inspection: Identifiable, Equatable, Hashable, Codable {
     ) {
         self.id = id
         self.inspectionNumber = inspectionNumber
+        self.companyId = companyId
         self.companyName = companyName
         self.productName = productName
         self.productCode = productCode
@@ -343,6 +346,7 @@ extension Inspection {
         Inspection(
             id: inspectionId,
             inspectionNumber: inspectionNumber,
+            companyId: "mock-company",
             companyName: "Công ty TNHH ABC",
             productName: "Sản phẩm mẫu",
             productCode: "SP001",

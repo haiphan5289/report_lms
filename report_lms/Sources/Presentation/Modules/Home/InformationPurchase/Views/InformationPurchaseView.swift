@@ -114,6 +114,7 @@ struct InformationPurchaseView: View {
             inspection: Inspection(
                 id: "1",
                 inspectionNumber: "INS-2026-001",
+                companyId: "mock-company",
                 companyName: "Công ty TNHH ABC",
                 productName: "Ghế văn phòng",
                 productCode: "GVP-001",

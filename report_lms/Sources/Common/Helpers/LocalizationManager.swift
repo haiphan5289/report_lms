@@ -55,6 +55,10 @@ final class LocalizationManager: ObservableObject {
             "profile.gate.title": "Thiết lập tên hiển thị",
             "profile.gate.message": "Vui lòng nhập tên hiển thị của bạn trước khi tạo báo cáo. Tên này sẽ hiển thị là \"Người kiểm hàng\" trên báo cáo PDF.",
             "profile.gate.saveAndContinue": "Lưu và tiếp tục",
+            "profile.section.companyCode": "Mã công ty",
+            "profile.companyCode.hint": "Chia sẻ mã này để mời thêm thanh tra viên tham gia công ty của bạn",
+            "profile.companyCode.copy": "Sao chép",
+            "profile.companyCode.copied": "Đã sao chép",
 
             // MARK: Common
             "common.ok": "Đồng ý",
@@ -66,6 +70,7 @@ final class LocalizationManager: ObservableObject {
             "common.done": "Xong",
             "common.or": "hoặc",
             "common.add": "Thêm",
+            "common.loading": "Đang tải...",
 
             // MARK: Home
             "home.title": "Kiểm tra",
@@ -280,6 +285,10 @@ final class LocalizationManager: ObservableObject {
             "profile.gate.title": "Set Your Display Name",
             "profile.gate.message": "Please enter your display name before generating a report. This name will appear as the \"Inspector\" on PDF reports.",
             "profile.gate.saveAndContinue": "Save & Continue",
+            "profile.section.companyCode": "Company Code",
+            "profile.companyCode.hint": "Share this code to invite more inspectors to your company",
+            "profile.companyCode.copy": "Copy",
+            "profile.companyCode.copied": "Copied",
 
             // MARK: Common
             "common.ok": "OK",
@@ -291,6 +300,7 @@ final class LocalizationManager: ObservableObject {
             "common.done": "Done",
             "common.or": "or",
             "common.add": "Add",
+            "common.loading": "Loading...",
 
             // MARK: Home
             "home.title": "Inspection",

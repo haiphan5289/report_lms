@@ -31,6 +31,9 @@ struct RootView: View {
                 LoginView(viewModel: loginViewModel)
             }
         }
+        .task {
+            await loginViewModel.restoreSessionIfNeeded()
+        }
     }
 }
 

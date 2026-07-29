@@ -7,6 +7,7 @@
 
 import Foundation
 import LocalAuthentication
+import OSLog
 
 final class LoginViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -22,17 +23,87 @@ final class LoginViewModel: ObservableObject {
 
     // MARK: - Private Properties
     private let loginUseCase: LoginUseCase
+    private let fetchUserProfileUseCase: FetchUserProfileUseCase
+    private let storageService: InspectionStorageServiceType
     private let userManager: UserManager
+    private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "login")
 
     // MARK: - Initialization
-    init(loginUseCase: LoginUseCase, userManager: UserManager) {
+    init(
+        loginUseCase: LoginUseCase,
+        fetchUserProfileUseCase: FetchUserProfileUseCase,
+        storageService: InspectionStorageServiceType,
+        userManager: UserManager
+    ) {
         self.loginUseCase = loginUseCase
+        self.fetchUserProfileUseCase = fetchUserProfileUseCase
+        self.storageService = storageService
         self.userManager = userManager
         checkBiometricAvailability()
         loadStoredUsername()
     }
 
+    /// Fetches the signed-in user's company profile and loads their inspection cache.
+    /// Called after every successful sign-in path (password, biometric).
+    ///
+    /// A `nil` profile means the account authenticated with Firebase but never completed
+    /// company onboarding (shouldn't happen for accounts created through the app's own
+    /// Sign Up flow, but is possible for pre-existing accounts created before company
+    /// onboarding existed). Surfacing a clear error here is safer than silently loading
+    /// an empty/wrong-company cache.
+    @MainActor
+    private func loadCompanyScopedData(userId: String) async {
+        logger.debug("loadCompanyScopedData: fetching profile for userId=\(userId, privacy: .public)")
+        do {
+            guard let profile = try await fetchUserProfileUseCase.execute(userId: userId) else {
+                logger.error("loadCompanyScopedData: no users/\(userId, privacy: .public) profile document found — logging out")
+                errorMessage = "Tài khoản chưa được gán vào công ty nào. Vui lòng liên hệ quản trị viên."
+                userManager.logout()
+                isLoginSuccessful = false
+                return
+            }
+            logger.debug("loadCompanyScopedData: profile found, companyId=\(profile.companyId, privacy: .public)")
+            userManager.setCompany(profile.companyId)
+            try await storageService.loadCache(companyId: profile.companyId)
+            logger.debug("loadCompanyScopedData: inspection cache loaded for companyId=\(profile.companyId, privacy: .public)")
+        } catch {
+            logger.error("loadCompanyScopedData: failed — \(error.localizedDescription, privacy: .public) — logging out")
+            errorMessage = "Không thể tải dữ liệu công ty. Vui lòng thử lại."
+            userManager.logout()
+            isLoginSuccessful = false
+        }
+    }
+
     // MARK: - Public Methods
+
+    /// Called once at app launch. `UserManager.init()` sets `isLoggedIn` straight from a
+    /// stored Keychain token, without ever fetching the company profile — so on a relaunch
+    /// (as opposed to a fresh sign-in), `companyId` stays `nil` for the whole session unless
+    /// this runs. No-ops if there's no restored session, or if it was already loaded.
+    @MainActor
+    func restoreSessionIfNeeded() async {
+        guard userManager.isLoggedIn else {
+            logger.debug("restoreSessionIfNeeded: skipped — not logged in")
+            return
+        }
+        guard userManager.companyId == nil else {
+            logger.debug("restoreSessionIfNeeded: skipped — companyId already set to \(self.userManager.companyId ?? "nil", privacy: .public)")
+            return
+        }
+        logger.debug("restoreSessionIfNeeded: restoring session via refreshSession()")
+        do {
+            let session = try await loginUseCase.refreshSession()
+            logger.debug("restoreSessionIfNeeded: refreshSession succeeded, userId=\(session.id, privacy: .public)")
+            userSession = session
+            userManager.login(user: session)
+            await loadCompanyScopedData(userId: session.id)
+        } catch {
+            logger.error("restoreSessionIfNeeded: refreshSession failed — \(error.localizedDescription, privacy: .public) — logging out")
+            // The underlying Firebase session is gone/expired — fall back to the login screen.
+            userManager.logout()
+        }
+    }
+
     @MainActor
     func login() async {
         isLoginLoading = true
@@ -43,7 +114,8 @@ final class LoginViewModel: ObservableObject {
             userSession = session
             userManager.login(user: session)
             KeychainManager.saveUsername(username)
-            isLoginSuccessful = true
+            await loadCompanyScopedData(userId: session.id)
+            isLoginSuccessful = userManager.isLoggedIn
         } catch {
             errorMessage = error.localizedDescription
             isLoginSuccessful = false
@@ -102,7 +174,8 @@ final class LoginViewModel: ObservableObject {
             }
             userSession = session
             userManager.login(user: session)
-            isLoginSuccessful = true
+            await loadCompanyScopedData(userId: session.id)
+            isLoginSuccessful = userManager.isLoggedIn
         } catch {
             errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
             isLoginSuccessful = false

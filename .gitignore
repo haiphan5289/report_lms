@@ -60,3 +60,7 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Firebase service account keys (never commit)
+serviceAccountKey.json
+functions/scripts/serviceAccountKey.json

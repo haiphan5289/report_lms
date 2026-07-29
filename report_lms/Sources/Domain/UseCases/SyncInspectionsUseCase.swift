@@ -14,8 +14,8 @@ final class SyncInspectionsUseCase {
         self.databaseRepository = databaseRepository
     }
 
-    func execute() async throws -> [Inspection] {
-        try await databaseRepository.fetchInspections()
+    func execute(companyId: String) async throws -> [Inspection] {
+        try await databaseRepository.fetchInspections(companyId: companyId)
     }
 
     func saveInspection(_ inspection: Inspection) async throws {

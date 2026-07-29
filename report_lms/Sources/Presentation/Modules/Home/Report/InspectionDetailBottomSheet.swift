@@ -230,6 +230,7 @@ private extension InspectionStatus {
 private let _previewInspection = Inspection(
     id: "preview",
     inspectionNumber: "INS-2026-020",
+    companyId: "mock-company",
     companyName: "Công ty TNHH ABC",
     productName: "Ghế văn phòng",
     productCode: "GVP-001",
