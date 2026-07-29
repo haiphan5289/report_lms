@@ -71,8 +71,7 @@ struct LMSHomeView: View {
                     case "orders":
                         OrdersView()
                     case "profile":
-                        Text("Profile")
-                            .navigationTitle("Profile")
+                        ProfileView()
                     case "settings":
                         SettingsView()
                     case "sendEmailList":

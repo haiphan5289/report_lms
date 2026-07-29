@@ -44,7 +44,7 @@ protocol InspectionStorageServiceType {
     /// Overwrites the stored copy of `inspection` and refreshes the cache.
     func updateInspection(_ inspection: Inspection) async throws
 
-    /// Updates `imageURLs` and `imageDescriptions` for a single field without replacing the entire document.
+    /// Updates `imageURLs`, `imageDescriptions`, and `imageMeasurementsMM` for a single field without replacing the entire document.
     ///
     /// Concurrent field uploads (two fields uploading simultaneously) would otherwise
     /// race: each reads the same Firestore snapshot, updates only its own field, then
@@ -52,7 +52,7 @@ protocol InspectionStorageServiceType {
     /// serializes those writes so each one reads a fresh snapshot after the previous
     /// write lands, guaranteeing both fields' URLs survive.
     @MainActor
-    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String]) async throws
+    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String], imageMeasurementsMM: [String]) async throws
 
     /// Updates only the `status` field — safe to call concurrently with `updateFieldImageURLs`.
     ///
@@ -74,7 +74,7 @@ extension InspectionStorageServiceType {
     /// Convenience overload for call sites that have no per-image descriptions (e.g. retry service).
     @MainActor
     func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String]) async throws {
-        try await updateFieldImageURLs(inspectionId: inspectionId, fieldId: fieldId, imageURLs: imageURLs, imageDescriptions: [])
+        try await updateFieldImageURLs(inspectionId: inspectionId, fieldId: fieldId, imageURLs: imageURLs, imageDescriptions: [], imageMeasurementsMM: [])
     }
 }
 

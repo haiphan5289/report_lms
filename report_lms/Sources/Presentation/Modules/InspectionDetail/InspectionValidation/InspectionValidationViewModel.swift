@@ -169,6 +169,13 @@ final class InspectionValidationViewModel: ObservableObject {
         coordinator.updateImage(at: idx, with: updated)
     }
 
+    func updateMeasurement(_ text: String, for imageId: UUID) {
+        guard let idx = images.firstIndex(where: { $0.id == imageId }) else { return }
+        var updated = images[idx]
+        updated.measurementMM = text
+        coordinator.updateImage(at: idx, with: updated)
+    }
+
     // MARK: - Save / Upload
 
     /// Creates a FieldValidation snapshot and enqueues upload via coordinator.

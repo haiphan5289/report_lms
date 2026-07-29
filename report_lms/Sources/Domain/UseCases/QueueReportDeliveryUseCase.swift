@@ -33,7 +33,8 @@ final class QueueReportDeliveryUseCase {
         recipients: [FinalReportRecipient],
         location: String,
         finalStatus: FinalReportStatus = .pending,
-        summaryComments: String = ""
+        summaryComments: String = "",
+        requestedByDisplayName: String
     ) async throws -> String {
         let emails = recipients.map(\.email).filter { !$0.isEmpty }
 
@@ -49,7 +50,8 @@ final class QueueReportDeliveryUseCase {
             location: location,
             finalStatus: finalStatus.serverKey,
             summaryComments: summaryComments,
-            language: LocalizationManager.shared.currentLanguage.rawValue
+            language: LocalizationManager.shared.currentLanguage.rawValue,
+            requestedByDisplayName: requestedByDisplayName
         )
 
         let taskId = try await queueService.enqueue(payload)

@@ -43,6 +43,19 @@ final class LocalizationManager: ObservableObject {
             "settings.language.vietnamese": "Tiếng Việt",
             "settings.language.english": "Tiếng Anh",
 
+            // MARK: Profile
+            "profile.title": "Hồ sơ",
+            "profile.section.displayName": "Tên hiển thị",
+            "profile.displayName.hint": "Tên này sẽ hiển thị là \"Người kiểm hàng\" trên báo cáo PDF",
+            "profile.displayName.placeholder": "Nhập tên hiển thị",
+            "profile.error.emptyName": "Vui lòng nhập tên hiển thị",
+            "profile.error.maxLength": "Tên hiển thị tối đa %d ký tự",
+            "profile.success.title": "Cập nhật thành công",
+            "profile.success.message": "Tên hiển thị đã được lưu",
+            "profile.gate.title": "Thiết lập tên hiển thị",
+            "profile.gate.message": "Vui lòng nhập tên hiển thị của bạn trước khi tạo báo cáo. Tên này sẽ hiển thị là \"Người kiểm hàng\" trên báo cáo PDF.",
+            "profile.gate.saveAndContinue": "Lưu và tiếp tục",
+
             // MARK: Common
             "common.ok": "Đồng ý",
             "common.cancel": "Hủy",
@@ -254,6 +267,19 @@ final class LocalizationManager: ObservableObject {
             "settings.language.label": "Language",
             "settings.language.vietnamese": "Vietnamese",
             "settings.language.english": "English",
+
+            // MARK: Profile
+            "profile.title": "Profile",
+            "profile.section.displayName": "Display Name",
+            "profile.displayName.hint": "This name will appear as the \"Inspector\" on PDF reports",
+            "profile.displayName.placeholder": "Enter display name",
+            "profile.error.emptyName": "Please enter a display name",
+            "profile.error.maxLength": "Display name must be at most %d characters",
+            "profile.success.title": "Updated Successfully",
+            "profile.success.message": "Display name has been saved",
+            "profile.gate.title": "Set Your Display Name",
+            "profile.gate.message": "Please enter your display name before generating a report. This name will appear as the \"Inspector\" on PDF reports.",
+            "profile.gate.saveAndContinue": "Save & Continue",
 
             // MARK: Common
             "common.ok": "OK",

@@ -65,6 +65,7 @@ final class ReportDeliveryQueueService {
         let finalStatus: String
         let summaryComments: String
         let language: String
+        let requestedByDisplayName: String
     }
 
     /// Writes a delivery task document to Firestore. Returns the new document ID.
@@ -79,7 +80,10 @@ final class ReportDeliveryQueueService {
             "language": payload.language,
             "status": ReportDeliveryStatus.queued.rawValue,
             "requestedAt": Timestamp(),
-            "requestedBy": Auth.auth().currentUser?.email ?? "unknown"
+            // Kept as the actual account email (not the display name) so the Cloud Function
+            // can still validate/cc it as a real address — see functions/src/index.ts traceEmail.
+            "requestedBy": Auth.auth().currentUser?.email ?? "unknown",
+            "requestedByDisplayName": payload.requestedByDisplayName
         ]
 
         let ref = try await db.collection(Self.collectionName).addDocument(data: document)

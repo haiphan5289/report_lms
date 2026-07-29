@@ -107,8 +107,9 @@ final class FieldUploadCoordinator: ObservableObject {
     func replaceImage(at index: Int, with newImage: UIImage) {
         guard images.indices.contains(index) else { return }
         let description = images[index].description
+        let measurementMM = images[index].measurementMM
         images[index] = InspectionImage(image: newImage.resizedIfNeeded(maxDimension: 800),
-                                        description: description)
+                                        description: description, measurementMM: measurementMM)
     }
 
     /// Replaces the image at `index` with an already-constructed value (e.g. description update).
@@ -236,10 +237,15 @@ final class FieldUploadCoordinator: ObservableObject {
                 guard img.isRemote else { return nil }
                 return img.description
             }
+            let measurements = strippedImages.compactMap { img -> String? in
+                guard img.isRemote else { return nil }
+                return img.measurementMM
+            }
             do {
                 try await storageService.updateFieldImageURLs(
                     inspectionId: inspectionId, fieldId: fieldId,
-                    imageURLs: existingRemoteURLs, imageDescriptions: descriptions
+                    imageURLs: existingRemoteURLs, imageDescriptions: descriptions,
+                    imageMeasurementsMM: measurements
                 )
                 let draft = FieldValidation(id: fieldId, status: status, comments: comments,
                                            images: images, lastUpdated: Date())
@@ -324,7 +330,8 @@ final class FieldUploadCoordinator: ObservableObject {
                        let pos = images.firstIndex(where: { $0.id == imageId }) {
                         let thumb = originalByID[imageId]?.thumbnail
                         let description = images[pos].description
-                        images[pos] = InspectionImage(remoteURL: remoteURL, description: description)
+                        let measurementMM = images[pos].measurementMM
+                        images[pos] = InspectionImage(remoteURL: remoteURL, description: description, measurementMM: measurementMM)
                         print("[UploadSession] progressive release idx=\(idx) → remote thumb=\(thumb != nil ? "freed ~2MB" : "was nil")")
                         if let thumb {
                             Task.detached(priority: .background) {
@@ -354,13 +361,15 @@ final class FieldUploadCoordinator: ObservableObject {
         let uploadedURLs = remoteImages.compactMap { $0.remoteURL?.absoluteString }
         guard !uploadedURLs.isEmpty else { return }
         let uploadedDescriptions = remoteImages.map { $0.description }
+        let uploadedMeasurements = remoteImages.map { $0.measurementMM }
 
         do {
             try await storageService.updateFieldImageURLs(
                 inspectionId: inspectionId,
                 fieldId: fieldId,
                 imageURLs: uploadedURLs,
-                imageDescriptions: uploadedDescriptions
+                imageDescriptions: uploadedDescriptions,
+                imageMeasurementsMM: uploadedMeasurements
             )
             PendingUploadStore.shared.clearField(inspectionId: inspectionId, fieldId: fieldId)
             print("[UploadSession] Firestore OK + clearField fieldId=\(fieldId.prefix(8)) totalURLs=\(uploadedURLs.count)")

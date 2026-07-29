@@ -11,4 +11,6 @@ protocol AuthRepositoryType {
     func login(request: LoginRequest) async throws -> UserSession
     func refreshSession() async throws -> UserSession
     func sendPasswordReset(email: String) async throws
+    func updateDisplayName(_ name: String) async throws
+    func currentDisplayName() -> String?
 }

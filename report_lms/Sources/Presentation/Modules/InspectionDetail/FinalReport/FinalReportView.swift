@@ -100,6 +100,11 @@ struct FinalReportView: View {
         .sheet(isPresented: $viewModel.isShowingRecipientsPicker) {
             recipientsPickerView
         }
+        .sheet(isPresented: $viewModel.isShowingDisplayNameGate) {
+            DisplayNameRequiredSheet {
+                Task { await viewModel.retrySendReportAfterDisplayNameSaved() }
+            }
+        }
         .sheet(isPresented: $viewModel.isShowingMailComposer) {
             if let pdfData = viewModel.pdfData {
                 MailComposerView(

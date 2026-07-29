@@ -125,6 +125,8 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
     var imageURLs: [String]
     /// Parallel array to imageURLs — per-image caption entered by inspector.
     var imageDescriptions: [String]
+    /// Parallel array to imageURLs — per-image size measurement in millimeters entered by inspector.
+    var imageMeasurementsMM: [String]
     let isRequired: Bool
 
     enum FieldType: String, Codable {
@@ -135,16 +137,17 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, label, type, photoURL, imageURLs, imageDescriptions, isRequired
+        case id, label, type, photoURL, imageURLs, imageDescriptions, imageMeasurementsMM, isRequired
     }
 
-    init(id: String, label: String, type: FieldType, photoURL: String? = nil, imageURLs: [String] = [], imageDescriptions: [String] = [], isRequired: Bool) {
+    init(id: String, label: String, type: FieldType, photoURL: String? = nil, imageURLs: [String] = [], imageDescriptions: [String] = [], imageMeasurementsMM: [String] = [], isRequired: Bool) {
         self.id = id
         self.label = label
         self.type = type
         self.photoURL = photoURL
         self.imageURLs = imageURLs
         self.imageDescriptions = imageDescriptions
+        self.imageMeasurementsMM = imageMeasurementsMM
         self.isRequired = isRequired
     }
 
@@ -156,6 +159,7 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
         photoURL = try container.decodeIfPresent(String.self, forKey: .photoURL)
         imageURLs = (try? container.decodeIfPresent([String].self, forKey: .imageURLs)) ?? []
         imageDescriptions = (try? container.decodeIfPresent([String].self, forKey: .imageDescriptions)) ?? []
+        imageMeasurementsMM = (try? container.decodeIfPresent([String].self, forKey: .imageMeasurementsMM)) ?? []
         isRequired = try container.decode(Bool.self, forKey: .isRequired)
     }
 }

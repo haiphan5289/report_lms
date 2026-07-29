@@ -199,7 +199,7 @@ private final class PreviewProgressStorageService: InspectionStorageServiceType 
             mockInspections[index] = inspection
         }
     }
-    @MainActor func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String]) async throws {}
+    @MainActor func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String], imageMeasurementsMM: [String]) async throws {}
     func updateInspectionStatus(inspectionId: String, status: InspectionStatus) async throws {}
     func deleteInspection(by id: String) async throws { mockInspections.removeAll { $0.id == id } }
     func getDraftInspections() -> [Inspection] { mockInspections.filter { $0.status == .plan || $0.status == .inProgress } }

@@ -165,7 +165,8 @@ final class InspectionDetailViewModel: ObservableObject {
                 capturedPhotos[field.id] = field.imageURLs.enumerated().compactMap { index, urlString in
                     guard let url = URL(string: urlString) else { return nil }
                     let description = index < field.imageDescriptions.count ? field.imageDescriptions[index] : ""
-                    return InspectionImage(remoteURL: url, description: description)
+                    let measurementMM = index < field.imageMeasurementsMM.count ? field.imageMeasurementsMM[index] : ""
+                    return InspectionImage(remoteURL: url, description: description, measurementMM: measurementMM)
                 }
             }
         }
@@ -450,6 +451,7 @@ final class InspectionDetailViewModel: ObservableObject {
                 if !remoteURLs.isEmpty {
                     current.sections[sectionIndex].fields[fieldIndex].imageURLs = remoteURLs
                     current.sections[sectionIndex].fields[fieldIndex].imageDescriptions = remoteImages.map { $0.description }
+                    current.sections[sectionIndex].fields[fieldIndex].imageMeasurementsMM = remoteImages.map { $0.measurementMM }
                 }
             }
         }

@@ -125,7 +125,7 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
     /// sees the previous write's result, preventing concurrent uploads from overwriting
     /// each other's imageURLs via last-writer-wins `setData`.
     @MainActor
-    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String]) async throws {
+    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String], imageMeasurementsMM: [String]) async throws {
         let previous = pendingFieldWrite
         let newTask = Task { @MainActor in
             // Wait for any in-flight write to land before reading cache.
@@ -137,6 +137,7 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
                 if let fi = inspection.sections[si].fields.firstIndex(where: { $0.id == fieldId }) {
                     inspection.sections[si].fields[fi].imageURLs = imageURLs
                     inspection.sections[si].fields[fi].imageDescriptions = imageDescriptions
+                    inspection.sections[si].fields[fi].imageMeasurementsMM = imageMeasurementsMM
                     inspection.sections[si].fields[fi].photoURL = imageURLs.first
                     break
                 }

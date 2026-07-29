@@ -281,7 +281,7 @@ private final class PreviewInspectionStorageService: InspectionStorageServiceTyp
     }
 
     @MainActor
-    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String]) async throws {}
+    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String], imageMeasurementsMM: [String]) async throws {}
     func updateInspectionStatus(inspectionId: String, status: InspectionStatus) async throws {}
 
     func deleteInspection(by id: String) async throws {

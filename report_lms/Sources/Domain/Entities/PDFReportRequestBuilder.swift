@@ -128,10 +128,14 @@ enum PDFReportBuilderError: LocalizedError {
 
 // MARK: - Convenience Extensions
 extension PDFReportRequestBuilder {
-    /// Create builder with common defaults from KeychainManager
+    /// Create builder with common defaults.
+    /// Inspector name prefers the Firebase Auth display name set via the Profile screen,
+    /// falling back to the Keychain-stored username for accounts that never set one.
     static func withDefaults() -> PDFReportRequestBuilder {
         let builder = PDFReportRequestBuilder()
-        builder.with(inspectorName: KeychainManager.getStoredUsername() ?? "Unknown")
+        let displayName = Container.shared.resolve(UpdateDisplayNameUseCase.self)?.currentDisplayName()
+        let fallbackName = KeychainManager.getStoredUsername() ?? "Unknown"
+        builder.with(inspectorName: (displayName?.isEmpty == false ? displayName : nil) ?? fallbackName)
         return builder
     }
 }

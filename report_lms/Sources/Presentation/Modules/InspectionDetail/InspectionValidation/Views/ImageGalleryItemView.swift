@@ -15,6 +15,7 @@ struct ImageGalleryItemView: View {
     let onEdit: () -> Void
     let onShare: () -> Void
     @Binding var description: String
+    @Binding var measurementMM: String
 
     var inspectionId: String?
     var fieldId: String?
@@ -28,6 +29,7 @@ struct ImageGalleryItemView: View {
         onEdit: @escaping () -> Void,
         onShare: @escaping () -> Void,
         descriptionBinding: Binding<String>,
+        measurementBinding: Binding<String>,
         inspectionId: String? = nil,
         fieldId: String? = nil
     ) {
@@ -37,8 +39,16 @@ struct ImageGalleryItemView: View {
         self.onEdit = onEdit
         self.onShare = onShare
         self._description = descriptionBinding
+        self._measurementMM = measurementBinding
         self.inspectionId = inspectionId
         self.fieldId = fieldId
+    }
+
+    /// Inch equivalent of `measurementMM` (1 inch = 25.4 mm), rounded to 2 decimal places. Treats empty/invalid input as 0.
+    private var measurementInchText: String {
+        let normalized = measurementMM.replacingOccurrences(of: ",", with: ".")
+        let mm = Double(normalized) ?? 0
+        return String(format: "%.2f inch", mm / 25.4)
     }
 
     @ViewBuilder
@@ -139,6 +149,22 @@ struct ImageGalleryItemView: View {
             }
             .opacity(appeared ? 1 : 0)
             .animation(.easeOut(duration: 0.35).delay(0.1), value: appeared)
+
+            // Measurement field — optional, mm entered by inspector, inch always shown alongside.
+            HStack(spacing: 6) {
+                LMSLabel("Kích thước (mm)", style: .caption, color: .secondary)
+                TextField("mm", text: $measurementMM)
+                    .keyboardType(.decimalPad)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .frame(width: 90)
+                LMSLabel(measurementInchText, style: .caption, color: .secondary)
+                Spacer()
+            }
+            .opacity(appeared ? 1 : 0)
+            .animation(.easeOut(duration: 0.35).delay(0.15), value: appeared)
         }
         .padding(12)
         .background(

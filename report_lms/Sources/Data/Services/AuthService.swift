@@ -41,4 +41,21 @@ final class AuthService: AuthServiceType {
     func sendPasswordReset(email: String) async throws {
         try await Auth.auth().sendPasswordReset(withEmail: email)
     }
+
+    func updateDisplayName(_ name: String) async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw NSError(
+                domain: "FirebaseAuth",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No active session. Please log in again."]
+            )
+        }
+        let changeRequest = user.createProfileChangeRequest()
+        changeRequest.displayName = name
+        try await changeRequest.commitChanges()
+    }
+
+    func currentDisplayName() -> String? {
+        Auth.auth().currentUser?.displayName
+    }
 }

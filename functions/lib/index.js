@@ -154,6 +154,19 @@ function isValidEmail(value) {
 function sanitizeFilenamePart(value) {
     return value.trim().replace(/[\\/:*?"<>|]/g, "").replace(/-/g, " ").replace(/\s+/g, " ");
 }
+/** Formats a Date as Vietnam local (Asia/Ho_Chi_Minh) date + time, independent of the server's own timezone. */
+function vnDateTimeParts(d) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(d);
+    const get = (type) => { var _a, _b; return (_b = (_a = parts.find((p) => p.type === type)) === null || _a === void 0 ? void 0 : _a.value) !== null && _b !== void 0 ? _b : ""; };
+    return {
+        date: `${get("month")}/${get("day")}/${get("year")}`,
+        time: `${get("hour")}:${get("minute")}`,
+    };
+}
 /** Turn an email local-part into a display name, e.g. "hai.phan@chotot.vn" -> "Hai Phan". Non-email values (e.g. "unknown") pass through unchanged. */
 function deriveDisplayName(value) {
     const at = value.indexOf("@");
@@ -164,6 +177,13 @@ function deriveDisplayName(value) {
         .filter(Boolean)
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(" ");
+}
+/** Parses a user-entered mm measurement string (comma or dot decimal separator). Returns null if empty/invalid. */
+function parseMM(value) {
+    if (!value || !value.trim())
+        return null;
+    const n = parseFloat(value.replace(",", "."));
+    return Number.isFinite(n) ? n : null;
 }
 // ── Cloud Function ─────────────────────────────────────────────────────────────
 exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
@@ -182,8 +202,11 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         console.error(`[${taskId}] No data in document`);
         return;
     }
-    const { inspectionId, inspectionNumber, recipientEmails, location, requestedBy, finalStatus = "pending", summaryComments = "", language = "vi", } = data;
+    const { inspectionId, inspectionNumber, recipientEmails, location, requestedBy, requestedByDisplayName, finalStatus = "pending", summaryComments = "", language = "vi", } = data;
     const lang = (language === "en" ? "en" : "vi");
+    // Prefer the Profile-screen display name; fall back to deriving one from the email
+    // for tasks queued before requestedByDisplayName existed.
+    const displayName = requestedByDisplayName || (requestedBy ? deriveDisplayName(requestedBy) : "");
     await taskRef.update({ status: "processing" });
     console.log(`[${taskId}] Generating Qarma PDF for #${inspectionNumber}`);
     try {
@@ -191,7 +214,7 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         const inspection = snap.data();
         if (!inspection)
             throw new Error(`Inspection ${inspectionId} not found`);
-        const pdfBuffer = await generatePDF(inspection, inspectionNumber, location, requestedBy !== null && requestedBy !== void 0 ? requestedBy : "", finalStatus, summaryComments, lang);
+        const pdfBuffer = await generatePDF(inspection, inspectionNumber, location, displayName, finalStatus, summaryComments, lang);
         console.log(`[${taskId}] PDF generated: ${pdfBuffer.length} bytes`);
         // Upload to Firebase Storage so the iOS app can retrieve it later
         const storagePath = `inspections/${inspectionId}/reports/${taskId}.pdf`;
@@ -210,7 +233,7 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         // being rejected by the SMTP server, including the real recipients. Only trace-cc the
         // sender when requestedBy is an actual email.
         const traceEmail = isValidEmail(requestedBy) ? requestedBy : undefined;
-        await transporter.sendMail(Object.assign(Object.assign({ from: `"LMS Report" <${gmailUser.value()}>`, to: recipientEmails.join(", ") }, (traceEmail ? { cc: traceEmail, replyTo: traceEmail } : {})), { subject: `${t(lang, "emailSubject")}${inspectionNumber}`, html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", requestedBy, lang), attachments: [{
+        await transporter.sendMail(Object.assign(Object.assign({ from: `"LMS Report" <${gmailUser.value()}>`, to: recipientEmails.join(", ") }, (traceEmail ? { cc: traceEmail, replyTo: traceEmail } : {})), { subject: `${t(lang, "emailSubject")}${inspectionNumber}`, html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", displayName, lang), attachments: [{
                     filename: `Final Report ${sanitizeFilenamePart(inspection.productName || inspectionNumber)}.pdf`,
                     content: pdfBuffer,
                     contentType: "application/pdf",
@@ -430,7 +453,7 @@ function drawSectionHeader(doc, title, y, fonts) {
     return lineY + 6;
 }
 // ── Main PDF generation ────────────────────────────────────────────────────────
-async function generatePDF(inspection, inspectionNumber, location, requestedBy, finalStatus, summaryComments, lang = "vi") {
+async function generatePDF(inspection, inspectionNumber, location, displayName, finalStatus, summaryComments, lang = "vi") {
     const imageMap = await prefetchImages(inspection);
     return new Promise((resolve, reject) => {
         var _a, _b, _c, _d, _e;
@@ -448,10 +471,12 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
         doc.on("data", (c) => chunks.push(c));
         doc.on("end", () => resolve(Buffer.concat(chunks)));
         doc.on("error", reject);
+        // Cloud Functions run in UTC regardless of the deployed region, but this report is
+        // always for a Vietnam-based inspection — render the timestamp in Vietnam local time
+        // so it doesn't drift ~7 hours behind what the inspector actually saw.
         const now = new Date();
-        const fmtDate = (d) => `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}/${d.getFullYear()}`;
-        const dateStr = fmtDate(now);
-        const dateTimeStr = `${dateStr} ${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+        const { date: dateStr, time: timeStr } = vnDateTimeParts(now);
+        const dateTimeStr = `${dateStr} ${timeStr}`;
         const orderInfo = `Order: ${inspectionNumber}, Item: ${(_a = inspection.productName) !== null && _a !== void 0 ? _a : ""}`;
         let pageNum = 0;
         function newPage() {
@@ -477,7 +502,7 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
         y += 10;
         // Info table
         y = drawInfoTable(doc, [
-            [t(lang, "inspector"), requestedBy ? deriveDisplayName(requestedBy) : "N/A", t(lang, "inspectionDate"), dateTimeStr],
+            [t(lang, "inspector"), displayName || "N/A", t(lang, "inspectionDate"), dateTimeStr],
             [t(lang, "plannedSample"), `${(_c = inspection.aqlInspectionQuantity) !== null && _c !== void 0 ? _c : 0}/${(_d = inspection.inspectedQuantity) !== null && _d !== void 0 ? _d : 0}`,
                 t(lang, "orderQty"), String((_e = inspection.orderQuantity) !== null && _e !== void 0 ? _e : 0)],
             [t(lang, "location"), location || "N/A", t(lang, "checklistName"), t(lang, "checklistNameValue")],
@@ -518,7 +543,7 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
             y = drawSectionHeader(doc, `${si + 1}   ${(_a = section.title) !== null && _a !== void 0 ? _a : ""}`, y, fonts);
             y += 6;
             fields.forEach((field, fi) => {
-                var _a, _b;
+                var _a, _b, _c;
                 const urls = Array.isArray(field.imageURLs) ? field.imageURLs : [];
                 const bufs = urls.map((u) => imageMap.get(u)).filter(Boolean);
                 const neededH = bufs.length === 0 ? 30 : IMG_H + 40;
@@ -532,16 +557,29 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
                 // 4-column photo grid with optional per-image captions
                 if (bufs.length > 0) {
                     const descriptions = (_b = field.imageDescriptions) !== null && _b !== void 0 ? _b : [];
+                    const measurements = (_c = field.imageMeasurementsMM) !== null && _c !== void 0 ? _c : [];
                     const CAPTION_FONT_SIZE = 8;
-                    const CAPTION_LINE_H = CAPTION_FONT_SIZE * 1.4;
                     const CAPTION_TOP_PAD = 3;
-                    const CAPTION_MAX_H = CAPTION_LINE_H * 2 + 2;
-                    // Process row by row so caption height is added once per row
+                    const MEASURE_FONT_SIZE = 8;
+                    const MEASURE_LINE_H = MEASURE_FONT_SIZE * 1.4;
+                    const MEASURE_TOP_PAD = 2;
+                    const MEASURE_MAX_H = MEASURE_LINE_H;
+                    // Process row by row so caption/measurement height is added once per row
                     for (let rowStart = 0; rowStart < bufs.length; rowStart += IMGS_PER_ROW) {
                         const rowBufs = bufs.slice(rowStart, rowStart + IMGS_PER_ROW);
                         const rowDescs = descriptions.slice(rowStart, rowStart + IMGS_PER_ROW);
+                        const rowMeasurements = measurements.slice(rowStart, rowStart + IMGS_PER_ROW);
                         const hasCaption = rowDescs.some((d) => d && d.trim().length > 0);
-                        const rowH = IMG_H + (hasCaption ? CAPTION_TOP_PAD + CAPTION_MAX_H : 0);
+                        const hasMeasurement = rowMeasurements.some((m) => parseMM(m) !== null);
+                        // Full caption height for this row — no fixed line cap, so long captions
+                        // wrap instead of being cut off with an ellipsis.
+                        doc.font(fonts.R).fontSize(CAPTION_FONT_SIZE);
+                        const rowCaptionH = hasCaption
+                            ? Math.max(...rowDescs.map((d) => d && d.trim() ? doc.heightOfString(d.trim(), { width: IMG_W }) : 0))
+                            : 0;
+                        const rowH = IMG_H
+                            + (hasCaption ? CAPTION_TOP_PAD + rowCaptionH : 0)
+                            + (hasMeasurement ? MEASURE_TOP_PAD + MEASURE_MAX_H : 0);
                         if (y + rowH > CONTENT_MAX_Y) {
                             y = newPage();
                         }
@@ -562,7 +600,22 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
                                     return;
                                 const capX = MARGIN + col * (IMG_W + IMG_GAP);
                                 doc.font(fonts.R).fontSize(CAPTION_FONT_SIZE).fillColor(C_GRAY)
-                                    .text(desc.trim(), capX, captionY, { width: IMG_W, height: CAPTION_MAX_H, lineBreak: true, ellipsis: true });
+                                    .text(desc.trim(), capX, captionY, { width: IMG_W, lineBreak: true });
+                            });
+                        }
+                        // Measurement (mm/inch) drawn on its own line below the caption
+                        if (hasMeasurement) {
+                            const measureY = y + IMG_H
+                                + (hasCaption ? CAPTION_TOP_PAD + rowCaptionH : 0)
+                                + MEASURE_TOP_PAD;
+                            rowMeasurements.forEach((m, col) => {
+                                const mm = parseMM(m);
+                                if (mm === null)
+                                    return;
+                                const inch = (mm / 25.4).toFixed(2);
+                                const mX = MARGIN + col * (IMG_W + IMG_GAP);
+                                doc.font(fonts.R).fontSize(MEASURE_FONT_SIZE).fillColor(C_GRAY)
+                                    .text(`${mm} mm (${inch} inch)`, mX, measureY, { width: IMG_W, height: MEASURE_MAX_H, lineBreak: false });
                             });
                         }
                         y += rowH + IMG_GAP;
@@ -579,7 +632,7 @@ async function generatePDF(inspection, inspectionNumber, location, requestedBy, 
 function esc(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-function buildEmailHTML(inspectionNumber, companyName, requestedBy, lang = "vi") {
+function buildEmailHTML(inspectionNumber, companyName, displayName, lang = "vi") {
     const body = t(lang, "emailBody")
         .replace("%n", esc(inspectionNumber))
         .replace("%c", esc(companyName));
@@ -600,7 +653,7 @@ function buildEmailHTML(inspectionNumber, companyName, requestedBy, lang = "vi")
     <p>${t(lang, "emailGreeting")}</p>
     <p>${body}</p>
     <p>${t(lang, "emailCta")}</p>
-    <p>${t(lang, "emailClosing")}<br/><strong>${esc(requestedBy ? deriveDisplayName(requestedBy) : "")}</strong></p>
+    <p>${t(lang, "emailClosing")}<br/><strong>${esc(displayName || "")}</strong></p>
     <div class="footer">${t(lang, "emailFooter")}</div>
   </div>
 </body>

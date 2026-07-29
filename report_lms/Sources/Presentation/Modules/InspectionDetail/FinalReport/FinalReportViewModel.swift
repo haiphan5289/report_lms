@@ -45,12 +45,16 @@ final class FinalReportViewModel: ObservableObject {
     @Published var isSendingToServer = false
     @Published var showEmailQueuedAlert = false
 
+    // MARK: - Display Name Gate
+    @Published var isShowingDisplayNameGate = false
+
     // MARK: - Private Properties
     let inspection: Inspection?
     private let capturedPhotos: [String: [InspectionImage]]
     private let generatePDFUseCase: GenerateHTMLPDFReportUseCase
     private let storageService: InspectionStorageServiceType
     private let queueDeliveryUseCase: QueueReportDeliveryUseCase
+    private let updateDisplayNameUseCase: UpdateDisplayNameUseCase
     private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "finalreport")
     
     // MARK: - Computed Properties
@@ -77,7 +81,8 @@ final class FinalReportViewModel: ObservableObject {
         capturedPhotos: [String: [InspectionImage]],
         generatePDFUseCase: GenerateHTMLPDFReportUseCase? = nil,
         storageService: InspectionStorageServiceType? = nil,
-        queueDeliveryUseCase: QueueReportDeliveryUseCase? = nil
+        queueDeliveryUseCase: QueueReportDeliveryUseCase? = nil,
+        updateDisplayNameUseCase: UpdateDisplayNameUseCase? = nil
     ) {
         self.inspection = inspection
         self.capturedPhotos = capturedPhotos
@@ -110,6 +115,15 @@ final class FinalReportViewModel: ObservableObject {
                 fatalError("QueueReportDeliveryUseCase must be registered in DI container")
             }
             self.queueDeliveryUseCase = resolved
+        }
+
+        if let useCase = updateDisplayNameUseCase {
+            self.updateDisplayNameUseCase = useCase
+        } else {
+            guard let resolved = Container.shared.resolve(UpdateDisplayNameUseCase.self) else {
+                fatalError("UpdateDisplayNameUseCase must be registered in DI container")
+            }
+            self.updateDisplayNameUseCase = resolved
         }
     }
     
@@ -185,12 +199,30 @@ final class FinalReportViewModel: ObservableObject {
     }
     
     /// Entry point for sending report — routes to Firebase queue or legacy mail composer.
+    /// Hard-blocks on a missing display name first, since it's required as the PDF's
+    /// "Người kiểm hàng" (Inspector) field.
     func sendReport() async {
+        guard hasDisplayName else {
+            isShowingDisplayNameGate = true
+            return
+        }
+
         if FeatureFlags.useFirebaseReportDelivery {
             await sendReportViaQueue()
         } else {
             await generateAndSendPDF()
         }
+    }
+
+    private var hasDisplayName: Bool {
+        let name = updateDisplayNameUseCase.currentDisplayName() ?? ""
+        return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Called after the display name gate sheet successfully saves a name — resumes sending.
+    func retrySendReportAfterDisplayNameSaved() async {
+        isShowingDisplayNameGate = false
+        await sendReport()
     }
 
     /// Queues a Firestore delivery task and listens for server-side status updates.
@@ -210,7 +242,8 @@ final class FinalReportViewModel: ObservableObject {
                 recipients: selectedRecipients,
                 location: location,
                 finalStatus: selectedStatus,
-                summaryComments: summaryComments
+                summaryComments: summaryComments,
+                requestedByDisplayName: updateDisplayNameUseCase.currentDisplayName() ?? ""
             )
             logger.log("Report queued: \(taskId)")
             showEmailQueuedAlert = true

@@ -103,6 +103,10 @@ final class Container {
             ForgotPasswordUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
         }
 
+        register(UpdateDisplayNameUseCase.self) {
+            UpdateDisplayNameUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
+        }
+
         register(UploadInspectionMediaUseCase.self) {
             UploadInspectionMediaUseCase(storageRepository: Container.shared.resolve(StorageRepositoryType.self)!)
         }

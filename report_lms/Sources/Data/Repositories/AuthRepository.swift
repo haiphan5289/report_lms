@@ -26,4 +26,12 @@ final class AuthRepository: AuthRepositoryType {
     func sendPasswordReset(email: String) async throws {
         try await service.sendPasswordReset(email: email)
     }
+
+    func updateDisplayName(_ name: String) async throws {
+        try await service.updateDisplayName(name)
+    }
+
+    func currentDisplayName() -> String? {
+        service.currentDisplayName()
+    }
 }

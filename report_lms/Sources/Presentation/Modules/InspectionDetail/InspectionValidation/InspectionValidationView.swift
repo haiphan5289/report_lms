@@ -298,6 +298,12 @@ struct InspectionValidationView: View {
                                 },
                                 set: { viewModel.updateDescription($0, for: image.id) }
                             ),
+                            measurementBinding: Binding(
+                                get: {
+                                    viewModel.images.first(where: { $0.id == image.id })?.measurementMM ?? ""
+                                },
+                                set: { viewModel.updateMeasurement($0, for: image.id) }
+                            ),
                             inspectionId: inspectionIdContext,
                             fieldId: fieldIdContext
                         )

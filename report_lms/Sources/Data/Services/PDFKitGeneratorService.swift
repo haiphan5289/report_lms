@@ -483,6 +483,11 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         // Reserve height for up to 2 wrapped lines of caption text
         let captionMaxH: CGFloat   = ceil(captionFont.lineHeight * 2) + 2
 
+        let measurementFont  = UIFont.systemFont(ofSize: 11)
+        let measurementColor = UIColor(white: 0.35, alpha: 1)
+        let measurementTopPad: CGFloat = 2
+        let measurementMaxH: CGFloat   = ceil(measurementFont.lineHeight)
+
         // Process images row-by-row so captions can be drawn under each row
         // and page-break decisions include caption height when needed.
         let rows = stride(from: 0, to: images.count, by: Layout.imagesPerRow).map {
@@ -491,8 +496,10 @@ final class PDFKitGeneratorService: PDFGeneratorType {
 
         for row in rows {
             let hasCaption = row.contains { !$0.description.isEmpty }
+            let hasMeasurement = row.contains { $0.measurementMMValue != nil }
             let rowH = Layout.imageHeight
                 + (hasCaption ? captionTopPad + captionMaxH : 0)
+                + (hasMeasurement ? measurementTopPad + measurementMaxH : 0)
 
             if y + rowH > Layout.contentMaxY {
                 ctx.beginPage()
@@ -528,6 +535,24 @@ final class PDFKitGeneratorService: PDFGeneratorType {
                         with: CGRect(x: x, y: captionY, width: Layout.imageWidth, height: captionMaxH),
                         options: .usesLineFragmentOrigin,
                         attributes: [.font: captionFont, .foregroundColor: captionColor],
+                        context: nil
+                    )
+                }
+            }
+
+            // Draw measurement (mm/inch) on its own line below the caption
+            if hasMeasurement {
+                let measurementY = y + Layout.imageHeight
+                    + (hasCaption ? captionTopPad + captionMaxH : 0)
+                    + measurementTopPad
+                for (col, img) in row.enumerated() {
+                    guard let mm = img.measurementMMValue else { continue }
+                    let inchText = String(format: "%.2f", mm / 25.4)
+                    let x = Layout.margin + CGFloat(col) * (Layout.imageWidth + Layout.imageGap)
+                    "\(mm) mm (\(inchText) inch)".draw(
+                        with: CGRect(x: x, y: measurementY, width: Layout.imageWidth, height: measurementMaxH),
+                        options: .usesLineFragmentOrigin,
+                        attributes: [.font: measurementFont, .foregroundColor: measurementColor],
                         context: nil
                     )
                 }
