@@ -12,7 +12,8 @@ final class CreateCompanyUseCase {
         self.repository = repository
     }
 
-    func execute(name: String, ownerId: String, ownerDisplayName: String) async throws -> Company {
+    /// Returns the new company's id.
+    func execute(name: String, ownerId: String, ownerDisplayName: String) async throws -> String {
         try await repository.createCompany(name: name, ownerId: ownerId, ownerDisplayName: ownerDisplayName)
     }
 }

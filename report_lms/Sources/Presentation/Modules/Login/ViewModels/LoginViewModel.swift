@@ -46,11 +46,11 @@ final class LoginViewModel: ObservableObject {
     /// Fetches the signed-in user's company profile and loads their inspection cache.
     /// Called after every successful sign-in path (password, biometric).
     ///
-    /// A `nil` profile means the account authenticated with Firebase but never completed
-    /// company onboarding (shouldn't happen for accounts created through the app's own
-    /// Sign Up flow, but is possible for pre-existing accounts created before company
-    /// onboarding existed). Surfacing a clear error here is safer than silently loading
-    /// an empty/wrong-company cache.
+    /// A `nil` profile means the Firebase account exists but has no `users/{uid}` company
+    /// assignment — shouldn't happen for accounts created through the app's own Sign Up
+    /// flow (it creates the company in the same step), but is possible for legacy accounts
+    /// created before that existed, still pending an administrator's manual assignment.
+    /// Surfacing a clear error here is safer than silently loading an empty/wrong-company cache.
     @MainActor
     private func loadCompanyScopedData(userId: String) async {
         logger.debug("loadCompanyScopedData: fetching profile for userId=\(userId, privacy: .public)")

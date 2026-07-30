@@ -136,3 +136,42 @@ Testing:
 **Root cause:** `pendingMode` could be overwritten — if Profile button was tapped after "Choi Online" (or accidentally during sheet presentation), `pendingMode` flipped from `.online` → `.profile`.
 
 **Fix:** Once `showingLogin = true`, `pendingMode` is locked. Profile taps during active login sheet are ignored. Only `.online` sets a `pendingMode` for deep-link navigation.
+
+---
+
+## Rejection Round 3 (2026-07-30) — report_lms (IPS LMS)
+
+> Note: by this round the project had pivoted from the TicTacToe demo to **report_lms**, a QA inspection app for garment factories (see top-level `README.md`). This log continues to track real App Store rejections regardless of which app is currently in this repo.
+
+### Guideline 2.3.8 — App Name Mismatch (Marketplace vs. Device)
+
+**Apple's message:**
+> The app name displayed on app marketplaces and the app name displayed on the device do not sufficiently match... Marketplace app name: report_lms. Name displayed on the device: IPS LMS.
+
+**Root cause:** `INFOPLIST_KEY_CFBundleDisplayName` in `project.pbxproj` is `"IPS LMS"` (the real product branding, also shown as the login screen title), while the App Store Connect listing name was left as `report_lms` (the internal/repo name).
+
+**Fix:** No code change. Update the App Store Connect listing name (App Information → Name) to `IPS LMS` (or a close variant) to match the on-device name — decided as the correct direction since `IPS LMS` is the actual product brand shown in-app.
+
+**Files checked:** `report_lms.xcodeproj/project.pbxproj` (`INFOPLIST_KEY_CFBundleDisplayName`, lines ~343/375).
+
+---
+
+### Guideline 3.1.1 — Business/Organization Account Registration
+
+**Apple's message:**
+> The app includes an account registration feature for businesses and organizations, which is considered access to external mechanisms for purchases or subscriptions... Remove the account registration features for business and organizations.
+
+**Root cause:** Commit `ca601a3` ("[CustomerSuccess] add login register") added a self-service "Create Company" / "Join Company" onboarding flow reachable from a "Đăng ký" (Sign Up) link on `LoginView`, letting any user register a new business (company) account or join one via invite code — this reads to Apple as external business-account provisioning.
+
+**Fix:** Removed the entire reachable registration flow and all code that became dead as a result:
+- Removed `signUpLink` NavigationLink from `LoginView.swift` (the only entry point).
+- Deleted `SignUp` module: `SignUpChoiceView`, `CreateCompanyView`, `JoinCompanyView`, `CreateCompanyViewModel`, `JoinCompanyViewModel`.
+- Deleted use cases: `SignUpUseCase`, `RollbackSignUpUseCase`, `CreateCompanyUseCase`, `JoinCompanyUseCase`.
+- Removed their DI registrations from `Container.swift`.
+- Stripped now-unused `signUp`/`deleteCurrentUser` from `AuthRepositoryType`/`AuthRepository`/`AuthServiceType`/`AuthService`.
+- Stripped now-unused `createCompany`/`joinCompany` from `CompanyRepositoryType`/`CompanyRepository`/`CompanyServiceType`/`CompanyService` (kept `fetchUserProfile`/`fetchCompany` — still used read-only by `ProfileViewModel`/`FetchUserProfileUseCase`/`FetchCompanyUseCase` to display existing company info).
+- Removed now-orphaned `CompanyError.invalidJoinCode` / `.codeGenerationFailed` cases.
+
+**Behavior after fix:** Login screen only supports logging into an existing, admin-provisioned account (email/password + biometric). There is no in-app path to create or join a company. Backend Cloud Functions scripts (`functions/scripts/*.js`) and Firestore rules/indexes for company onboarding were left untouched — they're admin/backend tooling, not reachable from the app UI Apple reviews.
+
+**Verification note:** Confirmed via exhaustive `grep` sweep that no references to the removed symbols remain anywhere in `report_lms/`. A full `xcodebuild` was attempted but blocked by an unrelated, reproducible SPM package-cache issue in this environment (a stale `build` file under the `nanopb` Swift package checkout in DerivedData) — reproduced identically across two independent clean-DerivedData attempts, not caused by these edits. Recommend a normal build from Xcode.app before archiving to confirm.

@@ -137,7 +137,7 @@ struct LoginView: View {
             Text("Chưa có tài khoản?")
                 .font(.footnote)
                 .foregroundColor(.secondary)
-            NavigationLink(destination: SignUpChoiceView()) {
+            NavigationLink(destination: SignUpView(viewModel: Container.shared.resolve(SignUpViewModel.self)!)) {
                 Text("Đăng ký")
                     .font(.footnote.weight(.semibold))
                     .foregroundColor(.accentColor)

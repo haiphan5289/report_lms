@@ -1,68 +1,34 @@
 // One-time migration: run BEFORE deploying firestore.rules.
 //
-// Every inspection and every existing Firebase Auth user currently has no `companyId`.
-// Once firestore.rules is deployed, any document missing `companyId` becomes invisible
-// to everyone (the security rules require an exact companyId match). This script backfills
-// a single "default company" — representing the business's own existing data — onto:
-//   1. A new `companies/{id}` doc + matching `joinCodes/{code}` doc.
-//   2. Every existing Firebase Auth user -> `users/{uid}` profile pointing at that company.
-//   3. Every `inspections/{id}` document missing `companyId`.
+// Model: one Firebase Auth account maps to exactly one company (no shared companies,
+// no join codes — see firestore.rules). For every existing Firebase Auth user that has
+// no `users/{uid}` profile yet, this creates a dedicated `companies/{id}` doc owned by
+// that user and the matching `users/{uid}` profile pointing at it.
 //
 // Usage:
 //   1. Download a service account key: Firebase Console -> Project Settings ->
 //      Service Accounts -> Generate new private key. Save it as serviceAccountKey.json
 //      next to this script (functions/scripts/) — DO NOT commit this file.
-//   2. cd functions/scripts && node migrate-add-default-company.js "Ten Cong Ty Cua Ban"
+//   2. cd functions/scripts && node migrate-add-default-company.js
 //
-// Safe to re-run: inspections that already have a companyId are left untouched, and the
-// script exits early if a company with the exact given name already exists.
+// Safe to re-run: users that already have a `users/{uid}` profile are left untouched.
+//
+// Note: this does NOT touch `inspections/{id}` documents. Under the old shared-company
+// model, every inspection could be backfilled onto one company; under one-company-per-user
+// there is no way to infer which user's company a pre-existing orphaned inspection belongs
+// to, so that assignment must be done by hand (or with a separate, targeted script) if any
+// orphaned inspections remain.
 
 const admin = require("firebase-admin");
 const path = require("path");
-
-const companyName = process.argv[2];
-if (!companyName) {
-  console.error("Usage: node migrate-add-default-company.js \"<Ten Cong Ty>\"");
-  process.exit(1);
-}
 
 const serviceAccount = require(path.join(__dirname, "serviceAccountKey.json"));
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 const auth = admin.auth();
 
-function generateJoinCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
-  return code;
-}
-
 async function main() {
-  const existing = await db.collection("companies").where("name", "==", companyName).limit(1).get();
-  let companyId;
-  if (!existing.empty) {
-    companyId = existing.docs[0].id;
-    console.log(`Company "${companyName}" already exists (${companyId}), reusing it.`);
-  } else {
-    const joinCode = generateJoinCode();
-    const companyRef = db.collection("companies").doc();
-    companyId = companyRef.id;
-    await companyRef.set({
-      id: companyId,
-      name: companyName,
-      joinCode,
-      ownerId: "migration",
-      createdAt: new Date().toISOString(),
-    });
-    await db.collection("joinCodes").doc(joinCode).set({ companyId });
-    console.log(`Created company "${companyName}" (${companyId}), join code: ${joinCode}`);
-  }
-
-  // 2. Backfill every existing Firebase Auth user's profile
-  let usersUpdated = 0;
+  let usersCreated = 0;
   let pageToken;
   do {
     const page = await auth.listUsers(1000, pageToken);
@@ -70,38 +36,28 @@ async function main() {
       const profileRef = db.collection("users").doc(user.uid);
       const profileDoc = await profileRef.get();
       if (profileDoc.exists) continue;
+
+      const companyRef = db.collection("companies").doc();
+      const companyName = user.displayName || user.email || user.uid;
+      await companyRef.set({
+        id: companyRef.id,
+        name: companyName,
+        ownerId: user.uid,
+        createdAt: new Date().toISOString(),
+      });
       await profileRef.set({
         id: user.uid,
-        companyId,
-        role: "member",
+        companyId: companyRef.id,
+        role: "owner",
         displayName: user.displayName || user.email || "",
       });
-      usersUpdated++;
+      usersCreated++;
+      console.log(`Provisioned company "${companyName}" (${companyRef.id}) for user ${user.uid}.`);
     }
     pageToken = page.pageToken;
   } while (pageToken);
-  console.log(`Backfilled ${usersUpdated} user profile(s).`);
-
-  // 3. Backfill every inspection missing companyId
-  const snapshot = await db.collection("inspections").get();
-  let batch = db.batch();
-  let batchCount = 0;
-  let inspectionsUpdated = 0;
-  for (const doc of snapshot.docs) {
-    if (doc.data().companyId) continue;
-    batch.update(doc.ref, { companyId });
-    batchCount++;
-    inspectionsUpdated++;
-    if (batchCount === 400) {
-      await batch.commit();
-      batch = db.batch();
-      batchCount = 0;
-    }
-  }
-  if (batchCount > 0) await batch.commit();
-  console.log(`Backfilled ${inspectionsUpdated} inspection(s).`);
-
-  console.log("\nDone. Next steps:");
+  console.log(`\nDone. Provisioned ${usersCreated} user/company pair(s).`);
+  console.log("Next steps:");
   console.log("1. Verify the data in Firebase Console.");
   console.log("2. firebase deploy --only firestore:indexes  (wait for the index to finish building)");
   console.log("3. firebase deploy --only firestore:rules");

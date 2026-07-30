@@ -15,39 +15,30 @@ service cloud.firestore {
       return myProfile().companyId;
     }
 
-    // True once the caller has completed company onboarding (has a users/{uid} doc).
-    // Checked with exists() (never errors on a missing doc) before any get().data access,
-    // since mid-onboarding (createCompany / joinCompany in progress) the profile doc
-    // doesn't exist yet.
+    // True once the caller has completed onboarding (has a users/{uid} doc). Checked with
+    // exists() (never errors on a missing doc) before any get().data access — used to stop
+    // an already-onboarded account from creating itself a second company.
     function hasProfile() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // users/{uid} — each user may only read/write their own profile document.
-    // Created by CompanyService on sign-up (createCompany / joinCompany); never client-editable afterwards.
+    // users/{uid} — one account maps to exactly one company. The profile document is
+    // created either by the client during sign-up (CompanyService.createCompany, in the
+    // same batch as the matching companies/{id} doc below) or by an administrator
+    // (Admin SDK, bypasses these rules) — never client-editable afterwards.
     match /users/{userId} {
       allow read: if isSignedIn() && request.auth.uid == userId;
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update, delete: if false;
     }
 
-    // companies/{companyId} — created directly by the client during onboarding
-    // (CompanyService.createCompany), read during both createCompany (immediately after
-    // creating) and joinCompany (resolving a join code, before the caller has a profile
-    // yet — hence the `!hasProfile()` escape hatch below). Never client-editable afterwards
-    // (name changes, etc. would need a dedicated admin flow).
+    // companies/{companyId} — created directly by the client during sign-up
+    // (CompanyService.createCompany). `!hasProfile()` stops an account that already owns
+    // a company from creating another one. Never read by the client (the id is already
+    // known locally right after creating it) and never client-editable afterwards.
     match /companies/{companyId} {
-      allow read: if isSignedIn() && (!hasProfile() || myCompanyId() == companyId);
+      allow read: if false;
       allow create: if isSignedIn() && !hasProfile() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if false;
-    }
-
-    // joinCodes/{code} — write-only from the trusted CompanyService path (setData with a
-    // brand-new document ID acting as a uniqueness check). Readable by any signed-in user
-    // so joinCompany() can resolve a code to a companyId before the user has a profile yet.
-    match /joinCodes/{code} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
       allow update, delete: if false;
     }
 

@@ -1,23 +1,23 @@
 //
-//  CreateCompanyViewModel.swift
+//  SignUpViewModel.swift
 //  report_lms
 //
 
 import Foundation
 
-final class CreateCompanyViewModel: ObservableObject {
+/// Creates a personal Firebase Auth account and its own dedicated company in one step —
+/// one account maps to exactly one company, there is no join-by-code flow. On success the
+/// account is logged in immediately (`UserManager.isLoggedIn` flips true), which is what
+/// causes `RootView` to swap straight to the home screen — no explicit navigation needed.
+final class SignUpViewModel: ObservableObject {
     @Published var displayName: String = ""
     @Published var email: String = ""
     @Published var password: String = ""
-    @Published var companyName: String = ""
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    @Published var isSuccess: Bool = false
-    @Published var createdJoinCode: String?
-
-    private var pendingSession: UserSession?
 
     private let signUpUseCase: SignUpUseCase
+    private let updateDisplayNameUseCase: UpdateDisplayNameUseCase
     private let createCompanyUseCase: CreateCompanyUseCase
     private let rollbackSignUpUseCase: RollbackSignUpUseCase
     private let storageService: InspectionStorageServiceType
@@ -25,12 +25,14 @@ final class CreateCompanyViewModel: ObservableObject {
 
     init(
         signUpUseCase: SignUpUseCase,
+        updateDisplayNameUseCase: UpdateDisplayNameUseCase,
         createCompanyUseCase: CreateCompanyUseCase,
         rollbackSignUpUseCase: RollbackSignUpUseCase,
         storageService: InspectionStorageServiceType,
         userManager: UserManager
     ) {
         self.signUpUseCase = signUpUseCase
+        self.updateDisplayNameUseCase = updateDisplayNameUseCase
         self.createCompanyUseCase = createCompanyUseCase
         self.rollbackSignUpUseCase = rollbackSignUpUseCase
         self.storageService = storageService
@@ -38,44 +40,37 @@ final class CreateCompanyViewModel: ObservableObject {
     }
 
     var isFormValid: Bool {
-        !displayName.isEmpty && !email.isEmpty && !password.isEmpty && !companyName.isEmpty
+        !displayName.isEmpty && !email.isEmpty && !password.isEmpty
     }
 
     @MainActor
-    func createCompany() async {
-        guard isFormValid else { return }
+    func signUp() async {
         isLoading = true
         errorMessage = nil
         do {
             let session = try await signUpUseCase.execute(email: email, password: password)
+            try? await updateDisplayNameUseCase.execute(name: displayName)
+
+            let companyId: String
             do {
-                let company = try await createCompanyUseCase.execute(
-                    name: companyName,
+                companyId = try await createCompanyUseCase.execute(
+                    name: displayName,
                     ownerId: session.id,
                     ownerDisplayName: displayName
                 )
-                userManager.setCompany(company.id)
-                try await storageService.loadCache(companyId: company.id)
-                pendingSession = session
-                createdJoinCode = company.joinCode
-                isSuccess = true
             } catch {
-                // Undo the just-created auth account so the email is free to retry with.
+                // Company creation failed after the auth account was created — roll the
+                // account back so the email is free to retry instead of stuck forever.
                 await rollbackSignUpUseCase.execute()
                 throw error
             }
+
+            userManager.login(user: session)
+            userManager.setCompany(companyId)
+            try? await storageService.loadCache(companyId: companyId)
         } catch {
             errorMessage = error.localizedDescription
         }
         isLoading = false
-    }
-
-    /// Logs the user in once they've dismissed the success screen.
-    /// Deferred until now — `userManager.login` flips `isLoggedIn`, which makes `RootView` swap its
-    /// entire root immediately, tearing down this screen before the join code could be shown.
-    @MainActor
-    func finishOnboarding() {
-        guard let pendingSession else { return }
-        userManager.login(user: pendingSession)
     }
 }

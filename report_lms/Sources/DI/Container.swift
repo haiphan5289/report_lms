@@ -125,16 +125,8 @@ final class Container {
             CreateCompanyUseCase(repository: Container.shared.resolve(CompanyRepositoryType.self)!)
         }
 
-        register(JoinCompanyUseCase.self) {
-            JoinCompanyUseCase(repository: Container.shared.resolve(CompanyRepositoryType.self)!)
-        }
-
         register(FetchUserProfileUseCase.self) {
             FetchUserProfileUseCase(repository: Container.shared.resolve(CompanyRepositoryType.self)!)
-        }
-
-        register(FetchCompanyUseCase.self) {
-            FetchCompanyUseCase(repository: Container.shared.resolve(CompanyRepositoryType.self)!)
         }
 
         register(UploadInspectionMediaUseCase.self) {
@@ -182,19 +174,11 @@ final class Container {
                 userManager: Container.shared.resolve(UserManager.self)!
             )
         }
-        register(CreateCompanyViewModel.self) {
-            CreateCompanyViewModel(
+        register(SignUpViewModel.self) {
+            SignUpViewModel(
                 signUpUseCase: Container.shared.resolve(SignUpUseCase.self)!,
+                updateDisplayNameUseCase: Container.shared.resolve(UpdateDisplayNameUseCase.self)!,
                 createCompanyUseCase: Container.shared.resolve(CreateCompanyUseCase.self)!,
-                rollbackSignUpUseCase: Container.shared.resolve(RollbackSignUpUseCase.self)!,
-                storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
-                userManager: Container.shared.resolve(UserManager.self)!
-            )
-        }
-        register(JoinCompanyViewModel.self) {
-            JoinCompanyViewModel(
-                signUpUseCase: Container.shared.resolve(SignUpUseCase.self)!,
-                joinCompanyUseCase: Container.shared.resolve(JoinCompanyUseCase.self)!,
                 rollbackSignUpUseCase: Container.shared.resolve(RollbackSignUpUseCase.self)!,
                 storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
                 userManager: Container.shared.resolve(UserManager.self)!
