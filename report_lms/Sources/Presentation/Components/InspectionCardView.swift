@@ -40,8 +40,8 @@ struct InspectionCardView: View {
             Divider()
                 .padding(.horizontal, 16)
 
-            // Company and date info
-            companyInfoView
+            // Date info
+            dateInfoView
 
             // Product info section
             productInfoView
@@ -81,12 +81,9 @@ struct InspectionCardView: View {
         .padding(16)
     }
 
-    private var companyInfoView: some View {
-        HStack(alignment: .top) {
-            LMSLabel(inspection.companyName.isEmpty ? "---" : inspection.companyName,
-                    style: .body)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
+    private var dateInfoView: some View {
+        HStack {
+            Spacer()
             LMSLabel(inspection.formattedDate,
                     style: .caption,
                     color: .secondary)
@@ -157,8 +154,6 @@ struct InspectionCardView: View {
     InspectionCardView(
         inspection: Inspection(
             inspectionNumber: "001",
-            companyId: "mock-company",
-            companyName: "KUKA",
             productName: "Ghe",
             productCode: "001",
             orderCode: "ORD123",
@@ -177,8 +172,6 @@ struct InspectionCardView: View {
     InspectionCardView(
         inspection: Inspection(
             inspectionNumber: "002",
-            companyId: "mock-company",
-            companyName: "Very Long Company Name For Testing",
             productName: "Product with a very long name",
             productCode: "PROD-12345",
             orderCode: "ORD456",

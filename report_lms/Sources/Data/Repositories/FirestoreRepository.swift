@@ -18,8 +18,8 @@ final class FirestoreRepository: DatabaseRepositoryType {
         try await service.saveInspection(inspection)
     }
 
-    func fetchInspections(companyId: String) async throws -> [Inspection] {
-        try await service.fetchInspections(companyId: companyId)
+    func fetchInspections(inspectorId: String) async throws -> [Inspection] {
+        try await service.fetchInspections(inspectorId: inspectorId)
     }
 
     func updateInspection(_ inspection: Inspection) async throws {

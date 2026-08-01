@@ -11,7 +11,6 @@ import Foundation
 @MainActor
 final class InformationPurchaseViewModel: ObservableObject {
     // MARK: - Published Properties
-    @Published var companyName: String = "—"
     @Published var productName: String = "—"
     @Published var orderNumber: String = "—"
     @Published var productCode: String = "—"
@@ -24,7 +23,6 @@ final class InformationPurchaseViewModel: ObservableObject {
     // MARK: - Initialization
     init(inspection: Inspection? = nil) {
         guard let i = inspection else { return }
-        companyName    = i.companyName
         productName    = i.productName
         orderNumber    = i.orderCode
         productCode    = i.productCode

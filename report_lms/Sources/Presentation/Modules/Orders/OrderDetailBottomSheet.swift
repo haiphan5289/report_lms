@@ -130,7 +130,6 @@ struct OrderDetailBottomSheet: View {
                     inspection.inspectionNumber.isEmpty ? "---" : inspection.inspectionNumber,
                     style: .title2
                 )
-                LMSLabel(inspection.companyName.isEmpty ? "---" : inspection.companyName, style: .subheadline, color: .secondary)
                 if let err = statusChangeError {
                     LMSLabel(err, style: .caption, color: .custom(.red))
                 }

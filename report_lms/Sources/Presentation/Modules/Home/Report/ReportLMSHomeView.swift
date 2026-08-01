@@ -219,7 +219,7 @@ private func makePreviewViewModel(inspections: [Inspection]) -> ReportViewModel 
         private var items: [Inspection]
         let isCacheLoaded: Bool = true
         init(_ items: [Inspection]) { self.items = items }
-        func loadCache(companyId: String) async throws {}
+        func loadCache(inspectorId: String) async throws {}
         func getAllInspections() -> [Inspection] { items }
         func getInspection(by id: String) -> Inspection? { items.first { $0.id == id } }
         func saveInspection(_ i: Inspection) async throws { items.append(i) }
@@ -238,7 +238,7 @@ private func makePreviewViewModel(inspections: [Inspection]) -> ReportViewModel 
 private let mockCompleted: [Inspection] = [
     Inspection(
         id: "r1", inspectionNumber: "INS-2026-020",
-        companyId: "mock-company", companyName: "Công ty TNHH ABC", productName: "Ghế văn phòng",
+        productName: "Ghế văn phòng",
         productCode: "GVP-001", orderCode: "ORD-2026-020",
         inspectionType: "Final Inspection", quantity: "500",
         factory: "Nhà máy Hà Nội", productionUnit: "Pcs",
@@ -246,7 +246,7 @@ private let mockCompleted: [Inspection] = [
     ),
     Inspection(
         id: "r2", inspectionNumber: "INS-2026-021",
-        companyId: "mock-company", companyName: "Công ty TNHH XYZ", productName: "Bàn học sinh",
+        productName: "Bàn học sinh",
         productCode: "BHS-002", orderCode: "ORD-2026-021",
         inspectionType: "Pre-shipment", quantity: "1000",
         factory: "Nhà máy TP.HCM", productionUnit: "Pcs",

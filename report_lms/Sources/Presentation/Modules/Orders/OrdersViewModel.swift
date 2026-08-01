@@ -47,7 +47,6 @@ final class OrdersViewModel: ObservableObject {
             let q = searchText.lowercased()
             result = result.filter {
                 $0.inspectionNumber.lowercased().contains(q) ||
-                $0.companyName.lowercased().contains(q) ||
                 $0.productName.lowercased().contains(q) ||
                 $0.orderCode.lowercased().contains(q) ||
                 $0.factory.lowercased().contains(q)

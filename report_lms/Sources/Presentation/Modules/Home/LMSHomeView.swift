@@ -307,7 +307,7 @@ private struct CreateInspectionDestination: View {
         _viewModel = StateObject(wrappedValue: CreateInspectionViewModel(
             createInspectionUseCase: useCase,
             storageService: storage,
-            companyId: Container.shared.resolve(UserManager.self)?.companyId ?? ""
+            inspectorId: Container.shared.resolve(UserManager.self)?.currentUser?.id ?? ""
         ))
     }
 

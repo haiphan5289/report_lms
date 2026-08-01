@@ -156,7 +156,7 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         // 2. Large bold product subtitle
         let bigFont   = UIFont.boldSystemFont(ofSize: 20)
         let bigAttrs: [NSAttributedString.Key: Any] = [.font: bigFont, .foregroundColor: UIColor.black]
-        let subtitle  = "\(detail.inspectionNumber): \(detail.productName)"
+        let subtitle  = "\(detail.productCode): \(detail.productName)"
         let subBounds = subtitle.boundingRect(
             with: CGSize(width: Layout.contentWidth, height: 80),
             options: .usesLineFragmentOrigin, attributes: bigAttrs, context: nil

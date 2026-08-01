@@ -10,8 +10,6 @@ import Foundation
 struct InspectionModel: Codable {
     let id: String
     let inspectionNumber: String?
-    let companyId: String?
-    let companyName: String?
     let productName: String
     let productCode: String
     let orderCode: String
@@ -27,8 +25,6 @@ struct InspectionModel: Codable {
         Inspection(
             id: id,
             inspectionNumber: inspectionNumber ?? "",
-            companyId: companyId ?? "",
-            companyName: companyName ?? "",
             productName: productName,
             productCode: productCode,
             orderCode: orderCode,
@@ -46,8 +42,6 @@ struct InspectionModel: Codable {
         InspectionModel(
             id: entity.id,
             inspectionNumber: entity.inspectionNumber,
-            companyId: entity.companyId,
-            companyName: entity.companyName,
             productName: entity.productName,
             productCode: entity.productCode,
             orderCode: entity.orderCode,

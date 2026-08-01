@@ -24,10 +24,6 @@ final class AuthRepository: AuthRepositoryType {
         return response.toEntity()
     }
 
-    func deleteCurrentUser() async throws {
-        try await service.deleteCurrentUser()
-    }
-
     func refreshSession() async throws -> UserSession {
         try await service.refreshSession()
     }

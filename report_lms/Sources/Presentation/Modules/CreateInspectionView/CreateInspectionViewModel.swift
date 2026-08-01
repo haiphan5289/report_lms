@@ -105,13 +105,13 @@ final class CreateInspectionViewModel: ObservableObject {
     // MARK: - Private Properties
     private let createInspectionUseCase: CreateInspectionUseCase
     private let storageService: InspectionStorageServiceType
-    private let companyId: String
+    private let inspectorId: String
 
     // MARK: - Initialization
-    init(createInspectionUseCase: CreateInspectionUseCase, storageService: InspectionStorageServiceType, companyId: String) {
+    init(createInspectionUseCase: CreateInspectionUseCase, storageService: InspectionStorageServiceType, inspectorId: String) {
         self.createInspectionUseCase = createInspectionUseCase
         self.storageService = storageService
-        self.companyId = companyId
+        self.inspectorId = inspectorId
         // Initialize inputFields immediately
         inputFields = InputFieldType.allCases.map { type in
             InputField(
@@ -174,8 +174,6 @@ final class CreateInspectionViewModel: ObservableObject {
             let inspection = Inspection(
                 id: UUID().uuidString,
                 inspectionNumber: generateInspectionNumber(),
-                companyId: companyId,
-                companyName: "",
                 productName: productName,
                 productCode: productCode,
                 orderCode: orderCode,
@@ -184,7 +182,7 @@ final class CreateInspectionViewModel: ObservableObject {
                 factory: factory,
                 productionUnit: productionUnit,
                 createdAt: Date(),
-                inspectorId: nil,
+                inspectorId: inspectorId,
                 status: .plan,
                 sections: Inspection.emptyTemplate(),
                 orderQuantity: orderQty,

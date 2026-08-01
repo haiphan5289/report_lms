@@ -105,11 +105,13 @@ const TRANSLATIONS = {
         emailSubject: "Báo cáo kiểm tra #",
         emailHeader: "Báo cáo kiểm tra #",
         emailGreeting: "Kính gửi,",
-        emailBody: "Đính kèm là báo cáo kiểm tra <strong>#%n</strong> cho <strong>%c</strong>.",
+        emailBody: "Đính kèm là báo cáo kiểm tra <strong>#%n</strong>.",
         emailCta: "Vui lòng xem file PDF đính kèm để biết chi tiết.",
         emailClosing: "Trân trọng,",
         emailFooter: "Gửi tự động bởi LMS Report App",
         attachmentPrefix: "Bao_cao_kiem_tra_",
+        defectsSection: "LỖI PHÁT HIỆN",
+        defectTypeOther: "Khác",
     },
     en: {
         reportTitle: "Inspection report, Final:",
@@ -136,16 +138,183 @@ const TRANSLATIONS = {
         emailSubject: "Inspection Report #",
         emailHeader: "Inspection Report #",
         emailGreeting: "Dear,",
-        emailBody: "Please find attached the inspection report <strong>#%n</strong> for <strong>%c</strong>.",
+        emailBody: "Please find attached the inspection report <strong>#%n</strong>.",
         emailCta: "Please review the attached PDF for details.",
         emailClosing: "Best regards,",
         emailFooter: "Sent automatically by LMS Report App",
         attachmentPrefix: "Inspection_Report_",
+        defectsSection: "DEFECTS FOUND",
+        defectTypeOther: "Other",
     },
 };
 function t(lang, key) {
     var _a, _b, _c;
     return (_c = (_b = (_a = TRANSLATIONS[lang]) === null || _a === void 0 ? void 0 : _a[key]) !== null && _b !== void 0 ? _b : TRANSLATIONS["en"][key]) !== null && _c !== void 0 ? _c : key;
+}
+/**
+ * Mirrors `DefectType.name` in iOS `ErrorItem.swift` — Vietnamese-only, no English
+ * variant exists on either side. Keep in sync manually if the iOS enum changes.
+ */
+const DEFECT_TYPE_NAMES = {
+    // PA - Đóng gói sản phẩm
+    "PA-1": "Thiếu cảnh báo và ký hiệu an toàn",
+    "PA-2": "Hướng dẫn lắp ráp",
+    "PA-3": "Bao nylon không đục lỗ",
+    "PA-4": "Thông tin bao bì và nhãn dán",
+    "PA-5": "Đóng gói: dán kín và chặt",
+    "PA-6": "Sai mã vạch và thông tin đơn hàng",
+    "PA-7": "Bảo vệ góc",
+    "PA-8": "Test đóng gói",
+    "PA-9": "Thùng carton bị hư hỏng, ẩm ướt, đè nát, biến dạng",
+    "PA-10": "Kích thước và cân nặng",
+    "PA-11": "Vật lạ (côn trùng, sâu bọ, v.v)",
+    "PA-12": "Mùi hôi",
+    "PA-13": "Ray trượt không có che chắn chống trượt",
+    "PA-14": "Không có mút carton góc",
+    "PA-15": "Vật tư đóng gói ngắn, k đúng kích thước",
+    "PA-16": "Chân không được quấn trong bao bong bóng",
+    "PA-17": "Chân không được bỏ trong ngăn trống với dây kéo",
+    "PA-18": "Thiếu vật tư điện nếu có",
+    "PA-19": "Không có bịch chống ẩm",
+    "PA-20": "Gối không được bỏ vào bao ni lông",
+    "PA-21": "Đóng gói không chặt, di chuyển trong thùng",
+    "PA-22": "Không có màng foam hay giấy lót bảo vệ tay",
+    "PA-23": "Không có màng foam hay giấy lót bảo vệ lưng",
+    "PA-24": "Carton góc không có",
+    "PA-25": "Khác",
+    // SU - Bề mặt sản phẩm
+    "SU-1": "Thiếu lớp phủ/sơn/phun/in/sơn tĩnh điện",
+    "SU-2": "Sai hình dạng, biến dạng và không đối xứng",
+    "SU-3": "Bề mặt không bằng phẳng và mức độ không đồng đều",
+    "SU-4": "Trầy xước, cấn móp, mè cạnh",
+    "SU-5": "Bụi bẩn và các vết (keo, vết lõm, sứt mẻ, rạn nứt)",
+    "SU-6": "Thiếu mối hàn",
+    "SU-7": "Thiếu chà nhám",
+    "SU-8": "Gỉ sét",
+    "SU-9": "Nứt",
+    "SU-10": "Dung sai mắt chết",
+    "SU-11": "Khác",
+    // AS - Lắp ráp
+    "AS-1": "Lắp ráp chưa hoàn chỉnh",
+    "AS-2": "Sai hoặc thiếu phụ kiện",
+    "AS-3": "Chi tiết và phụ kiện lắp ráp không phù hợp",
+    "AS-4": "Hở mối ghép",
+    "AS-5": "Các phần nối không thẳng",
+    "AS-6": "Kết nối lỏng lẻo",
+    "AS-7": "Thiếu ốc để ráp chân",
+    "AS-8": "Hướng dẫn lắp ráp không đúng",
+    "AS-9": "Khác",
+    // FU - Chức năng và kiểm tra
+    "FU-1": "Kiểm tra tải",
+    "FU-2": "Không ổn định",
+    "FU-3": "Độ ẩm và nấm",
+    "FU-4": "Tiếng ồn không cần thiết",
+    "FU-5": "Ghế bạt không hoạt động dễ dàng",
+    "FU-6": "Đỡ chân không đẩy ra dễ dàng",
+    "FU-7": "Đỡ chân không chắc chắn",
+    "FU-8": "Ghế bạt điện không hoạt động trơn tru ở tất cả các vị trí",
+    "FU-9": "USB không hoạt động",
+    "FU-10": "Bluetooth không hoạt động",
+    "FU-11": "Nắp cửa console không đứng yên khi nâng lên",
+    "FU-12": "Phần đính kèm không hoạt động tốt",
+    "FU-13": "Khác",
+    // SA - An toàn
+    "SA-1": "Mảnh vụn",
+    "SA-2": "Cạnh/Điểm bén nhọn",
+    "SA-3": "Thiếu cảnh báo",
+    "SA-4": "Vật liệu chống cháy",
+    "SA-5": "Khác",
+    // FI - Finishing
+    "FI-1": "Tróc, chảy, phồng độp",
+    "FI-2": "Dấu vân tay, sần",
+    "FI-3": "Khu vực không có màu",
+    "FI-4": "Màu không đồng nhất",
+    "FI-5": "Giả cổ ngẫu nhiên",
+    "FI-6": "Xử lý gỗ",
+    "FI-7": "Dính keo",
+    "FI-8": "Không có sơn/sản ở liên kết",
+    "FI-9": "Sơn trong lòng hộc kéo",
+    "FI-10": "Không quá nhiều mắt trên mặt",
+    "FI-11": "Không quá nhiều mắt trên hông",
+    "FI-12": "Không quá nhiều mắt trên mặt hộc kéo",
+    "FI-13": "Nứt trên mắt gỗ",
+    "FI-14": "Đinh/vít phồng",
+    "FI-15": "Lỗ đinh",
+    "FI-16": "Công vênh ở mặt/hông",
+    "FI-17": "Chà nhám lõm",
+    "FI-18": "Mặt hộc không thẳng",
+    "FI-19": "Võng mặt/hông",
+    "FI-20": "Trầy veneer",
+    "FI-21": "Không khớp chiều veneer",
+    "FI-22": "Tróc veneer",
+    "FI-23": "Nhám cạnh",
+    "FI-24": "Khác",
+    // CO - Construction
+    "CO-1": "Mối ghép phẳng",
+    "CO-2": "Khe hở o mới ghép",
+    "CO-3": "Ghép không thẳng",
+    "CO-4": "Keo/dầu/trầy trên nỉ",
+    "CO-5": "Nứt trong hộc kéo",
+    "CO-6": "Ke gốc cho khung",
+    "CO-7": "Khung đỡ hộc",
+    "CO-8": "Khung đỡ hộc khi loại bỏ hộc kéo",
+    "CO-9": "Hộc kéo đóng/mở không dễ dàng",
+    "CO-10": "Cửa đóng/mở không dễ dàng",
+    "CO-11": "Độ ngã không đúng",
+    "CO-12": "Thiếu foam ở lưng, tay, ngồi",
+    "CO-13": "Khung bị võng ở giữa",
+    "CO-14": "Lưng tựa không có gia cố",
+    "CO-15": "Nệm không có cố định",
+    "CO-16": "Nệm không có 2 mặt",
+    "CO-17": "Khác",
+    // FE - Features
+    "FE-1": "Chiều sâu hộc kéo không đều",
+    "FE-2": "Không có ván bắn ở phía sau để chống lật",
+    "FE-3": "Không có ván ngăn bụi giữa các hộc kéo",
+    "FE-4": "Đinh trang trí không thẳng",
+    "FE-5": "Đinh trang trí không đều khoảng cách",
+    "FE-6": "Mặt đá có dính nhựa sửa",
+    "FE-7": "Mặt đá khác màu",
+    "FE-8": "Bọc nệm không chặt",
+    "FE-9": "Không có đủ chất độn",
+    "FE-10": "Nhăn, hở ở cạnh/nút",
+    "FE-11": "Khác",
+    // TA - Tailoring
+    "TA-1": "Đường may không thẳng",
+    "TA-2": "Chỉ không chặt chẽ trong đường may",
+    "TA-3": "Chỉ lỏng lẻo",
+    "TA-4": "Đường viền không thẳng",
+    "TA-5": "Vải không bó chặt vào khung",
+    "TA-6": "Vết nhăn trên da",
+    "TA-7": "Đường chỉ không thẳng",
+    "TA-8": "Rách",
+    "TA-9": "Đường may, đường khâu bị bung và đầu sợi chỉ thừa chưa được cắt",
+    "TA-10": "Bọc không đạt",
+    "TA-11": "Khác",
+};
+/** Mirrors `DefectType.displayName` on iOS: "{code} - {name}". Falls back to the localized "Other" label when no code was selected. */
+function defectTitle(code, lang) {
+    if (!code)
+        return t(lang, "defectTypeOther");
+    const name = DEFECT_TYPE_NAMES[code];
+    return name ? `${code} - ${name}` : code;
+}
+/** Maps a `SavedErrorItem.severity` raw label (Vietnamese, written by the iOS app) to a defect-table color/column. */
+function severityColor(severity) {
+    return severity === "Nghiêm trọng" ? C_CRITICAL : severity === "Nặng" ? C_MAJOR : C_MINOR;
+}
+/** Counts errorItems by severity for the CRITICAL/MAJOR/MINOR table — unrecognized/"Nhẹ" values count as minor. */
+function countBySeverity(items) {
+    let critical = 0, major = 0, minor = 0;
+    for (const item of items) {
+        if (item.severity === "Nghiêm trọng")
+            critical++;
+        else if (item.severity === "Nặng")
+            major++;
+        else
+            minor++;
+    }
+    return { critical, major, minor };
 }
 function isValidEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -193,7 +362,7 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
     timeoutSeconds: 120,
     memory: "512MiB",
 }, async (event) => {
-    var _a, _b;
+    var _a;
     const taskId = event.params.taskId;
     const db = admin.firestore();
     const taskRef = db.collection("report_delivery_queue").doc(taskId);
@@ -214,7 +383,24 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         const inspection = snap.data();
         if (!inspection)
             throw new Error(`Inspection ${inspectionId} not found`);
-        const pdfBuffer = await generatePDF(inspection, inspectionNumber, location, displayName, finalStatus, summaryComments, lang);
+        const errorItemsSnap = await db
+            .collection("inspections").doc(inspectionId)
+            .collection("errorItems")
+            .orderBy("createdAt", "desc")
+            .get();
+        const errorItems = errorItemsSnap.docs.map((d) => {
+            var _a, _b, _c;
+            const ed = d.data();
+            return {
+                id: d.id,
+                imageURLs: Array.isArray(ed.imageURLs) ? ed.imageURLs : [],
+                severity: (_a = ed.severity) !== null && _a !== void 0 ? _a : "Nhẹ",
+                defectType: ed.defectType,
+                comments: (_b = ed.comments) !== null && _b !== void 0 ? _b : "",
+                createdAt: (_c = ed.createdAt) !== null && _c !== void 0 ? _c : "",
+            };
+        });
+        const pdfBuffer = await generatePDF(inspection, inspectionNumber, location, displayName, finalStatus, summaryComments, lang, errorItems);
         console.log(`[${taskId}] PDF generated: ${pdfBuffer.length} bytes`);
         // Upload to Firebase Storage so the iOS app can retrieve it later
         const storagePath = `inspections/${inspectionId}/reports/${taskId}.pdf`;
@@ -233,7 +419,7 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         // being rejected by the SMTP server, including the real recipients. Only trace-cc the
         // sender when requestedBy is an actual email.
         const traceEmail = isValidEmail(requestedBy) ? requestedBy : undefined;
-        await transporter.sendMail(Object.assign(Object.assign({ from: `"LMS Report" <${gmailUser.value()}>`, to: recipientEmails.join(", ") }, (traceEmail ? { cc: traceEmail, replyTo: traceEmail } : {})), { subject: `${t(lang, "emailSubject")}${inspectionNumber}`, html: buildEmailHTML(inspectionNumber, (_b = inspection.companyName) !== null && _b !== void 0 ? _b : "", displayName, lang), attachments: [{
+        await transporter.sendMail(Object.assign(Object.assign({ from: `"LMS Report" <${gmailUser.value()}>`, to: recipientEmails.join(", ") }, (traceEmail ? { cc: traceEmail, replyTo: traceEmail } : {})), { subject: `${t(lang, "emailSubject")}${inspectionNumber}`, html: buildEmailHTML(inspectionNumber, displayName, lang), attachments: [{
                     filename: `Final Report ${sanitizeFilenamePart(inspection.productName || inspectionNumber)}.pdf`,
                     content: pdfBuffer,
                     contentType: "application/pdf",
@@ -247,7 +433,7 @@ exports.processReportQueue = (0, firestore_1.onDocumentCreated)({
         try {
             await taskRef.update({ status: "failed", errorMessage: message });
         }
-        catch (_c) { }
+        catch (_b) { }
     }
 });
 // ── Image helpers ──────────────────────────────────────────────────────────────
@@ -278,8 +464,8 @@ function downloadImageBuffer(url) {
         req.setTimeout(10000, () => { req.destroy(); reject(new Error("Image download timeout")); });
     });
 }
-/** Pre-fetch all field images; process in batches of 5 to avoid memory spikes. */
-async function prefetchImages(inspection) {
+/** Pre-fetch all field + defect images; process in batches of 5 to avoid memory spikes. */
+async function prefetchImages(inspection, errorItems = []) {
     var _a, _b;
     const map = new Map();
     const sections = Array.isArray(inspection.sections)
@@ -291,6 +477,12 @@ async function prefetchImages(inspection) {
                 if (url && !map.has(url))
                     urls.push(url);
             }
+        }
+    }
+    for (const item of errorItems) {
+        for (const url of item.imageURLs) {
+            if (url && !map.has(url))
+                urls.push(url);
         }
     }
     for (let i = 0; i < urls.length; i += 5) {
@@ -453,10 +645,10 @@ function drawSectionHeader(doc, title, y, fonts) {
     return lineY + 6;
 }
 // ── Main PDF generation ────────────────────────────────────────────────────────
-async function generatePDF(inspection, inspectionNumber, location, displayName, finalStatus, summaryComments, lang = "vi") {
-    const imageMap = await prefetchImages(inspection);
+async function generatePDF(inspection, inspectionNumber, location, displayName, finalStatus, summaryComments, lang = "vi", errorItems = []) {
+    const imageMap = await prefetchImages(inspection, errorItems);
     return new Promise((resolve, reject) => {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f;
         const chunks = [];
         const doc = new pdfkit_1.default({ margins: { top: 0, bottom: 0, left: 0, right: 0 }, size: "A4", autoFirstPage: false });
         const hasNoto = fs.existsSync(FONT_REGULAR) && fs.existsSync(FONT_BOLD);
@@ -491,8 +683,8 @@ async function generatePDF(inspection, inspectionNumber, location, displayName, 
         doc.font(fonts.R).fontSize(11).fillColor(C_GRAY)
             .text(`${t(lang, "reportTitle")} ${inspectionNumber}`, MARGIN, y, { lineBreak: false });
         y += Math.ceil(11 * 1.2) + 4;
-        // Bold subtitle: order number + product name (wraps to multiple lines for long names)
-        const subtitle = `${inspectionNumber}: ${(_b = inspection.productName) !== null && _b !== void 0 ? _b : ""}`;
+        // Bold subtitle: product code + product name (wraps to multiple lines for long names)
+        const subtitle = `${(_b = inspection.productCode) !== null && _b !== void 0 ? _b : ""}: ${(_c = inspection.productName) !== null && _c !== void 0 ? _c : ""}`;
         doc.font(fonts.B).fontSize(20).fillColor(C_DARK);
         const subtitleH = doc.heightOfString(subtitle, { width: CW });
         doc.text(subtitle, MARGIN, y, { width: CW });
@@ -503,8 +695,8 @@ async function generatePDF(inspection, inspectionNumber, location, displayName, 
         // Info table
         y = drawInfoTable(doc, [
             [t(lang, "inspector"), displayName || "N/A", t(lang, "inspectionDate"), dateTimeStr],
-            [t(lang, "plannedSample"), `${(_c = inspection.aqlInspectionQuantity) !== null && _c !== void 0 ? _c : 0}/${(_d = inspection.inspectedQuantity) !== null && _d !== void 0 ? _d : 0}`,
-                t(lang, "orderQty"), String((_e = inspection.orderQuantity) !== null && _e !== void 0 ? _e : 0)],
+            [t(lang, "plannedSample"), `${(_d = inspection.aqlInspectionQuantity) !== null && _d !== void 0 ? _d : 0}/${(_e = inspection.inspectedQuantity) !== null && _e !== void 0 ? _e : 0}`,
+                t(lang, "orderQty"), String((_f = inspection.orderQuantity) !== null && _f !== void 0 ? _f : 0)],
             [t(lang, "location"), location || "N/A", t(lang, "checklistName"), t(lang, "checklistNameValue")],
             [t(lang, "plannedDate"), dateStr, t(lang, "samplingMethod"), t(lang, "samplingMethodValue")],
             [t(lang, "supplierName"), inspection.factory || inspection.factoryName || "N/A", null, null],
@@ -525,7 +717,66 @@ async function generatePDF(inspection, inspectionNumber, location, displayName, 
             ? inspection.sections : [];
         y = drawChecklistTable(doc, sections, imageMap, y, fonts, lang);
         y += 12;
-        y = drawDefectTable(doc, 0, 0, 0, y, fonts); // counts are not stored server-side
+        const { critical, major, minor } = countBySeverity(errorItems);
+        y = drawDefectTable(doc, critical, major, minor, y, fonts);
+        // ── Defects section: one entry per errorItems doc (title + severity + comments + images) ──
+        if (errorItems.length > 0) {
+            y += 16;
+            if (y + 40 > CONTENT_MAX_Y) {
+                y = newPage();
+            }
+            y = drawSectionHeader(doc, t(lang, "defectsSection"), y, fonts);
+            y += 6;
+            errorItems.forEach((item, di) => {
+                const BADGE_H = 18;
+                if (y + BADGE_H + 16 > CONTENT_MAX_Y) {
+                    y = newPage();
+                }
+                // Severity badge + title + date, on one line
+                const color = severityColor(item.severity);
+                doc.font(fonts.B).fontSize(9);
+                const badgeW = doc.widthOfString(item.severity) + 16;
+                doc.roundedRect(MARGIN, y, badgeW, BADGE_H, 3).fillColor(color).fill();
+                doc.fillColor(C_WHITE).text(item.severity, MARGIN + 8, y + 4, { lineBreak: false });
+                const dateLabel = item.createdAt ? vnDateTimeParts(new Date(item.createdAt)).date : "";
+                const dateW = 90;
+                doc.font(fonts.B).fontSize(11).fillColor(C_DARK)
+                    .text(defectTitle(item.defectType, lang), MARGIN + badgeW + 10, y + 3, { width: CW - badgeW - 10 - dateW, lineBreak: false });
+                doc.font(fonts.R).fontSize(9).fillColor(C_GRAY)
+                    .text(dateLabel, MARGIN + CW - dateW, y + 4, { width: dateW, align: "right", lineBreak: false });
+                y += BADGE_H + 6;
+                // Comments
+                if (item.comments && item.comments.trim()) {
+                    doc.font(fonts.R).fontSize(10).fillColor(C_MID);
+                    const commentH = doc.heightOfString(item.comments, { width: CW });
+                    if (y + commentH > CONTENT_MAX_Y) {
+                        y = newPage();
+                    }
+                    doc.text(item.comments, MARGIN, y, { width: CW });
+                    y += commentH + 6;
+                }
+                // Image grid — all imageURLs, 4 columns, no captions
+                const bufs = item.imageURLs.map((u) => imageMap.get(u)).filter(Boolean);
+                for (let rowStart = 0; rowStart < bufs.length; rowStart += IMGS_PER_ROW) {
+                    if (y + IMG_H > CONTENT_MAX_Y) {
+                        y = newPage();
+                    }
+                    bufs.slice(rowStart, rowStart + IMGS_PER_ROW).forEach((buf, col) => {
+                        const imgX = MARGIN + col * (IMG_W + IMG_GAP);
+                        try {
+                            doc.image(buf, imgX, y, { fit: [IMG_W, IMG_H], align: "center", valign: "center" });
+                            doc.lineWidth(0.5).rect(imgX, y, IMG_W, IMG_H).strokeColor(C_BORDER).stroke();
+                        }
+                        catch (e) {
+                            console.warn(`Embed defect image failed: ${e}`);
+                        }
+                    });
+                    y += IMG_H + IMG_GAP;
+                }
+                if (di < errorItems.length - 1)
+                    y += 10;
+            });
+        }
         // ── Pages 2+: Sections ────────────────────────────────────────────────────
         const sorted = [...sections].sort((a, b) => { var _a, _b; return ((_a = a.order) !== null && _a !== void 0 ? _a : 0) - ((_b = b.order) !== null && _b !== void 0 ? _b : 0); });
         sorted.forEach((section, si) => {
@@ -632,10 +883,9 @@ async function generatePDF(inspection, inspectionNumber, location, displayName, 
 function esc(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-function buildEmailHTML(inspectionNumber, companyName, displayName, lang = "vi") {
+function buildEmailHTML(inspectionNumber, displayName, lang = "vi") {
     const body = t(lang, "emailBody")
-        .replace("%n", esc(inspectionNumber))
-        .replace("%c", esc(companyName));
+        .replace("%n", esc(inspectionNumber));
     return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">

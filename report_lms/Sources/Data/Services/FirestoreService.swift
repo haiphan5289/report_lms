@@ -17,12 +17,12 @@ final class FirestoreService {
         try await docRef.setData(data)
     }
 
-    /// Fetches inspections belonging to `companyId` only — never the full collection,
-    /// so one company can never see another company's inspection data.
-    func fetchInspections(companyId: String, limit: Int = 50) async throws -> [Inspection] {
+    /// Fetches inspections belonging to `inspectorId` only — never the full collection,
+    /// so one user can never see another user's inspection data.
+    func fetchInspections(inspectorId: String, limit: Int = 50) async throws -> [Inspection] {
         let snapshot = try await firestoreDatabase
             .collection("inspections")
-            .whereField("companyId", isEqualTo: companyId)
+            .whereField("inspectorId", isEqualTo: inspectorId)
             .order(by: "createdAt", descending: true)
             .limit(to: limit)
             .getDocuments()

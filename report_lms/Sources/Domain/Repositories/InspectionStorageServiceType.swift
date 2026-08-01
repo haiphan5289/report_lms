@@ -26,13 +26,13 @@ protocol InspectionStorageServiceType {
     var isCacheLoaded: Bool { get }
 
     /// Populate the in-memory cache from the backing store (Firestore or local disk),
-    /// scoped to `companyId` so one company never sees another company's inspections.
+    /// scoped to `inspectorId` so one user never sees another user's inspections.
     ///
-    /// - Call once the signed-in user's `companyId` is known (after login, or after
-    ///   Firebase Auth restores a persisted session and the profile fetch resolves).
+    /// - Call once the signed-in user's id is known (after login, or after
+    ///   Firebase Auth restores a persisted session).
     /// - Always posts `.inspectionCacheDidLoad` on both success and failure so the
     ///   UI is never left waiting indefinitely.
-    func loadCache(companyId: String) async throws
+    func loadCache(inspectorId: String) async throws
 
     /// Returns all inspections currently held in the in-memory cache.
     func getAllInspections() -> [Inspection]

@@ -48,7 +48,7 @@ struct InformationPurchaseView: View {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(LMSColor.primary)
                     .frame(width: 3, height: 20)
-                LMSLabel(inspection?.companyName ?? "—", style: .title)
+                LMSLabel(inspection?.productName ?? "—", style: .title)
                     .lineLimit(2)
             }
             Divider()
@@ -114,8 +114,6 @@ struct InformationPurchaseView: View {
             inspection: Inspection(
                 id: "1",
                 inspectionNumber: "INS-2026-001",
-                companyId: "mock-company",
-                companyName: "Công ty TNHH ABC",
                 productName: "Ghế văn phòng",
                 productCode: "GVP-001",
                 orderCode: "ORD-2026-001",

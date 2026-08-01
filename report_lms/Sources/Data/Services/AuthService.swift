@@ -50,10 +50,6 @@ final class AuthService: AuthServiceType {
         }
     }
 
-    func deleteCurrentUser() async throws {
-        try await Auth.auth().currentUser?.delete()
-    }
-
     func refreshSession() async throws -> UserSession {
         guard let user = Auth.auth().currentUser else {
             throw NSError(

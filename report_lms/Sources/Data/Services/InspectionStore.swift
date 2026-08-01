@@ -54,8 +54,6 @@ final class InspectionStore {
             InspectionModel(
                 id: "MOCK-001",
                 inspectionNumber: "INS-2026-001",
-                companyId: "mock-company",
-                companyName: "Công ty TNHH ABC",
                 productName: "Áo thun cotton",
                 productCode: "AT-001",
                 orderCode: "ORD-2026-001",
@@ -70,8 +68,6 @@ final class InspectionStore {
             InspectionModel(
                 id: "MOCK-002",
                 inspectionNumber: "INS-2026-002",
-                companyId: "mock-company",
-                companyName: "Công ty TNHH XYZ",
                 productName: "Quần jean nam",
                 productCode: "QJ-002",
                 orderCode: "ORD-2026-002",
@@ -86,8 +82,6 @@ final class InspectionStore {
             InspectionModel(
                 id: "MOCK-003",
                 inspectionNumber: "INS-2026-003",
-                companyId: "mock-company",
-                companyName: "Công ty TNHH DEF",
                 productName: "Váy công sở",
                 productCode: "VCS-003",
                 orderCode: "ORD-2026-003",
@@ -102,8 +96,6 @@ final class InspectionStore {
             InspectionModel(
                 id: "MOCK-004",
                 inspectionNumber: "INS-2026-004",
-                companyId: "mock-company",
-                companyName: "Công ty TNHH GHI",
                 productName: "Áo khoác nam",
                 productCode: "AK-004",
                 orderCode: "ORD-2026-004",
@@ -118,8 +110,6 @@ final class InspectionStore {
             InspectionModel(
                 id: "MOCK-005",
                 inspectionNumber: "INS-2026-005",
-                companyId: "mock-company",
-                companyName: "Công ty TNHH JKL",
                 productName: "Áo sơ mi nữ",
                 productCode: "ASM-005",
                 orderCode: "ORD-2026-005",
@@ -134,8 +124,6 @@ final class InspectionStore {
             InspectionModel(
                 id: "MOCK-006",
                 inspectionNumber: "INS-2026-006",
-                companyId: "mock-company",
-                companyName: "Công ty TNHH MNO",
                 productName: "Quần tây nam",
                 productCode: "QT-006",
                 orderCode: "ORD-2026-006",

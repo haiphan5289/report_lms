@@ -169,7 +169,6 @@ struct InspectionDetailBottomSheet: View {
     private var infoSection: some View {
         LMSSectionContainer(title: "Thông tin kiểm tra") {
             VStack(spacing: 8) {
-                LMSInfoRow(label: "Công ty", value: inspection.companyName.isEmpty ? "---" : inspection.companyName)
                 LMSInfoRow(label: "Sản phẩm", value: inspection.productName.isEmpty ? "---" : inspection.productName)
                 LMSInfoRow(label: "Mã sản phẩm", value: inspection.productCode.isEmpty ? "---" : inspection.productCode)
                 LMSInfoRow(label: "Nhà máy", value: inspection.factory.isEmpty ? "---" : inspection.factory)
@@ -230,8 +229,6 @@ private extension InspectionStatus {
 private let _previewInspection = Inspection(
     id: "preview",
     inspectionNumber: "INS-2026-020",
-    companyId: "mock-company",
-    companyName: "Công ty TNHH ABC",
     productName: "Ghế văn phòng",
     productCode: "GVP-001",
     orderCode: "ORD-2026-020",

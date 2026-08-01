@@ -20,6 +20,7 @@ struct FinalReportView: View {
     @StateObject private var viewModel: FinalReportViewModel
     @EnvironmentObject private var localizationManager: LocalizationManager
     @EnvironmentObject private var inspectionDetailVM: InspectionDetailViewModel
+    @ObservedObject private var errorUploadCoordinator = ErrorItemUploadCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
@@ -93,7 +94,7 @@ struct FinalReportView: View {
         }
         .sheet(isPresented: $inspectionDetailVM.showUploadStatusSheet) {
             UploadStatusBottomSheet(
-                sessions: inspectionDetailVM.uploadSessions,
+                sessions: inspectionDetailVM.uploadSessions + errorUploadCoordinator.sessions,
                 isPresented: $inspectionDetailVM.showUploadStatusSheet
             )
         }
@@ -299,8 +300,8 @@ struct FinalReportView: View {
     }
 
     private var actionButtonsSection: some View {
-        let isUploading = inspectionDetailVM.activeUploadCount > 0
-        let uploadCount = inspectionDetailVM.totalUploadingImageCount
+        let isUploading = inspectionDetailVM.activeUploadCount > 0 || errorUploadCoordinator.activeCount > 0
+        let uploadCount = inspectionDetailVM.totalUploadingImageCount + errorUploadCoordinator.pendingImageCount
 
         return VStack(alignment: .leading, spacing: 12) {
             LMSLabel(localizationManager.localize("finalReport.section.endInspection"), style: .headline)
@@ -341,7 +342,12 @@ struct FinalReportView: View {
             .animation(.easeInOut(duration: 0.25), value: isUploading)
         }
         .onChange(of: inspectionDetailVM.activeUploadCount) { _, count in
-            guard count == 0, inspectionDetailVM.pendingEmailSend else { return }
+            guard count == 0, errorUploadCoordinator.activeCount == 0, inspectionDetailVM.pendingEmailSend else { return }
+            inspectionDetailVM.pendingEmailSend = false
+            Task { await viewModel.sendReport() }
+        }
+        .onChange(of: errorUploadCoordinator.activeCount) { _, count in
+            guard count == 0, inspectionDetailVM.activeUploadCount == 0, inspectionDetailVM.pendingEmailSend else { return }
             inspectionDetailVM.pendingEmailSend = false
             Task { await viewModel.sendReport() }
         }

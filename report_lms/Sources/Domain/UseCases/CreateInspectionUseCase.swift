@@ -8,7 +8,6 @@
 import Foundation
 
 struct InspectionCreationParameters {
-    let companyId: String
     let productName: String
     let productCode: String
     let orderCode: String
@@ -27,7 +26,6 @@ final class CreateInspectionUseCase {
 
     func execute(parameters: InspectionCreationParameters) async throws -> Inspection {
         let inspection = Inspection(
-            companyId: parameters.companyId,
             productName: parameters.productName,
             productCode: parameters.productCode,
             orderCode: parameters.orderCode,

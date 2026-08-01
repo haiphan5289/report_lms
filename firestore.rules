@@ -7,66 +7,38 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function myProfile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    // Each inspection belongs to exactly the inspector (Firebase Auth uid) who
+    // created it — a personal account, no shared company/organization scope.
+    function isOwner(inspectorId) {
+      return isSignedIn() && request.auth.uid == inspectorId;
     }
 
-    function myCompanyId() {
-      return myProfile().companyId;
-    }
-
-    // True once the caller has completed onboarding (has a users/{uid} doc). Checked with
-    // exists() (never errors on a missing doc) before any get().data access — used to stop
-    // an already-onboarded account from creating itself a second company.
-    function hasProfile() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    // users/{uid} — one account maps to exactly one company. The profile document is
-    // created either by the client during sign-up (CompanyService.createCompany, in the
-    // same batch as the matching companies/{id} doc below) or by an administrator
-    // (Admin SDK, bypasses these rules) — never client-editable afterwards.
-    match /users/{userId} {
-      allow read: if isSignedIn() && request.auth.uid == userId;
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update, delete: if false;
-    }
-
-    // companies/{companyId} — created directly by the client during sign-up
-    // (CompanyService.createCompany). `!hasProfile()` stops an account that already owns
-    // a company from creating another one. Never read by the client (the id is already
-    // known locally right after creating it) and never client-editable afterwards.
-    match /companies/{companyId} {
-      allow read: if false;
-      allow create: if isSignedIn() && !hasProfile() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if false;
-    }
-
-    // inspections/{inspectionId} — the core data isolation boundary. A user may only
-    // read/write inspections whose companyId matches their own profile's companyId.
+    // inspections/{inspectionId} — the core data isolation boundary. A user may
+    // only read/write inspections whose inspectorId matches their own uid.
     match /inspections/{inspectionId} {
-      allow read: if isSignedIn() && resource.data.companyId == myCompanyId();
-      allow create: if isSignedIn() && request.resource.data.companyId == myCompanyId();
-      allow update: if isSignedIn() && resource.data.companyId == myCompanyId()
-                    && request.resource.data.companyId == myCompanyId();
-      allow delete: if isSignedIn() && resource.data.companyId == myCompanyId();
+      allow read: if isOwner(resource.data.inspectorId);
+      allow create: if isOwner(request.resource.data.inspectorId);
+      allow update: if isOwner(resource.data.inspectorId)
+                    && isOwner(request.resource.data.inspectorId);
+      allow delete: if isOwner(resource.data.inspectorId);
 
       match /errorItems/{errorItemId} {
-        allow read, write: if isSignedIn()
-                            && get(/databases/$(database)/documents/inspections/$(inspectionId)).data.companyId == myCompanyId();
+        allow read, write: if isOwner(
+          get(/databases/$(database)/documents/inspections/$(inspectionId)).data.inspectorId
+        );
       }
     }
 
     // report_delivery_queue/{taskId} — written by the app, read/processed by the
     // processReportQueue Cloud Function (admin SDK, bypasses rules). The task payload
-    // itself has no companyId field (see ReportDeliveryQueueService.TaskPayload), so
-    // membership is checked by looking up the referenced inspection instead.
+    // itself has no inspectorId field (see ReportDeliveryQueueService.TaskPayload), so
+    // ownership is checked by looking up the referenced inspection instead.
     function ownsQueuedInspection(inspectionId) {
-      return get(/databases/$(database)/documents/inspections/$(inspectionId)).data.companyId == myCompanyId();
+      return isOwner(get(/databases/$(database)/documents/inspections/$(inspectionId)).data.inspectorId);
     }
     match /report_delivery_queue/{taskId} {
-      allow read: if isSignedIn() && ownsQueuedInspection(resource.data.inspectionId);
-      allow create: if isSignedIn() && ownsQueuedInspection(request.resource.data.inspectionId);
+      allow read: if ownsQueuedInspection(resource.data.inspectionId);
+      allow create: if ownsQueuedInspection(request.resource.data.inspectionId);
       allow update, delete: if false;
     }
   }

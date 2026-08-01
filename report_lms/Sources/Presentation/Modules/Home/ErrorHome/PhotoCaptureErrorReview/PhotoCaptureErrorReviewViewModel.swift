@@ -197,7 +197,9 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
     // MARK: - Persistence
 
     /// Builds SavedErrorItem and returns immediately (dismiss-first).
-    /// Disk save + Firestore write run in a background Task — does not block UI.
+    /// Disk save + real Storage upload + Firestore write run in `ErrorItemUploadCoordinator`,
+    /// in the background — does not block UI. See `ErrorItemUploadCoordinator` for the
+    /// durability/retry guarantee if the app is killed mid-upload.
     func saveReview() -> SavedErrorItem? {
         guard !images.isEmpty else {
             errorMessage = "Vui lòng chụp ít nhất một ảnh"
@@ -208,53 +210,41 @@ final class PhotoCaptureErrorReviewViewModel: ObservableObject {
         let localImages: [UIImage] = images.compactMap {
             if case .local(let img) = $0.source { return img } else { return nil }
         }
+        let existingRemoteURLs: [String] = images.compactMap {
+            if case .remote(let url) = $0.source { return url } else { return nil }
+        }
         logger.debug("[saveReview] START inspectionId=\(self.inspectionId, privacy: .public) imageCount=\(self.images.count, privacy: .public)")
 
-        Task {
-            if !localImages.isEmpty {
-                do {
-                    _ = try await LocalImageStore.shared.save(localImages, for: item.id)
-                    logger.debug("[saveReview] ✅ Saved \(localImages.count, privacy: .public) images to LocalImageStore")
-                } catch {
-                    logger.warning("[saveReview] ⚠️ LocalImageStore save failed: \(error.localizedDescription, privacy: .public)")
-                }
-            }
-            do {
-                _ = try await errorRepository.saveErrorItem(item, imageSources: [], for: inspectionId)
-                logger.debug("[saveReview] ✅ Firestore metadata saved")
-            } catch {
-                logger.error("[saveReview] ❌ Firestore write failed: \(error, privacy: .public)")
-            }
-        }
+        ErrorItemUploadCoordinator.shared.enqueue(
+            item: item,
+            localImages: localImages,
+            existingRemoteURLs: existingRemoteURLs,
+            inspectionId: inspectionId,
+            errorRepository: errorRepository
+        )
 
         return item
     }
 
-    /// Returns immediately (dismiss-first). Disk save + Firestore write run in a background Task.
-    /// No Firebase Storage upload — mirrors saveReview() behavior.
+    /// Returns immediately (dismiss-first). Disk save + real Storage upload + Firestore write
+    /// run in `ErrorItemUploadCoordinator`, in the background.
     func updateReview() -> SavedErrorItem? {
         let item = buildSavedErrorItem()
         let localImages: [UIImage] = images.compactMap {
             if case .local(let img) = $0.source { return img } else { return nil }
         }
+        let existingRemoteURLs: [String] = images.compactMap {
+            if case .remote(let url) = $0.source { return url } else { return nil }
+        }
         logger.debug("[updateReview] START inspectionId=\(self.inspectionId, privacy: .public) imageCount=\(self.images.count, privacy: .public)")
 
-        Task {
-            if !localImages.isEmpty {
-                do {
-                    _ = try await LocalImageStore.shared.save(localImages, for: item.id)
-                    logger.debug("[updateReview] ✅ Saved \(localImages.count, privacy: .public) images to LocalImageStore")
-                } catch {
-                    logger.warning("[updateReview] ⚠️ LocalImageStore save failed: \(error.localizedDescription, privacy: .public)")
-                }
-            }
-            do {
-                _ = try await errorRepository.saveErrorItem(item, imageSources: [], for: inspectionId)
-                logger.debug("[updateReview] ✅ Firestore metadata saved")
-            } catch {
-                logger.error("[updateReview] ❌ Firestore write failed: \(error, privacy: .public)")
-            }
-        }
+        ErrorItemUploadCoordinator.shared.enqueue(
+            item: item,
+            localImages: localImages,
+            existingRemoteURLs: existingRemoteURLs,
+            inspectionId: inspectionId,
+            errorRepository: errorRepository
+        )
 
         return item
     }

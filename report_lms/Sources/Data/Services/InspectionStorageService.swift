@@ -56,8 +56,8 @@ final class InspectionStorageService: InspectionStorageServiceType {
     
     /// Load all inspections from disk into memory cache
     /// Should be called on app launch
-    func loadCache(companyId: String) async throws {
-        logger.log("Loading inspections cache from disk for company \(companyId)...")
+    func loadCache(inspectorId: String) async throws {
+        logger.log("Loading inspections cache from disk for inspector \(inspectorId)...")
         
         do {
             let url = try fileURL
@@ -79,7 +79,7 @@ final class InspectionStorageService: InspectionStorageServiceType {
             decoder.dateDecodingStrategy = .iso8601
             
             let inspections = try decoder.decode([Inspection].self, from: data)
-                .filter { $0.companyId == companyId }
+                .filter { $0.inspectorId == inspectorId }
 
             await MainActor.run {
                 cache = inspections

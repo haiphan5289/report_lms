@@ -267,17 +267,6 @@ struct OrderCardView: View {
 
                 Divider()
 
-                // Row 2: Company
-                HStack(spacing: 6) {
-                    Image(systemName: "building.2")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                    LMSLabel(
-                        inspection.companyName.isEmpty ? "---" : inspection.companyName,
-                        style: .subheadline
-                    )
-                }
-
                 // Row 3: Product
                 HStack(spacing: 6) {
                     Image(systemName: "shippingbox")
@@ -350,8 +339,6 @@ private let previewInspections: [Inspection] = [
     Inspection(
         id: "1",
         inspectionNumber: "INS-2026-001",
-        companyId: "mock-company",
-        companyName: "Công ty TNHH ABC",
         productName: "Áo thun cotton",
         productCode: "AT-001",
         orderCode: "ORD-2026-001",
@@ -365,8 +352,6 @@ private let previewInspections: [Inspection] = [
     Inspection(
         id: "2",
         inspectionNumber: "INS-2026-002",
-        companyId: "mock-company",
-        companyName: "Công ty TNHH XYZ",
         productName: "Quần jean nam",
         productCode: "QJ-002",
         orderCode: "ORD-2026-002",
@@ -380,8 +365,6 @@ private let previewInspections: [Inspection] = [
     Inspection(
         id: "3",
         inspectionNumber: "INS-2026-003",
-        companyId: "mock-company",
-        companyName: "Công ty TNHH DEF",
         productName: "Váy công sở",
         productCode: "VCS-003",
         orderCode: "ORD-2026-003",
@@ -395,8 +378,6 @@ private let previewInspections: [Inspection] = [
     Inspection(
         id: "4",
         inspectionNumber: "INS-2026-004",
-        companyId: "mock-company",
-        companyName: "Công ty TNHH GHI",
         productName: "Áo khoác nam",
         productCode: "AK-004",
         orderCode: "ORD-2026-004",
@@ -410,8 +391,6 @@ private let previewInspections: [Inspection] = [
     Inspection(
         id: "5",
         inspectionNumber: "INS-2026-005",
-        companyId: "mock-company",
-        companyName: "Công ty TNHH JKL",
         productName: "Giày sneaker",
         productCode: "GS-005",
         orderCode: "ORD-2026-005",
@@ -430,7 +409,7 @@ private func makePreviewViewModel(inspections: [Inspection] = previewInspections
         private var items: [Inspection]
         let isCacheLoaded = true
         init(_ items: [Inspection]) { self.items = items }
-        func loadCache(companyId: String) async throws {}
+        func loadCache(inspectorId: String) async throws {}
         func getAllInspections() -> [Inspection] { items }
         func getInspection(by id: String) -> Inspection? { items.first { $0.id == id } }
         func saveInspection(_ i: Inspection) async throws { items.append(i) }

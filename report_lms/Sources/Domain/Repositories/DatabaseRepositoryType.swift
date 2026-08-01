@@ -9,7 +9,7 @@ import Foundation
 
 protocol DatabaseRepositoryType {
     func saveInspection(_ inspection: Inspection) async throws
-    func fetchInspections(companyId: String) async throws -> [Inspection]
+    func fetchInspections(inspectorId: String) async throws -> [Inspection]
     func updateInspection(_ inspection: Inspection) async throws
     func deleteInspection(id: String) async throws
 }

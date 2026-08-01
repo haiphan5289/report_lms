@@ -37,6 +37,27 @@ final class PendingUploadRetryService {
                 }
             }
         }
+
+        retryAllPendingErrorUploads()
+    }
+
+    /// Retries `SavedErrorItem` saves (metadata + photos) queued by `ErrorItemUploadCoordinator`
+    /// that never confirmed on Firestore/Storage — e.g. the app was killed mid-upload. Shares
+    /// `ErrorItemUploadCoordinator.attemptUpload` with the fresh-save path so there's one
+    /// upload implementation, not two.
+    private func retryAllPendingErrorUploads() {
+        guard let errorRepository = Container.shared.resolve(ErrorRepositoryType.self) else { return }
+        let pending = PendingErrorUploadStore.shared.getAllPending()
+        guard !pending.isEmpty else { return }
+
+        for upload in pending {
+            Task { @MainActor in
+                ErrorItemUploadCoordinator.shared.retryPending(
+                    itemId: upload.itemId,
+                    errorRepository: errorRepository
+                )
+            }
+        }
     }
 
     private func uploadField(

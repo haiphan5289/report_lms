@@ -30,7 +30,7 @@ struct CreateInspectionView: View {
         let viewModel = viewModel ?? CreateInspectionViewModel(
             createInspectionUseCase: Container.shared.resolve(CreateInspectionUseCase.self)!,
             storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
-            companyId: Container.shared.resolve(UserManager.self)?.companyId ?? ""
+            inspectorId: Container.shared.resolve(UserManager.self)?.currentUser?.id ?? ""
         )
         _viewModel = StateObject(wrappedValue: viewModel)
         self.onInspectionCreated = onInspectionCreated

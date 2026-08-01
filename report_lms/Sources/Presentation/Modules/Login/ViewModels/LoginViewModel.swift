@@ -23,7 +23,6 @@ final class LoginViewModel: ObservableObject {
 
     // MARK: - Private Properties
     private let loginUseCase: LoginUseCase
-    private let fetchUserProfileUseCase: FetchUserProfileUseCase
     private let storageService: InspectionStorageServiceType
     private let userManager: UserManager
     private let logger = Logger(subsystem: "com.reportlms.viewmodel", category: "login")
@@ -31,44 +30,28 @@ final class LoginViewModel: ObservableObject {
     // MARK: - Initialization
     init(
         loginUseCase: LoginUseCase,
-        fetchUserProfileUseCase: FetchUserProfileUseCase,
         storageService: InspectionStorageServiceType,
         userManager: UserManager
     ) {
         self.loginUseCase = loginUseCase
-        self.fetchUserProfileUseCase = fetchUserProfileUseCase
         self.storageService = storageService
         self.userManager = userManager
         checkBiometricAvailability()
         loadStoredUsername()
     }
 
-    /// Fetches the signed-in user's company profile and loads their inspection cache.
-    /// Called after every successful sign-in path (password, biometric).
-    ///
-    /// A `nil` profile means the Firebase account exists but has no `users/{uid}` company
-    /// assignment — shouldn't happen for accounts created through the app's own Sign Up
-    /// flow (it creates the company in the same step), but is possible for legacy accounts
-    /// created before that existed, still pending an administrator's manual assignment.
-    /// Surfacing a clear error here is safer than silently loading an empty/wrong-company cache.
+    /// Loads the signed-in user's own inspection cache. Called after every successful
+    /// sign-in path (password, biometric). Each inspection belongs to exactly the
+    /// inspector (Firebase Auth uid) who created it — no shared/company scope.
     @MainActor
-    private func loadCompanyScopedData(userId: String) async {
-        logger.debug("loadCompanyScopedData: fetching profile for userId=\(userId, privacy: .public)")
+    private func loadInspectionCache(userId: String) async {
+        logger.debug("loadInspectionCache: loading for userId=\(userId, privacy: .public)")
         do {
-            guard let profile = try await fetchUserProfileUseCase.execute(userId: userId) else {
-                logger.error("loadCompanyScopedData: no users/\(userId, privacy: .public) profile document found — logging out")
-                errorMessage = "Tài khoản chưa được gán vào công ty nào. Vui lòng liên hệ quản trị viên."
-                userManager.logout()
-                isLoginSuccessful = false
-                return
-            }
-            logger.debug("loadCompanyScopedData: profile found, companyId=\(profile.companyId, privacy: .public)")
-            userManager.setCompany(profile.companyId)
-            try await storageService.loadCache(companyId: profile.companyId)
-            logger.debug("loadCompanyScopedData: inspection cache loaded for companyId=\(profile.companyId, privacy: .public)")
+            try await storageService.loadCache(inspectorId: userId)
+            logger.debug("loadInspectionCache: inspection cache loaded for userId=\(userId, privacy: .public)")
         } catch {
-            logger.error("loadCompanyScopedData: failed — \(error.localizedDescription, privacy: .public) — logging out")
-            errorMessage = "Không thể tải dữ liệu công ty. Vui lòng thử lại."
+            logger.error("loadInspectionCache: failed — \(error.localizedDescription, privacy: .public) — logging out")
+            errorMessage = "Không thể tải dữ liệu. Vui lòng thử lại."
             userManager.logout()
             isLoginSuccessful = false
         }
@@ -77,8 +60,8 @@ final class LoginViewModel: ObservableObject {
     // MARK: - Public Methods
 
     /// Called once at app launch. `UserManager.init()` sets `isLoggedIn` straight from a
-    /// stored Keychain token, without ever fetching the company profile — so on a relaunch
-    /// (as opposed to a fresh sign-in), `companyId` stays `nil` for the whole session unless
+    /// stored Keychain token, without ever loading the inspection cache — so on a relaunch
+    /// (as opposed to a fresh sign-in), the cache stays empty for the whole session unless
     /// this runs. No-ops if there's no restored session, or if it was already loaded.
     @MainActor
     func restoreSessionIfNeeded() async {
@@ -86,8 +69,8 @@ final class LoginViewModel: ObservableObject {
             logger.debug("restoreSessionIfNeeded: skipped — not logged in")
             return
         }
-        guard userManager.companyId == nil else {
-            logger.debug("restoreSessionIfNeeded: skipped — companyId already set to \(self.userManager.companyId ?? "nil", privacy: .public)")
+        guard !storageService.isCacheLoaded else {
+            logger.debug("restoreSessionIfNeeded: skipped — cache already loaded")
             return
         }
         logger.debug("restoreSessionIfNeeded: restoring session via refreshSession()")
@@ -96,7 +79,7 @@ final class LoginViewModel: ObservableObject {
             logger.debug("restoreSessionIfNeeded: refreshSession succeeded, userId=\(session.id, privacy: .public)")
             userSession = session
             userManager.login(user: session)
-            await loadCompanyScopedData(userId: session.id)
+            await loadInspectionCache(userId: session.id)
         } catch {
             logger.error("restoreSessionIfNeeded: refreshSession failed — \(error.localizedDescription, privacy: .public) — logging out")
             // The underlying Firebase session is gone/expired — fall back to the login screen.
@@ -114,7 +97,7 @@ final class LoginViewModel: ObservableObject {
             userSession = session
             userManager.login(user: session)
             KeychainManager.saveUsername(username)
-            await loadCompanyScopedData(userId: session.id)
+            await loadInspectionCache(userId: session.id)
             isLoginSuccessful = userManager.isLoggedIn
         } catch {
             errorMessage = error.localizedDescription
@@ -174,7 +157,7 @@ final class LoginViewModel: ObservableObject {
             }
             userSession = session
             userManager.login(user: session)
-            await loadCompanyScopedData(userId: session.id)
+            await loadInspectionCache(userId: session.id)
             isLoginSuccessful = userManager.isLoggedIn
         } catch {
             errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."

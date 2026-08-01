@@ -9,13 +9,17 @@
 import UIKit
 import FirebaseAuth
 
-/// Persists UIImages to Caches/pending-uploads/{userId}/{itemId}/{index}_{UUID}.jpg
+/// Persists UIImages to Documents/pending-uploads/{userId}/{itemId}/{index}_{UUID}.jpg
 /// Each user gets their own namespace; each image gets a UUID filename to avoid collisions.
+///
+/// Uses `.documentDirectory` (not `.cachesDirectory`) so pending error-item photos survive
+/// OS low-storage cache eviction until `ErrorItemUploadCoordinator` confirms the upload
+/// succeeded and clears them — mirrors `InspectionImageCacheActor`'s durability guarantee.
 actor LocalImageStore {
     static let shared = LocalImageStore()
 
     private let baseURL: URL = {
-        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("pending-uploads", isDirectory: true)
     }()
 

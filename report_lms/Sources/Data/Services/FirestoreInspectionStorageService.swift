@@ -52,10 +52,10 @@ final class FirestoreInspectionStorageService: InspectionStorageServiceType {
 
     /// Fetch all inspections from Firestore into the in-memory cache.
     /// Posts .inspectionCacheDidLoad on completion (success or failure).
-    func loadCache(companyId: String) async throws {
-        logger.log("Loading inspections from Firestore for company \(companyId)...")
+    func loadCache(inspectorId: String) async throws {
+        logger.log("Loading inspections from Firestore for inspector \(inspectorId)...")
         do {
-            let inspections = try await firestoreService.fetchInspections(companyId: companyId)
+            let inspections = try await firestoreService.fetchInspections(inspectorId: inspectorId)
             await MainActor.run { cache = inspections }
             isCacheLoaded = true
             logger.log("Loaded \(inspections.count) inspections from Firestore")

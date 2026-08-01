@@ -273,13 +273,10 @@ struct LoginView: View {
     let service = AuthService()
     let repository = AuthRepository(service: service)
     let useCase = LoginUseCase(repository: repository)
-    let companyRepository = CompanyRepository(service: CompanyService())
-    let fetchUserProfileUseCase = FetchUserProfileUseCase(repository: companyRepository)
     let userManager = Container.shared.resolve(UserManager.self)!
     let storageService = Container.shared.resolve(InspectionStorageServiceType.self)!
     let viewModel = LoginViewModel(
         loginUseCase: useCase,
-        fetchUserProfileUseCase: fetchUserProfileUseCase,
         storageService: storageService,
         userManager: userManager
     )

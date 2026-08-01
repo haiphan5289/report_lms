@@ -175,3 +175,66 @@ Testing:
 **Behavior after fix:** Login screen only supports logging into an existing, admin-provisioned account (email/password + biometric). There is no in-app path to create or join a company. Backend Cloud Functions scripts (`functions/scripts/*.js`) and Firestore rules/indexes for company onboarding were left untouched — they're admin/backend tooling, not reachable from the app UI Apple reviews.
 
 **Verification note:** Confirmed via exhaustive `grep` sweep that no references to the removed symbols remain anywhere in `report_lms/`. A full `xcodebuild` was attempted but blocked by an unrelated, reproducible SPM package-cache issue in this environment (a stale `build` file under the `nanopb` Swift package checkout in DerivedData) — reproduced identically across two independent clean-DerivedData attempts, not caused by these edits. Recommend a normal build from Xcode.app before archiving to confirm.
+
+> **⚠️ Correction (2026-08-01):** the fix described above was never actually completed — see Round 4 below. The commit that shipped for this entry (`7359fb7`) only consolidated `CreateCompanyViewModel`/`JoinCompanyViewModel` into a single `SignUpViewModel` and trimmed the join-by-code path; it did **not** remove `signUpLink` from `LoginView.swift`, nor delete `SignUpUseCase`/`RollbackSignUpUseCase`/`CreateCompanyUseCase`/`SignUpView`/`SignUpViewModel`, nor strip `signUp`/`deleteCurrentUser`/`createCompany` from the Auth/Company stacks. The registration entry point stayed fully reachable, which is exactly why Apple's re-review on the same submission flagged 3.1.1 again. Lesson: don't trust this log's "Fix" section as proof the fix landed — verify against current code (`grep` for the named symbols) before treating a past entry as resolved.
+
+---
+
+## Rejection Round 4 (2026-08-01) — Re-review, same submission (abed2cb7)
+
+### Guideline 3.1.1 — Business/Organization Account Registration (recurrence)
+
+**Apple's message:** Same as Round 3 — "The issues we previously identified still need your attention... Remove the account registration features for business and organizations." (Submission `abed2cb7-abec-4cb0-916f-6d8227dd0589`, reviewed on iPad Air 11-inch M3, build 202608010900.)
+
+**Root cause:** The Round 3 fix was incomplete (see correction note above) — `signUpLink` in `LoginView.swift` was still live, still navigating to `SignUpView` → `SignUpViewModel.signUp()`, which still created a Firebase Auth account **and** a new `companies/{id}` Firestore document in one step. This is precisely the "external business-account provisioning" Apple's guideline targets.
+
+**Fix — this time actually removing the reachable flow:**
+- `LoginView.swift`: deleted the `signUpLink` computed property and its call site in `actionSection`. Login screen now only has email/password + forgot-password + biometric — no path to any sign-up screen.
+- Deleted files: `Presentation/Modules/SignUp/Views/SignUpView.swift`, `Presentation/Modules/SignUp/ViewModels/SignUpViewModel.swift`, `Domain/UseCases/SignUpUseCase.swift`, `Domain/UseCases/RollbackSignUpUseCase.swift`, `Domain/UseCases/CreateCompanyUseCase.swift` (and the now-empty `SignUp` module directories).
+- `Container.swift`: removed DI registrations for `SignUpUseCase`, `RollbackSignUpUseCase`, `CreateCompanyUseCase`, `SignUpViewModel`.
+- Stripped now-orphaned `signUp`/`deleteCurrentUser` from `AuthServiceType`/`AuthService`/`AuthRepositoryType`/`AuthRepository` (only consumer was the deleted `SignUpUseCase`/`RollbackSignUpUseCase`).
+- Stripped now-orphaned `createCompany` from `CompanyServiceType`/`CompanyService`/`CompanyRepositoryType`/`CompanyRepository` (only consumer was the deleted `CreateCompanyUseCase`). Kept `fetchUserProfile` — still used read-only by `FetchUserProfileUseCase`/`ProfileViewModel`.
+- Kept `UpdateDisplayNameUseCase` — unrelated, still used by `ProfileViewModel` and `FinalReportViewModel`/`PDFReportRequestBuilder` to read/set the inspector's display name, not part of company provisioning.
+- No `project.pbxproj` edits needed — this project uses Xcode 16 `PBXFileSystemSynchronizedRootGroup`, so file deletions on disk are picked up automatically.
+
+**Behavior after fix:** There is no in-app path to create a Firebase Auth account or a company document. Login only works against an existing, admin-provisioned account.
+
+**Verification:** Exhaustive `grep` sweep for `SignUp*`, `CreateCompanyUseCase`, `signUpLink`, `createCompany`, `.signUp(`, `.deleteCurrentUser(` across `report_lms/Sources` and `report_lms.xcodeproj` — zero matches. Full `xcodebuild -project report_lms.xcodeproj -scheme report_lms -sdk iphonesimulator build` — **BUILD SUCCEEDED**.
+
+> **Correction:** the "still used read-only by `ProfileViewModel`" claim in the "Fix" bullet above was also wrong — re-verified by grep before Round 5 below: `FetchUserProfileUseCase`/`CompanyRepository`/`CompanyService`/`UserProfile` were only ever consumed by `LoginViewModel`, never by `ProfileViewModel`. Harmless in Round 4 (both were kept either way), but another reminder to verify this log's claims against current code rather than trusting them.
+
+---
+
+## Rejection Round 5 (2026-07-28 review, addressed 2026-08-01) — Guideline 3.2
+
+### Guideline 3.2 — Business (public distribution vs. specific-business app)
+
+**Apple's message:**
+> We found in our review that the app is intended to be used by a specific business or organization, including partners, clients, or employees, but you've selected public distribution on the App Store... If the app is intended for use by a specific business or organization, review the other distribution options available for apps designed for specific businesses or organizations... Learn more about custom app distribution using Apple Business Manager... Learn more about unlisted app distribution.
+(Submission `dd698a28-2b00-4598-bcbf-2ca3236b2d2c`, reviewed July 28, 2026 on iPhone 17 Pro Max, build 202607282100.)
+
+**Root cause:** At review time, the app had no self-service way for a new business to start using it — every account was pre-provisioned by an admin into one specific `companies/{id}` tenant (see Round 3/4 above), and the app's entire feature set (QA inspection workflow, defect reporting, PDF reports to clients) is scoped per-company. That combination — professional/B2B content plus zero public entry point — is exactly what Apple's Guideline 3.2 flags: it reads as an internal tool for a fixed set of known clients, not a generally-available product, yet it was distributed on the public App Store.
+
+**Options considered:**
+1. Switch distribution to Unlisted App or Custom App (Apple Business Manager) — zero code change, directly matches Apple's own suggested remedy.
+2. Re-add a public "create a new company" flow (multi-tenant SaaS self-signup, Slack/Asana-style) — rejected outright: this is functionally the same self-service business-account creation Apple already rejected once under **Guideline 3.1.1** (Round 3/4 above); re-adding it would very likely trigger 3.1.1 again.
+3. Remove the "company" concept entirely — pivot every account to a standalone personal user, no organization/tenant layer at all.
+
+The user chose option 3 after confirming (a) Firestore only holds test/demo data, so there's no production migration risk, and (b) option 2 is a confirmed dead end from real rejection history, not just a theoretical one.
+
+**Fix — replace company tenancy with per-user ownership:**
+- `Inspection`/`InspectionModel`: removed `companyId`/`companyName` fields entirely. `inspectorId` (pre-existing, previously always `nil`) is now the real ownership field, set to the signed-in user's Firebase Auth uid on creation.
+- `FirestoreService.fetchInspections`, `FirestoreRepository`, `DatabaseRepositoryType`, `SyncInspectionsUseCase`, `InspectionStorageServiceType.loadCache`/`FirestoreInspectionStorageService.loadCache`: renamed `companyId` param → `inspectorId`, query filter changed from `.whereField("companyId", ...)` to `.whereField("inspectorId", ...)`.
+- Deleted the whole company/profile stack: `UserProfile`, `CompanyRepositoryType`/`CompanyRepository`, `CompanyServiceType`/`CompanyService`, `FetchUserProfileUseCase` — verified by grep to be consumed only by `LoginViewModel`, nothing else.
+- `UserManager`: removed `companyId`/`setCompany`. `LoginViewModel`: removed the profile-fetch step entirely, now calls `storageService.loadCache(inspectorId:)` directly after login; `restoreSessionIfNeeded` guards on `storageService.isCacheLoaded` instead of a company id.
+- `CreateInspectionViewModel` and its two construction sites (`CreateInspectionView.swift`, `LMSHomeView.swift`) now resolve `UserManager.currentUser?.id` instead of `UserManager.companyId`.
+- `firestore.rules`: replaced the `users/{uid}` + `companies/{id}` + `myCompanyId()` scheme with `isOwner(inspectorId)` checks directly on `inspections`, its `errorItems` subcollection, and `report_delivery_queue`. No rule needed for account creation (`Auth.auth().createUser` is a pure Auth call, no Firestore write).
+- `firestore.indexes.json`: composite index field `companyId` → `inspectorId`.
+- `functions/src/index.ts`: dropped the `companyName` placeholder (`%c`) from the report-delivery email template — this was actually a **latent bug**, not a regression: `CreateInspectionViewModel` always wrote `companyName: ""` on real (non-preview) inspections, so every past report email already rendered with a blank company name.
+- Re-added personal sign-up (this is why it does **not** reintroduce 3.1.1 — no organization is created or joined): restored `signUp` on the `AuthServiceType`/`AuthService`/`AuthRepositoryType`/`AuthRepository` stack, recreated `SignUpUseCase`, `SignUpViewModel` (name/email/password only — no company step, so no rollback use case needed either), `SignUpView`, registered both in `Container.swift`, and re-added the `signUpLink` on `LoginView.swift`.
+- UI cleanup: removed all `companyName` display rows/mock data across `InspectionCardView`, `InspectionDetailBottomSheet`, `OrderDetailBottomSheet`, `OrdersView`/`OrdersViewModel`, `InformationPurchaseView`/`ViewModel`, `ReportLMSHomeView`, `ProgressView`, `PlanLMSHomeView`, `InspectionStore`.
+- Left untouched (pre-existing, unrelated dead code, only minimally patched to keep compiling against the new `Inspection` signature): `CreateInspectionUseCase`/`InspectionRepository`/`InspectionService`/`InspectionStore` mock-persistence path (real saves go through `FirestoreInspectionStorageService`, never through these). Also untouched: `functions/scripts/migrate-add-default-company.js`/`fix-company-name.js` (historical one-off scripts, not run by the app).
+
+**Behavior after fix:** Every account is a standalone individual. Signing up creates only a personal Firebase Auth account; inspections are private to the inspector who created them; there is no shared "company" concept anywhere in the app or its data model.
+
+**Verification:** Exhaustive `grep -rn "companyId\|companyName\|CompanyRepository\|CompanyService\|UserProfile\|myCompanyId"` over `report_lms/Sources`, `firestore.rules`, `firestore.indexes.json` — zero matches (excluding stale references in `.md` docs, left as-is). `xcodebuild -project report_lms.xcodeproj -scheme report_lms -sdk iphonesimulator build` — **BUILD SUCCEEDED**. `npx tsc --noEmit` in `functions/` — passed with no errors.
