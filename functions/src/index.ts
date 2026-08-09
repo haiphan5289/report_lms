@@ -81,7 +81,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     inspectorConclusion:  "Kết luận kiểm tra",
     statusBanner:         "Trạng thái:",
     summary:              "TÓM TẮT",
-    summaryCommentsSection: "Tóm tắt nhận xét",
+    fieldComment:         "Nhận xét:",
     checklistSection:     "Hạng mục kiểm tra",
     statusColumn:         "Trạng thái",
     accepted:             "ĐẠT",
@@ -115,7 +115,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     inspectorConclusion:  "Inspector Conclusion",
     statusBanner:         "Status:",
     summary:              "SUMMARY",
-    summaryCommentsSection: "Summary Comments",
+    fieldComment:         "Comment:",
     checklistSection:     "Checklist Section",
     statusColumn:         "Status",
     accepted:             "ACCEPTED",
@@ -352,6 +352,8 @@ interface InspectionField {
   imageURLs?:            string[];
   imageDescriptions?:    string[];
   imageMeasurementsMM?:  string[];
+  /** Field-level remark entered by the inspector (distinct from per-image imageDescriptions). */
+  comment?:              string;
 }
 
 interface InspectionSection {
@@ -636,13 +638,17 @@ function drawConclusionRow(
   doc.font(fonts.B).fontSize(9).fillColor(C_WHITE)
     .text(label, badgeX + hPad, y + 4 + vPad, { lineBreak: false });
 
+  let rowH = INFO_ROW_H;
   if (summaryComments) {
     const notesX = badgeX + bW + 10;
-    doc.font(fonts.R).fontSize(9).fillColor(C_GRAY)
-      .text(summaryComments, notesX, y + 6,
-        { width: MARGIN + CW - notesX, lineBreak: false });
+    const notesW = MARGIN + CW - notesX;
+    doc.font(fonts.R).fontSize(9);
+    const notesH = doc.heightOfString(summaryComments, { width: notesW });
+    doc.fillColor(C_GRAY)
+      .text(summaryComments, notesX, y + 6, { width: notesW });
+    rowH = Math.max(rowH, notesH + 10);
   }
-  return y + INFO_ROW_H;
+  return y + rowH;
 }
 
 /** Full-width coloured status banner. */
@@ -842,21 +848,6 @@ async function generatePDF(
     const { critical, major, minor } = countBySeverity(errorItems);
     y = drawDefectTable(doc, critical, major, minor, y, fonts);
 
-    // Summary Comments section (hidden when empty) — sits just above the per-section
-    // image pages that follow, mirrors iOS PDFKitGeneratorService's drawSummaryCommentsSection.
-    if (summaryComments) {
-      y += 16;
-      if (y + 40 > CONTENT_MAX_Y) { y = newPage(); }
-      doc.font(fonts.B).fontSize(14).fillColor(C_DARK)
-        .text(t(lang, "summaryCommentsSection"), MARGIN, y, { lineBreak: false });
-      y += Math.ceil(14 * 1.2) + 8;
-
-      doc.font(fonts.R).fontSize(10).fillColor(C_MID);
-      const commentsH = doc.heightOfString(summaryComments, { width: CW });
-      doc.text(summaryComments, MARGIN, y, { width: CW });
-      y += commentsH;
-    }
-
     // ── Defects section: one entry per errorItems doc (title + severity + comments + images) ──
     if (errorItems.length > 0) {
       y += 16;
@@ -934,7 +925,12 @@ async function generatePDF(
       fields.forEach((field, fi) => {
         const urls    = Array.isArray(field.imageURLs) ? field.imageURLs : [];
         const bufs    = urls.map((u) => imageMap.get(u)).filter(Boolean) as Buffer[];
-        const neededH = bufs.length === 0 ? 30 : IMG_H + 40;
+        const comment = field.comment ?? "";
+        doc.font(fonts.R).fontSize(10);
+        const commentH = comment
+          ? doc.heightOfString(`${t(lang, "fieldComment")} ${comment}`, { width: CW }) + 6
+          : 0;
+        const neededH = (bufs.length === 0 ? 30 : IMG_H + 40) + commentH;
 
         if (y + neededH > CONTENT_MAX_Y) { y = newPage(); }
 
@@ -943,6 +939,13 @@ async function generatePDF(
           .text(`${si + 1}.${fi + 1}   ${field.label ?? ""}`, MARGIN, y,
             { width: CW, lineBreak: false });
         y += Math.ceil(11 * 1.2) + 4;
+
+        // Field-level remark, wrapped to full width with no truncation
+        if (comment) {
+          doc.font(fonts.R).fontSize(10).fillColor(C_MID)
+            .text(`${t(lang, "fieldComment")} ${comment}`, MARGIN, y, { width: CW });
+          y += commentH;
+        }
 
         // 4-column photo grid with optional per-image captions
         if (bufs.length > 0) {

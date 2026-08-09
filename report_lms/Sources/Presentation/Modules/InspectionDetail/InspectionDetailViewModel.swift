@@ -19,6 +19,7 @@ final class InspectionDetailViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var inspection: Inspection?
     @Published var capturedPhotos: [String: [InspectionImage]] = [:] // fieldId: [images]
+    @Published var fieldComments: [String: String] = [:] // fieldId: comment
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var snackbarMessage: String?
@@ -168,6 +169,9 @@ final class InspectionDetailViewModel: ObservableObject {
                     let measurementMM = index < field.imageMeasurementsMM.count ? field.imageMeasurementsMM[index] : ""
                     return InspectionImage(remoteURL: url, description: description, measurementMM: measurementMM)
                 }
+            }
+            for field in section.fields where !field.comment.isEmpty && fieldComments[field.id] == nil {
+                fieldComments[field.id] = field.comment
             }
         }
     }
@@ -340,6 +344,10 @@ final class InspectionDetailViewModel: ObservableObject {
         return capturedPhotos[fieldId] ?? []
     }
 
+    func getComment(for fieldId: String) -> String {
+        return fieldComments[fieldId] ?? ""
+    }
+
     /// Returns an existing coordinator for `fieldId`, or creates and wires a new one.
     /// The coordinator is stored in `uploadCoordinators` — it outlives any view that uses it.
     func makeCoordinator(for fieldId: String) -> FieldUploadCoordinator {
@@ -379,6 +387,7 @@ final class InspectionDetailViewModel: ObservableObject {
     
     func handleValidationSave(_ validation: FieldValidation) {
         capturedPhotos[validation.id] = validation.images
+        fieldComments[validation.id] = validation.comments
         selectedValidationField = nil
         startUploadSession(fieldId: validation.id, images: validation.images)
     }
@@ -387,6 +396,7 @@ final class InspectionDetailViewModel: ObservableObject {
     /// Called when auto-save triggers from camera capture (no navigation change).
     func handleValidationUpdate(_ validation: FieldValidation) {
         capturedPhotos[validation.id] = validation.images
+        fieldComments[validation.id] = validation.comments
         startUploadSession(fieldId: validation.id, images: validation.images)
     }
     
@@ -424,12 +434,13 @@ final class InspectionDetailViewModel: ObservableObject {
             // Immediate echo so the field list shows the new photo(s) right away — coordinator's
             // own onSilentSave (wired in makeCoordinator) fires again once the actual upload
             // completes, keeping capturedPhotos in sync with the final remote state too.
+            let existingComment = fieldComments[fieldId] ?? ""
             let validation = FieldValidation(
-                id: fieldId, status: .passed, comments: "",
+                id: fieldId, status: .passed, comments: existingComment,
                 images: coordinator.images, lastUpdated: Date()
             )
             self.handleValidationUpdate(validation)
-            coordinator.enqueue(status: .passed, comments: "")
+            coordinator.enqueue(status: .passed, comments: existingComment)
         }
     }
 
@@ -452,6 +463,9 @@ final class InspectionDetailViewModel: ObservableObject {
                     current.sections[sectionIndex].fields[fieldIndex].imageURLs = remoteURLs
                     current.sections[sectionIndex].fields[fieldIndex].imageDescriptions = remoteImages.map { $0.description }
                     current.sections[sectionIndex].fields[fieldIndex].imageMeasurementsMM = remoteImages.map { $0.measurementMM }
+                }
+                if let comment = fieldComments[fieldId] {
+                    current.sections[sectionIndex].fields[fieldIndex].comment = comment
                 }
             }
         }

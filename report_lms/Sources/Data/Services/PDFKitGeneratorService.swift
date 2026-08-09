@@ -101,7 +101,8 @@ final class PDFKitGeneratorService: PDFGeneratorType {
                 for (fi, field) in section.fields.enumerated() {
                     let fNum       = fi + 1
                     let fieldImgs  = images[field.id] ?? []
-                    let neededH: CGFloat = fieldImgs.isEmpty ? 30 : Layout.imageHeight + 40
+                    let commentH   = fieldCommentHeight(field.comment)
+                    let neededH: CGFloat = (fieldImgs.isEmpty ? 30 : Layout.imageHeight + 40) + commentH
 
                     if y + neededH > Layout.contentMaxY {
                         ctx.beginPage()
@@ -111,6 +112,10 @@ final class PDFKitGeneratorService: PDFGeneratorType {
                     }
 
                     y = drawFieldHeading("\(sNum).\(fNum)   \(field.label)", at: y)
+
+                    if !field.comment.isEmpty {
+                        y = drawFieldComment(field.comment, at: y)
+                    }
 
                     if !fieldImgs.isEmpty {
                         y = drawPhotoGrid(
@@ -211,38 +216,6 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         // 9. Defect count table
         y = drawDefectTable(defectCounts: defectCounts, at: y)
 
-        // 10. Summary Comments section (hidden when empty)
-        if !summaryComments.isEmpty {
-            y += 16
-            y = drawSummaryCommentsSection(summaryComments, at: y)
-        }
-
-        return y
-    }
-
-    /// Cover-page "Summary Comments" block — same heading style as "SUMMARY" above the
-    /// checklist table, drawn below the defect table so it sits just above the per-section
-    /// image pages that follow.
-    private func drawSummaryCommentsSection(_ text: String, at startY: CGFloat) -> CGFloat {
-        var y = startY
-
-        let headingFont = UIFont.boldSystemFont(ofSize: 14)
-        let headingAttrs: [NSAttributedString.Key: Any] = [.font: headingFont, .foregroundColor: UIColor.black]
-        "Summary Comments".draw(at: CGPoint(x: Layout.margin, y: y), withAttributes: headingAttrs)
-        y += headingFont.lineHeight + 8
-
-        let bodyFont = UIFont.systemFont(ofSize: 10)
-        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: bodyFont, .foregroundColor: UIColor(white: 0.25, alpha: 1)]
-        let bodyBounds = text.boundingRect(
-            with: CGSize(width: Layout.contentWidth, height: 400),
-            options: .usesLineFragmentOrigin, attributes: bodyAttrs, context: nil
-        )
-        text.draw(
-            with: CGRect(x: Layout.margin, y: y, width: Layout.contentWidth, height: bodyBounds.height),
-            options: .usesLineFragmentOrigin, attributes: bodyAttrs, context: nil
-        )
-        y += bodyBounds.height
-
         return y
     }
 
@@ -287,6 +260,7 @@ final class PDFKitGeneratorService: PDFGeneratorType {
 
     // MARK: - Conclusion Row
 
+    /// Row height grows to fit `notes` in full (no truncation) — returns `y + max(infoRowH, wrapped notes height)`.
     private func drawConclusionRow(status: FinalReportStatus, notes: String, at y: CGFloat) -> CGFloat {
         let labelFnt = UIFont.systemFont(ofSize: 10)
         let noteFnt  = UIFont.systemFont(ofSize: 9)
@@ -299,17 +273,24 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         let badgeX = Layout.margin + 130
         let badgeW = drawStatusBadge(status: status, at: CGPoint(x: badgeX, y: y + 4))
 
+        var rowH = Layout.infoRowH
         if !notes.isEmpty {
             let notesX = badgeX + badgeW + 10
             let notesW = Layout.margin + Layout.contentWidth - notesX
+            let noteAttrs: [NSAttributedString.Key: Any] = [.font: noteFnt, .foregroundColor: labelClr]
+            let notesBounds = notes.boundingRect(
+                with: CGSize(width: notesW, height: 400),
+                options: .usesLineFragmentOrigin, attributes: noteAttrs, context: nil
+            )
             notes.draw(
-                with: CGRect(x: notesX, y: y + 4, width: notesW, height: Layout.infoRowH),
+                with: CGRect(x: notesX, y: y + 4, width: notesW, height: notesBounds.height),
                 options: .usesLineFragmentOrigin,
-                attributes: [.font: noteFnt, .foregroundColor: labelClr],
+                attributes: noteAttrs,
                 context: nil
             )
+            rowH = max(rowH, notesBounds.height + 8)
         }
-        return y + Layout.infoRowH
+        return y + rowH
     }
 
     // MARK: - Status Badge
@@ -495,6 +476,38 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor(white: 0.25, alpha: 1)]
         text.draw(at: CGPoint(x: Layout.margin, y: y), withAttributes: attrs)
         return y + font.lineHeight + 4
+    }
+
+    // MARK: - Field Comment
+
+    private func fieldCommentAttrs() -> [NSAttributedString.Key: Any] {
+        [.font: UIFont.systemFont(ofSize: 10), .foregroundColor: UIColor(white: 0.30, alpha: 1)]
+    }
+
+    /// Height a field's "Comment: <text>" line will occupy, or 0 when there is no comment.
+    private func fieldCommentHeight(_ comment: String) -> CGFloat {
+        guard !comment.isEmpty else { return 0 }
+        let bounds = "Comment: \(comment)".boundingRect(
+            with: CGSize(width: Layout.contentWidth, height: 400),
+            options: .usesLineFragmentOrigin, attributes: fieldCommentAttrs(), context: nil
+        )
+        return bounds.height + 6
+    }
+
+    /// Draws a field-level remark ("Comment: <text>") above that field's photo grid, wrapped
+    /// to full width with no truncation.
+    private func drawFieldComment(_ comment: String, at startY: CGFloat) -> CGFloat {
+        let text   = "Comment: \(comment)"
+        let attrs  = fieldCommentAttrs()
+        let bounds = text.boundingRect(
+            with: CGSize(width: Layout.contentWidth, height: 400),
+            options: .usesLineFragmentOrigin, attributes: attrs, context: nil
+        )
+        text.draw(
+            with: CGRect(x: Layout.margin, y: startY, width: Layout.contentWidth, height: bounds.height),
+            options: .usesLineFragmentOrigin, attributes: attrs, context: nil
+        )
+        return startY + bounds.height + 6
     }
 
     // MARK: - 4-Column Photo Grid

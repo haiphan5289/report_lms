@@ -46,15 +46,20 @@ protocol InspectionStorageServiceType {
     /// Overwrites the stored copy of `inspection` and refreshes the cache.
     func updateInspection(_ inspection: Inspection) async throws
 
-    /// Updates `imageURLs`, `imageDescriptions`, and `imageMeasurementsMM` for a single field without replacing the entire document.
+    /// Updates `imageURLs`, `imageDescriptions`, `imageMeasurementsMM`, and (optionally) `comment`
+    /// for a single field without replacing the entire document.
     ///
     /// Concurrent field uploads (two fields uploading simultaneously) would otherwise
     /// race: each reads the same Firestore snapshot, updates only its own field, then
     /// `setData` — the second write silently erases the first field's URLs. This method
     /// serializes those writes so each one reads a fresh snapshot after the previous
     /// write lands, guaranteeing both fields' URLs survive.
+    ///
+    /// - Parameter comment: pass `nil` to leave the field's stored comment untouched (e.g. the
+    ///   pending-upload retry path, which has no comment context); pass a value — including an
+    ///   empty string — to overwrite it with the inspector's current text.
     @MainActor
-    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String], imageMeasurementsMM: [String]) async throws
+    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String], imageMeasurementsMM: [String], comment: String?) async throws
 
     /// Updates only the `status` field — safe to call concurrently with `updateFieldImageURLs`.
     ///
@@ -73,10 +78,11 @@ protocol InspectionStorageServiceType {
 }
 
 extension InspectionStorageServiceType {
-    /// Convenience overload for call sites that have no per-image descriptions (e.g. retry service).
+    /// Convenience overload for call sites that have no per-image descriptions or comment
+    /// context (e.g. retry service) — leaves the stored `comment` untouched.
     @MainActor
     func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String]) async throws {
-        try await updateFieldImageURLs(inspectionId: inspectionId, fieldId: fieldId, imageURLs: imageURLs, imageDescriptions: [], imageMeasurementsMM: [])
+        try await updateFieldImageURLs(inspectionId: inspectionId, fieldId: fieldId, imageURLs: imageURLs, imageDescriptions: [], imageMeasurementsMM: [], comment: nil)
     }
 }
 

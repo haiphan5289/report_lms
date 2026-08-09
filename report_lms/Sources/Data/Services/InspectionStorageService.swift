@@ -143,7 +143,7 @@ final class InspectionStorageService: InspectionStorageServiceType {
     }
     
     @MainActor
-    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String], imageMeasurementsMM: [String]) async throws {
+    func updateFieldImageURLs(inspectionId: String, fieldId: String, imageURLs: [String], imageDescriptions: [String], imageMeasurementsMM: [String], comment: String?) async throws {
         guard var inspection = getInspection(by: inspectionId) else { return }
         for si in inspection.sections.indices {
             if let fi = inspection.sections[si].fields.firstIndex(where: { $0.id == fieldId }) {
@@ -151,6 +151,9 @@ final class InspectionStorageService: InspectionStorageServiceType {
                 inspection.sections[si].fields[fi].imageDescriptions = imageDescriptions
                 inspection.sections[si].fields[fi].imageMeasurementsMM = imageMeasurementsMM
                 inspection.sections[si].fields[fi].photoURL = imageURLs.first
+                if let comment {
+                    inspection.sections[si].fields[fi].comment = comment
+                }
                 break
             }
         }

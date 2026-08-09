@@ -96,6 +96,7 @@ const TRANSLATIONS = {
         inspectorConclusion: "Kết luận kiểm tra",
         statusBanner: "Trạng thái:",
         summary: "TÓM TẮT",
+        fieldComment: "Nhận xét:",
         checklistSection: "Hạng mục kiểm tra",
         statusColumn: "Trạng thái",
         accepted: "ĐẠT",
@@ -129,6 +130,7 @@ const TRANSLATIONS = {
         inspectorConclusion: "Inspector Conclusion",
         statusBanner: "Status:",
         summary: "SUMMARY",
+        fieldComment: "Comment:",
         checklistSection: "Checklist Section",
         statusColumn: "Status",
         accepted: "ACCEPTED",
@@ -563,12 +565,17 @@ function drawConclusionRow(doc, finalStatus, summaryComments, y, fonts, lang = "
     doc.roundedRect(badgeX, y + 4, bW, bH, 2).fillColor(color).fill();
     doc.font(fonts.B).fontSize(9).fillColor(C_WHITE)
         .text(label, badgeX + hPad, y + 4 + vPad, { lineBreak: false });
+    let rowH = INFO_ROW_H;
     if (summaryComments) {
         const notesX = badgeX + bW + 10;
-        doc.font(fonts.R).fontSize(9).fillColor(C_GRAY)
-            .text(summaryComments, notesX, y + 6, { width: MARGIN + CW - notesX, lineBreak: false });
+        const notesW = MARGIN + CW - notesX;
+        doc.font(fonts.R).fontSize(9);
+        const notesH = doc.heightOfString(summaryComments, { width: notesW });
+        doc.fillColor(C_GRAY)
+            .text(summaryComments, notesX, y + 6, { width: notesW });
+        rowH = Math.max(rowH, notesH + 10);
     }
-    return y + INFO_ROW_H;
+    return y + rowH;
 }
 /** Full-width coloured status banner. */
 function drawStatusBanner(doc, finalStatus, y, fonts, lang = "vi") {
@@ -794,21 +801,32 @@ async function generatePDF(inspection, inspectionNumber, location, displayName, 
             y = drawSectionHeader(doc, `${si + 1}   ${(_a = section.title) !== null && _a !== void 0 ? _a : ""}`, y, fonts);
             y += 6;
             fields.forEach((field, fi) => {
-                var _a, _b, _c;
+                var _a, _b, _c, _d;
                 const urls = Array.isArray(field.imageURLs) ? field.imageURLs : [];
                 const bufs = urls.map((u) => imageMap.get(u)).filter(Boolean);
-                const neededH = bufs.length === 0 ? 30 : IMG_H + 40;
+                const comment = (_a = field.comment) !== null && _a !== void 0 ? _a : "";
+                doc.font(fonts.R).fontSize(10);
+                const commentH = comment
+                    ? doc.heightOfString(`${t(lang, "fieldComment")} ${comment}`, { width: CW }) + 6
+                    : 0;
+                const neededH = (bufs.length === 0 ? 30 : IMG_H + 40) + commentH;
                 if (y + neededH > CONTENT_MAX_Y) {
                     y = newPage();
                 }
                 // Field heading
                 doc.font(fonts.R).fontSize(11).fillColor(C_MID)
-                    .text(`${si + 1}.${fi + 1}   ${(_a = field.label) !== null && _a !== void 0 ? _a : ""}`, MARGIN, y, { width: CW, lineBreak: false });
+                    .text(`${si + 1}.${fi + 1}   ${(_b = field.label) !== null && _b !== void 0 ? _b : ""}`, MARGIN, y, { width: CW, lineBreak: false });
                 y += Math.ceil(11 * 1.2) + 4;
+                // Field-level remark, wrapped to full width with no truncation
+                if (comment) {
+                    doc.font(fonts.R).fontSize(10).fillColor(C_MID)
+                        .text(`${t(lang, "fieldComment")} ${comment}`, MARGIN, y, { width: CW });
+                    y += commentH;
+                }
                 // 4-column photo grid with optional per-image captions
                 if (bufs.length > 0) {
-                    const descriptions = (_b = field.imageDescriptions) !== null && _b !== void 0 ? _b : [];
-                    const measurements = (_c = field.imageMeasurementsMM) !== null && _c !== void 0 ? _c : [];
+                    const descriptions = (_c = field.imageDescriptions) !== null && _c !== void 0 ? _c : [];
+                    const measurements = (_d = field.imageMeasurementsMM) !== null && _d !== void 0 ? _d : [];
                     const CAPTION_FONT_SIZE = 8;
                     const CAPTION_TOP_PAD = 3;
                     const MEASURE_FONT_SIZE = 8;

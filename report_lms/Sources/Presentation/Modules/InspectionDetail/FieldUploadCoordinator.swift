@@ -245,7 +245,7 @@ final class FieldUploadCoordinator: ObservableObject {
                 try await storageService.updateFieldImageURLs(
                     inspectionId: inspectionId, fieldId: fieldId,
                     imageURLs: existingRemoteURLs, imageDescriptions: descriptions,
-                    imageMeasurementsMM: measurements
+                    imageMeasurementsMM: measurements, comment: comments
                 )
                 let draft = FieldValidation(id: fieldId, status: status, comments: comments,
                                            images: images, lastUpdated: Date())
@@ -369,7 +369,8 @@ final class FieldUploadCoordinator: ObservableObject {
                 fieldId: fieldId,
                 imageURLs: uploadedURLs,
                 imageDescriptions: uploadedDescriptions,
-                imageMeasurementsMM: uploadedMeasurements
+                imageMeasurementsMM: uploadedMeasurements,
+                comment: comments
             )
             PendingUploadStore.shared.clearField(inspectionId: inspectionId, fieldId: fieldId)
             print("[UploadSession] Firestore OK + clearField fieldId=\(fieldId.prefix(8)) totalURLs=\(uploadedURLs.count)")

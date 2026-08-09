@@ -62,6 +62,7 @@ struct InspectionValidationView: View {
         coordinator: FieldUploadCoordinator,
         fieldLabel: String,
         initialImages: [InspectionImage] = [],
+        initialComments: String = "",
         inspectionId: String? = nil,
         onSave: @escaping (FieldValidation) -> Void,
         onSilentSave: ((FieldValidation) -> Void)? = nil
@@ -73,6 +74,7 @@ struct InspectionValidationView: View {
                 coordinator: coordinator,
                 fieldLabel: fieldLabel,
                 initialImages: initialImages,
+                initialComments: initialComments,
                 onSave: onSave,
                 onSilentSave: onSilentSave
             )

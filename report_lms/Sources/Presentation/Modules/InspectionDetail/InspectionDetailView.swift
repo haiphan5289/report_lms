@@ -83,6 +83,7 @@ struct InspectionDetailView: View {
                 coordinator: viewModel.makeCoordinator(for: field.id),
                 fieldLabel: field.label,
                 initialImages: viewModel.getImages(for: field.id),
+                initialComments: viewModel.getComment(for: field.id),
                 inspectionId: viewModel.inspection?.id,
                 onSave: { validation in
                     viewModel.handleValidationSave(validation)

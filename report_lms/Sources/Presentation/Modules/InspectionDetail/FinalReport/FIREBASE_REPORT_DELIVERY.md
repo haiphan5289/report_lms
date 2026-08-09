@@ -178,7 +178,8 @@ Cả hai delivery path (local preview và Firebase) đều dùng cùng Qarma-sty
 │ Planned Date:     ...    │  Sampling Method: 100% inspection     │
 │ Supplier Name:    ...    (spans full width)                       │
 ├──────────────────────────────────────────────────────────────────┤
-│ Inspector Conclusion  [ACCEPTED]  Notes text...                  │
+│ Inspector Conclusion  [ACCEPTED]  Notes text, wraps to fit       │
+│                                    full content, no cut-off...   │
 ├──────────────────────────────────────────────────────────────────┤
 │████████████  Status: ACCEPTED  ██████████████████████████████████│
 ├──────────────────────────────────────────────────────────────────┤
@@ -199,6 +200,8 @@ Cả hai delivery path (local preview và Firebase) đều dùng cùng Qarma-sty
 └──────────────────────────────────────────────────────────────────┘
 ```
 
+> **Inspector Conclusion notes — full text, no truncation** (sửa 2026-08-09): `drawConclusionRow` trước đây vẽ notes text (`summaryComments`) vào một vùng chiều cao **cố định** (Swift: `infoRowH` 26pt; TS: `lineBreak:false` — chỉ 1 dòng) → ghi chú dài bị **cắt/tràn**. Nay đo chiều cao thật của text đã wrap (`boundingRect` / `doc.heightOfString`) và giãn chiều cao cả row theo đó, đảm bảo hiện **đủ full text**, không cắt. Đây là **nơi duy nhất** `summaryComments` được render trên cover page — trước đó có thử thêm 1 section "Summary Comments" riêng bên dưới defect table nhưng đã bỏ ngay trong ngày vì bị trùng lặp nội dung với chỗ này.
+
 **Trang 2+ — Sections**
 
 Sections có ảnh → bắt đầu trang mới. Sections không có ảnh → tiếp tục trang hiện tại (chỉ sang trang mới nếu không đủ chỗ cho header + 1 field row).
@@ -209,6 +212,7 @@ Sections có ảnh → bắt đầu trang mới. Sections không có ảnh → t
 │ ──────────────────────────── (blue underline 1.5pt)              │
 │                                                                  │
 │ 1.1   Field Label  (regular 11pt)                                │
+│ Comment: ghi chú "Nhận xét" của inspector cho field này (nếu có)│
 │ ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐     │
 │ │  image 1  │  │  image 2  │  │  image 3  │  │  image 4  │     │
 │ └───────────┘  └───────────┘  └───────────┘  └───────────┘     │
@@ -221,6 +225,8 @@ Sections có ảnh → bắt đầu trang mới. Sections không có ảnh → t
 │ Report created with report_lms.    Order: INS-XXXX, page: 2     │
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+> **Field Comment** (thêm 2026-08-09): render `InspectionField.comment` — nếu khác rỗng, hiện `"Comment: <text>"` (iOS) / `t(lang, "fieldComment")` → `"Nhận xét:"` (vi) / `"Comment:"` (en) ngay trên photo grid của field đó, wrap full text không cắt. Chiều cao được tính vào page-break check của field để không bị tách trang lẻ. Nguồn dữ liệu: ô "Nhận xét" trong `InspectionValidationView` — trước đây UI này tồn tại nhưng giá trị **bị mất, không bao giờ lưu Firestore**; đã fix full chain (domain model → Firestore save/load → PDF), xem `InspectionValidationView.md#comments-persistence`.
 
 ### Hằng số layout
 
@@ -355,5 +361,7 @@ report_lms/Sources/
 
 ---
 
-*Last updated: 2026-07-04 — feat/login branch*  
-*Changes: Qarma-style PDF layout (cover page, 4-col grid, per-page footer, status banner); finalStatus + summaryComments threaded through queue delivery; fixed blank pages (PDFDocument margins set to 0 so pdfkit auto-break threshold doesn't conflict with FOOTER_Y); smart section page-break (only force new page when section has images or not enough room); trace-CC + Reply-To to requestedBy with "unknown" guard; photo grid switched from stretch to aspect-fit (both Cloud Function and iOS).*
+*Last updated: 2026-08-09 (v2, cùng ngày) — feat/login branch*
+*Changes: bỏ section "Summary Comments" riêng vừa thêm trong ngày (bị trùng nội dung với text cạnh badge Inspector Conclusion) — thay vào đó sửa chỗ text cạnh badge để tự wrap + giãn chiều cao theo nội dung thật, đảm bảo full text không bị cắt, không còn duplicate; giữ nguyên per-field "Comment:" line trên photo grid (`InspectionField.comment`, ẩn khi rỗng) — kèm fix data-loss bug: ô "Nhận xét" trong `InspectionValidationView` trước đây không lưu Firestore, nay có full chain domain model → Firestore save/load → PDF; tất cả thay đổi mirror trên iOS và Cloud Function; Cloud Function đã deploy lên `reportlms-7e6b6` (`processReportQueue`, asia-southeast1) trước khi bỏ Summary Comments section — **cần deploy lại** để áp dụng bản sửa mới nhất.*
+
+*Trước đó: 2026-07-04 — Qarma-style PDF layout (cover page, 4-col grid, per-page footer, status banner); finalStatus + summaryComments threaded through queue delivery; fixed blank pages (PDFDocument margins set to 0 so pdfkit auto-break threshold doesn't conflict with FOOTER_Y); smart section page-break (only force new page when section has images or not enough room); trace-CC + Reply-To to requestedBy with "unknown" guard; photo grid switched from stretch to aspect-fit (both Cloud Function and iOS).*

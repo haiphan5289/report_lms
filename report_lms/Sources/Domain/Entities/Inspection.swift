@@ -124,6 +124,8 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
     var imageDescriptions: [String]
     /// Parallel array to imageURLs — per-image size measurement in millimeters entered by inspector.
     var imageMeasurementsMM: [String]
+    /// Field-level remark entered by the inspector (distinct from per-image imageDescriptions).
+    var comment: String
     let isRequired: Bool
 
     enum FieldType: String, Codable {
@@ -134,10 +136,10 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, label, type, photoURL, imageURLs, imageDescriptions, imageMeasurementsMM, isRequired
+        case id, label, type, photoURL, imageURLs, imageDescriptions, imageMeasurementsMM, comment, isRequired
     }
 
-    init(id: String, label: String, type: FieldType, photoURL: String? = nil, imageURLs: [String] = [], imageDescriptions: [String] = [], imageMeasurementsMM: [String] = [], isRequired: Bool) {
+    init(id: String, label: String, type: FieldType, photoURL: String? = nil, imageURLs: [String] = [], imageDescriptions: [String] = [], imageMeasurementsMM: [String] = [], comment: String = "", isRequired: Bool) {
         self.id = id
         self.label = label
         self.type = type
@@ -145,6 +147,7 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
         self.imageURLs = imageURLs
         self.imageDescriptions = imageDescriptions
         self.imageMeasurementsMM = imageMeasurementsMM
+        self.comment = comment
         self.isRequired = isRequired
     }
 
@@ -157,6 +160,7 @@ struct InspectionField: Identifiable, Equatable, Hashable, Codable {
         imageURLs = (try? container.decodeIfPresent([String].self, forKey: .imageURLs)) ?? []
         imageDescriptions = (try? container.decodeIfPresent([String].self, forKey: .imageDescriptions)) ?? []
         imageMeasurementsMM = (try? container.decodeIfPresent([String].self, forKey: .imageMeasurementsMM)) ?? []
+        comment = (try? container.decodeIfPresent(String.self, forKey: .comment)) ?? ""
         isRequired = try container.decode(Bool.self, forKey: .isRequired)
     }
 }

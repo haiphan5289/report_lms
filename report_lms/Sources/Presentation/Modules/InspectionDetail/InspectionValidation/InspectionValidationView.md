@@ -3,7 +3,7 @@
 **Module:** InspectionDetail / InspectionValidation  
 **Pattern:** MVVM (SwiftUI + `@StateObject`)  
 **Created:** 2026-01-03  
-**Last updated:** 2026-06-28 (FieldUploadCoordinator refactor — coordinator owns upload lifecycle, init signature updated)
+**Last updated:** 2026-08-09 (Comments now persist to Firestore and render in the PDF — see [Comments Persistence](#comments-persistence) and `PDF_REFACTORING_QUICK_REFERENCE.md`)
 
 ---
 
@@ -103,7 +103,7 @@ Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDial
 | Property | Type | Purpose |
 |---|---|---|
 | `status` | `ValidationStatus` | Current field status (`.pending`, `.passed`, `.failed`, `.notApplicable`) |
-| `comments` | `String` | Inspector notes |
+| `comments` | `String` | Inspector notes — persisted to Firestore as `InspectionField.comment` (see [Comments Persistence](#comments-persistence)) and rendered in the PDF above that field's photo grid |
 | `images` | `[InspectionImage]` | All images for this field — local entries hold thumbnail + fileURL, remote entries hold remoteURL only |
 | `showCamera` | `Bool` | Triggers `.sheet` with `CameraView` |
 | `isLoading` | `Bool` | General loading state — distinct from upload tracking (upload state lives in `InspectionDetailViewModel.uploadSessions`) |
@@ -119,7 +119,7 @@ Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDial
 | Method | Description |
 |---|---|
 | `appendImages(_:)` | **Phase 1** (chunked 4-at-a-time, `.utility`): generates 800 px thumbnails, appends `InspectionImage(image: thumb)` to `images[]` immediately so UI updates right away. **Phase 2** (sequential nested Task): for each original image calls `cacheCapture()` then updates `images[id].fileURL` in-place after disk write. After all fileURLs set, calls `saveValidation(status: self.status, notifyParent: false)` exactly once |
-| `saveValidation(status:notifyParent:)` | Saves draft, calls `coordinator.enqueue(status:comments:)` which chains a new Task onto the previous via `await prevTask?.value` (serial — prevents Firestore race when second batch captured mid-upload). Thumbnail stripping and upload logic live in `FieldUploadCoordinator.uploadPhotosAndUpdateField`. Fires `onSave` or `onSilentSave` synchronously; upload + Firestore write runs async inside the coordinator's chained task |
+| `saveValidation(status:notifyParent:)` | Saves draft, calls `coordinator.enqueue(status:comments:)` which chains a new Task onto the previous via `await prevTask?.value` (serial — prevents Firestore race when second batch captured mid-upload). Thumbnail stripping and upload logic live in `FieldUploadCoordinator.uploadPhotosAndUpdateField`, which now also writes `comments` to Firestore via `updateFieldImageURLs(..., comment:)`. Fires `onSave` or `onSilentSave` synchronously; upload + Firestore write runs async inside the coordinator's chained task |
 | `loadPendingCaptures()` | On field re-entry: reads pending file paths from `PendingUploadStore`. Skips prepend if `images` already contains local entries (dedup guard). Loads thumbnails from `InspectionImageCacheActor`, prepends `InspectionImage(fileURL:thumbnail:)` entries. Calls `onSilentSave?` so parent calls `startUploadSession`, then calls `coordinator.retry(status:comments:)` |
 | `requestDeleteImage(at:)` | Stores pending index and shows confirmation dialog |
 | `requestDeleteImage(byId:)` | Looks up index by `UUID`, forwards to `requestDeleteImage(at:)` |
@@ -131,7 +131,7 @@ Tapping the `⋯` button on any `ImageGalleryItemView` opens a `confirmationDial
 | `openCamera()` | Sets `showCamera = true` |
 | `toggleDeleteMode()` | Flips `showDeleteMode`; turns off `showSortMode` |
 | `toggleSortMode()` | Flips `showSortMode`; turns off `showDeleteMode` |
-| `loadDraft()` | Restores status + comments from `UserDefaults` key `draft_validation_<fieldId>` |
+| `loadDraft()` | Restores status + comments from `UserDefaults` key `draft_validation_<fieldId>` — same-device fallback only, superseded on screen entry by `initialComments` (see [Comments Persistence](#comments-persistence)) |
 | `replaceImage(at:with:)` | Generates 800 px thumbnail from edited `UIImage`, replaces entry in-place preserving `description`. No `fileURL` — edited result is thumbnail-only (upload uses thumbnail quality, not full-res) |
 | `downloadImage(from:)` | Downloads a remote URL, caches in `ImageCacheActor`, returns `UIImage` (resized to max 2048 px) |
 
@@ -363,6 +363,20 @@ Written to `UserDefaults` under `draft_validation_<fieldId>` on every `saveValid
 ```
 
 Full image data is **not** persisted in the draft; only metadata. Call `viewModel.loadDraft()` to restore status and comments on re-entry.
+
+---
+
+## Comments Persistence
+
+> Fixed 2026-08-09. Previously `comments` was captured in the UI, written to the local `UserDefaults` draft, but **dropped before reaching Firestore** — `updateFieldImageURLs` only ever wrote `imageURLs`/`imageDescriptions`/`imageMeasurementsMM`, so the text never survived a reinstall, a different device, or the PDF. `InspectionField` had no `comment` property at all.
+
+Current flow, end to end:
+
+1. **Domain model** — `InspectionField.comment: String` (`Inspection.swift`), decoded with an empty-string fallback for older documents that predate the field.
+2. **Write path** — `InspectionStorageServiceType.updateFieldImageURLs(..., comment: String?)`. `comment` is `nil` only for the pending-upload retry path (`PendingUploadRetryService`, which has no comment context and must not clobber the stored value); every real save from `FieldUploadCoordinator.uploadPhotosAndUpdateField` passes the inspector's current text (including an intentionally-cleared empty string).
+3. **Session tracking** — `InspectionDetailViewModel.fieldComments: [String: String]`, mirroring the existing `capturedPhotos` dict. Populated from `Inspection.sections[...].fields[...].comment` on load (`restoreCapturedPhotos`), updated in `handleValidationSave`/`handleValidationUpdate`, and merged back into the submitted `Inspection` in `submitInspection()` — same pattern already used for `imageURLs`.
+4. **Re-entry pre-fill** — `InspectionDetailView` passes `initialComments: viewModel.getComment(for: field.id)` into `InspectionValidationView`, which threads it to `InspectionValidationViewModel.init(initialComments:)`. Opening a field a second time (even after reinstall, since the source is now Firestore) restores the previously entered text.
+5. **PDF output** — `field.comment`, when non-empty, renders as `"Comment: <text>"` directly above that field's photo grid in both PDF generators (`PDFKitGeneratorService.swift` and `functions/src/index.ts`). See `PDF_REFACTORING_QUICK_REFERENCE.md`.
 
 ---
 
