@@ -211,6 +211,38 @@ final class PDFKitGeneratorService: PDFGeneratorType {
         // 9. Defect count table
         y = drawDefectTable(defectCounts: defectCounts, at: y)
 
+        // 10. Summary Comments section (hidden when empty)
+        if !summaryComments.isEmpty {
+            y += 16
+            y = drawSummaryCommentsSection(summaryComments, at: y)
+        }
+
+        return y
+    }
+
+    /// Cover-page "Summary Comments" block — same heading style as "SUMMARY" above the
+    /// checklist table, drawn below the defect table so it sits just above the per-section
+    /// image pages that follow.
+    private func drawSummaryCommentsSection(_ text: String, at startY: CGFloat) -> CGFloat {
+        var y = startY
+
+        let headingFont = UIFont.boldSystemFont(ofSize: 14)
+        let headingAttrs: [NSAttributedString.Key: Any] = [.font: headingFont, .foregroundColor: UIColor.black]
+        "Summary Comments".draw(at: CGPoint(x: Layout.margin, y: y), withAttributes: headingAttrs)
+        y += headingFont.lineHeight + 8
+
+        let bodyFont = UIFont.systemFont(ofSize: 10)
+        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: bodyFont, .foregroundColor: UIColor(white: 0.25, alpha: 1)]
+        let bodyBounds = text.boundingRect(
+            with: CGSize(width: Layout.contentWidth, height: 400),
+            options: .usesLineFragmentOrigin, attributes: bodyAttrs, context: nil
+        )
+        text.draw(
+            with: CGRect(x: Layout.margin, y: y, width: Layout.contentWidth, height: bodyBounds.height),
+            options: .usesLineFragmentOrigin, attributes: bodyAttrs, context: nil
+        )
+        y += bodyBounds.height
+
         return y
     }
 

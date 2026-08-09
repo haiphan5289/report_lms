@@ -238,3 +238,33 @@ The user chose option 3 after confirming (a) Firestore only holds test/demo data
 **Behavior after fix:** Every account is a standalone individual. Signing up creates only a personal Firebase Auth account; inspections are private to the inspector who created them; there is no shared "company" concept anywhere in the app or its data model.
 
 **Verification:** Exhaustive `grep -rn "companyId\|companyName\|CompanyRepository\|CompanyService\|UserProfile\|myCompanyId"` over `report_lms/Sources`, `firestore.rules`, `firestore.indexes.json` — zero matches (excluding stale references in `.md` docs, left as-is). `xcodebuild -project report_lms.xcodeproj -scheme report_lms -sdk iphonesimulator build` — **BUILD SUCCEEDED**. `npx tsc --noEmit` in `functions/` — passed with no errors.
+
+---
+
+## Rejection Round 6 (2026-08-02 review, addressed 2026-08-03) — Guideline 3.1.1 (recurrence, same submission)
+
+### Guideline 3.1.1 — Business/Organization Account Registration (recurrence, on the Round 5 build)
+
+**Apple's message:** Same stock language as Round 3/4 — "The app includes an account registration feature for businesses and organizations... Remove the account registration features for business and organizations." (Submission `abed2cb7-abec-4cb0-916f-6d8227dd0589` — same submission thread as Round 4 — reviewed August 2, 2026 on iPhone 17 Pro Max, build **1.0 (202608011500)**, i.e. the exact build that shipped Round 5's fix.)
+
+**Root cause:** This is a direct consequence of Round 5. Round 5 re-added a self-service sign-up flow (`signUpLink` on `LoginView` → `SignUpView` → `SignUpViewModel.signUp()`, creating a real Firebase Auth account) specifically to satisfy Guideline 3.2's demand for public self-service access. Verified by reading the live code (not trusting this log — see the repeated corrections above): the re-added form only collects `displayName`/`email`/`password`, with no company/org field anywhere. But the app is inherently a B2B tool (QA inspection for garment factories, delivering reports to clients — see top-level `README.md`), and Apple's reviewer treats *any* reachable self-registration entry point in an app of this nature as "business account registration," regardless of whether the form itself asks for a company name. **3.1.1 and 3.2 are in direct tension for this app category**: 3.2 says "add public self-signup or use Custom/Unlisted distribution"; 3.1.1 says "no self-service business account creation." Blindly toggling the sign-up flow on/off will keep bouncing between these two rejections.
+
+**Options considered (same fork as Round 5):**
+1. Remove sign-up again + switch distribution to Custom/Unlisted App (Apple Business Manager) — Apple's own suggested remedy for 3.2, and structurally correct for this app category. Breaks the loop for good, but requires an App Store Connect distribution-model change outside of code.
+2. Dispute the rejection in Resolution Center, keep public distribution and the personal-only sign-up — no code change, but this exact rejection language has now fired twice; low confidence of success without addressing the underlying B2B/public-distribution mismatch.
+3. Remove sign-up again, keep public distribution as-is — fixes 3.1.1 immediately but is exactly the Round 4 state that caused Round 5's 3.2 rejection; real risk of a third flip-flop.
+
+**User chose option 3** (fastest path to clear 3.1.1 now; distribution-model change deferred/not wanted at this time).
+
+**Fix — same shape as Round 4:**
+- `LoginView.swift`: deleted the `signUpLink` computed property and its call site in `actionSection`. Login screen now only has email/password + forgot-password + biometric.
+- Deleted: `Presentation/Modules/SignUp/Views/SignUpView.swift`, `Presentation/Modules/SignUp/ViewModels/SignUpViewModel.swift`, `Domain/UseCases/SignUpUseCase.swift` (and the now-empty `SignUp` module directories). No `RollbackSignUpUseCase` existed this round (Round 5 never recreated it).
+- `Container.swift`: removed DI registrations for `SignUpUseCase` and `SignUpViewModel`.
+- Stripped now-orphaned `signUp` from `AuthServiceType`/`AuthService`/`AuthRepositoryType`/`AuthRepository` (only consumer was the deleted `SignUpUseCase`). No `deleteCurrentUser` existed this round.
+- No `project.pbxproj` edits needed (`PBXFileSystemSynchronizedRootGroup` — confirmed present in the file).
+
+**Behavior after fix:** Identical to Round 4 — no in-app path to create a Firebase Auth account; login only works against an existing, admin-provisioned account. **Known risk:** this reintroduces the exact state that triggered Round 5's Guideline 3.2 rejection ("app is for a specific business but distributed publicly"). If 3.2 recurs, the real fix is option 1 above (Custom/Unlisted App distribution) — do not re-add self-signup a second time without changing the distribution model, or this will loop indefinitely.
+
+**Verification:** `grep -rn "SignUp\|signUp\b" report_lms/Sources report_lms.xcodeproj` — zero matches. `xcodebuild -project report_lms.xcodeproj -scheme report_lms -sdk iphonesimulator build` — **BUILD SUCCEEDED**.
+
+**Outcome (2026-08-04): APPROVED.** Submission `abed2cb7-abec-4cb0-916f-6d8227dd0589` (the same thread as Round 4/6) passed review — "Review of your submission has been completed. It is now eligible for distribution." Submitted 2026-08-03 06:04 AM PDT. App is live: [IPS LMS on the App Store](https://apps.apple.com/app/ips-lms/id6758618102). No Guideline 3.2 recurrence on this pass, so the "known risk" flagged above did not materialize this round — but the underlying 3.1.1/3.2 tension for this app category is unresolved in principle; keep option 1 (Custom/Unlisted App distribution) in mind if 3.2 resurfaces on a future submission after further sign-up changes.

@@ -81,6 +81,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     inspectorConclusion:  "Kết luận kiểm tra",
     statusBanner:         "Trạng thái:",
     summary:              "TÓM TẮT",
+    summaryCommentsSection: "Tóm tắt nhận xét",
     checklistSection:     "Hạng mục kiểm tra",
     statusColumn:         "Trạng thái",
     accepted:             "ĐẠT",
@@ -114,6 +115,7 @@ const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     inspectorConclusion:  "Inspector Conclusion",
     statusBanner:         "Status:",
     summary:              "SUMMARY",
+    summaryCommentsSection: "Summary Comments",
     checklistSection:     "Checklist Section",
     statusColumn:         "Status",
     accepted:             "ACCEPTED",
@@ -839,6 +841,21 @@ async function generatePDF(
     y += 12;
     const { critical, major, minor } = countBySeverity(errorItems);
     y = drawDefectTable(doc, critical, major, minor, y, fonts);
+
+    // Summary Comments section (hidden when empty) — sits just above the per-section
+    // image pages that follow, mirrors iOS PDFKitGeneratorService's drawSummaryCommentsSection.
+    if (summaryComments) {
+      y += 16;
+      if (y + 40 > CONTENT_MAX_Y) { y = newPage(); }
+      doc.font(fonts.B).fontSize(14).fillColor(C_DARK)
+        .text(t(lang, "summaryCommentsSection"), MARGIN, y, { lineBreak: false });
+      y += Math.ceil(14 * 1.2) + 8;
+
+      doc.font(fonts.R).fontSize(10).fillColor(C_MID);
+      const commentsH = doc.heightOfString(summaryComments, { width: CW });
+      doc.text(summaryComments, MARGIN, y, { width: CW });
+      y += commentsH;
+    }
 
     // ── Defects section: one entry per errorItems doc (title + severity + comments + images) ──
     if (errorItems.length > 0) {

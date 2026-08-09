@@ -19,11 +19,6 @@ final class AuthRepository: AuthRepositoryType {
         return response.toEntity()
     }
 
-    func signUp(email: String, password: String) async throws -> UserSession {
-        let response = try await service.signUp(email: email, password: password)
-        return response.toEntity()
-    }
-
     func refreshSession() async throws -> UserSession {
         try await service.refreshSession()
     }

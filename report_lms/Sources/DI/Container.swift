@@ -107,10 +107,6 @@ final class Container {
             UpdateDisplayNameUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
         }
 
-        register(SignUpUseCase.self) {
-            SignUpUseCase(repository: Container.shared.resolve(AuthRepositoryType.self)!)
-        }
-
         register(UploadInspectionMediaUseCase.self) {
             UploadInspectionMediaUseCase(storageRepository: Container.shared.resolve(StorageRepositoryType.self)!)
         }
@@ -151,14 +147,6 @@ final class Container {
         register(LoginViewModel.self) {
             LoginViewModel(
                 loginUseCase: Container.shared.resolve(LoginUseCase.self)!,
-                storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
-                userManager: Container.shared.resolve(UserManager.self)!
-            )
-        }
-        register(SignUpViewModel.self) {
-            SignUpViewModel(
-                signUpUseCase: Container.shared.resolve(SignUpUseCase.self)!,
-                updateDisplayNameUseCase: Container.shared.resolve(UpdateDisplayNameUseCase.self)!,
                 storageService: Container.shared.resolve(InspectionStorageServiceType.self)!,
                 userManager: Container.shared.resolve(UserManager.self)!
             )

@@ -132,22 +132,6 @@ struct LoginView: View {
         }
     }
 
-    private var signUpLink: some View {
-        HStack {
-            Text("Chưa có tài khoản?")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-            NavigationLink(destination: SignUpView(viewModel: Container.shared.resolve(SignUpViewModel.self)!)) {
-                Text("Đăng ký")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(.accentColor)
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.top, Layout.forgotPasswordVerticalPadding)
-    }
-
     private var actionSection: some View {
         VStack(spacing: Layout.errorSpacing) {
             if let error = viewModel.errorMessage {
@@ -157,7 +141,6 @@ struct LoginView: View {
 
             loginButton
             biometricButton
-            signUpLink
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.errorMessage == nil)
     }
